@@ -1,4 +1,17 @@
 const PROJECT_REF = process.env.NEXT_PUBLIC_SUPABASE_URL?.match(/https:\/\/(.+)\.supabase\.co/)?.[1] || ''
+const BASE64_PREFIX = 'base64-'
+
+function stringToBase64URL(str: string): string {
+  const bytes = new TextEncoder().encode(str)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
 
 export function getAuthCookieName() {
   return `sb-${PROJECT_REF}-auth-token`
@@ -6,7 +19,7 @@ export function getAuthCookieName() {
 
 export function setAuthCookie(session: { access_token: string; refresh_token: string; expires_at?: number }) {
   const cookieName = getAuthCookieName()
-  const value = btoa(JSON.stringify(session))
+  const value = BASE64_PREFIX + stringToBase64URL(JSON.stringify(session))
   const maxAge = session.expires_at
     ? Math.max(0, session.expires_at - Math.floor(Date.now() / 1000))
     : 3600
