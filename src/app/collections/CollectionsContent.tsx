@@ -113,7 +113,7 @@ export default function CollectionsContent({
         status: 'pending',
         late_days: 0,
         late_amount: 0,
-        loan: { loan_id: loan.loan_id, client: { id: loan.client?.id, name: loan.client?.name } },
+        loan: { loan_id: loan.loan_id, client: loan.client ? { id: loan.client.id, name: loan.client.name, phone: loan.client.phone ?? null } : null } as SyntheticInstallment['loan'],
         isOpenEnded: true,
         openEndedLoan: loan,
       }
@@ -146,7 +146,8 @@ export default function CollectionsContent({
     const amount = parseFloat(paymentAmount)
     const inst = selectedInstallment
     const loan = inst.loan
-    const isInterestOnly = inst.isOpenEnded || loan?.amortization_type === 'interest_only'
+    const isOpenEndedType = 'isOpenEnded' in inst && inst.isOpenEnded
+    const isInterestOnly = isOpenEndedType || loan?.amortization_type === 'interest_only'
 
     const lateDays = calculateLateDays(inst.due_date)
     const lateAmount = calculateLateAmount(inst.amount, lateDays, 0.5)
@@ -192,7 +193,7 @@ export default function CollectionsContent({
             ? Math.round((paidCount / updatedInstallments.length) * 100)
             : 0
           const remaining = isInterestOnly
-            ? loan.remaining_amount
+            ? (loan.remaining_amount ?? 0)
             : Math.max(0, Number(loan.total_amount) - paidAmount)
 
           const updates: Record<string, string | number | boolean> = {

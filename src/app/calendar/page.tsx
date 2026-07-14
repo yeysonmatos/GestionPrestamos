@@ -27,7 +27,7 @@ export default async function CalendarPage() {
       <CalendarContent
         installments={installments || []}
         payments={payments || []}
-        openEndedLoans={openEndedLoans || []}
+        openEndedLoans={(openEndedLoans || []) as any}
       />
     </MainLayout>
   )

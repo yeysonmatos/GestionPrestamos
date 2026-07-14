@@ -48,7 +48,7 @@ export default async function CollectionsPage() {
         overdueInstallments={overdueInstallments || []}
         upcomingInstallments={upcomingInstallments || []}
         recentPayments={recentPayments || []}
-        openEndedLoans={openEndedLoans || []}
+        openEndedLoans={(openEndedLoans || []) as any}
       />
     </MainLayout>
   )

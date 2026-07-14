@@ -44,7 +44,7 @@ export default function PeopleClient({ people: initialPeople, loans }: Props) {
   }
 
   function getPersonStats(personId: string) {
-    const personLoans = loans.filter(l => l.person_id === personId)
+    const personLoans = loans.filter((l: any) => l.person_id === personId)
     const total = personLoans.reduce((s, l) => s + Number(l.amount), 0)
     const active = personLoans.filter(l => l.status === 'active').length
     return { total, active }

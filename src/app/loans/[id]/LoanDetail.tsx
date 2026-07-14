@@ -782,7 +782,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         </div>
       </Modal>
 
-      <Modal open={showSuccess} onClose={() => setShowSuccess(false)}>
+      <Modal open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
         <div className="text-center space-y-5 py-2">
           <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
             <Check className="h-8 w-8 text-green-600" />

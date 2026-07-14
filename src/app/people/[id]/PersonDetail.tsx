@@ -94,14 +94,14 @@ export default function PersonDetail({ person: initialPerson, loans: initialLoan
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-foreground">
-                    {formatCurrency(Number(loan.amount), loan.currency as any)}
+                    {formatCurrency(Number(loan.amount))}
                   </span>
                   <Badge variant={loan.status}>{loan.status === 'active' ? 'Activo' : loan.status === 'paid' ? 'Pagado' : 'Cancelado'}</Badge>
                 </div>
-                {loan.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{loan.description}</p>
+                {(loan as any).description && (
+                  <p className="text-xs text-muted-foreground mt-1">{(loan as any).description}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-0.5">{formatDate(loan.date)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{formatDate((loan as any).date)}</p>
               </div>
               <Link href={`/loans/${loan.id}`}>
                 <Button variant="ghost" size="sm">Ver detalle</Button>
@@ -118,7 +118,7 @@ export default function PersonDetail({ person: initialPerson, loans: initialLoan
             <h2 className="text-lg font-semibold mb-4">Editar persona</h2>
             <form onSubmit={handleUpdate} className="space-y-4">
               <Input label="Nombre" value={name} onChange={e => setName(e.target.value)} required />
-              <Input label="Notas" value={notes} onChange={e => setNotes(e.target.value)} />
+              <Input label="Notas" value={notes ?? ''} onChange={e => setNotes(e.target.value)} />
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" type="button" onClick={() => setEditing(false)}>Cancelar</Button>
                 <Button type="submit" loading={loading}>Guardar</Button>
