@@ -77,14 +77,14 @@ export default function DashboardContent({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Capital Prestado" value={formatCurrency(totalCapital)} icon={Wallet} />
         <StatCard label="Capital Recuperado" value={formatCurrency(recoveredCapital)} icon={PiggyBank} />
         <StatCard label="Capital Pendiente" value={formatCurrency(pendingCapital)} icon={DollarSign} />
         <StatCard label="Intereses Generados" value={formatCurrency(generatedInterest)} icon={TrendingUp} />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="flex items-center gap-3 sm:gap-4">
           <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
             <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
