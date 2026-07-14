@@ -156,9 +156,9 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
           options={[{ value: '', label: 'Seleccionar cliente...' }, ...clients.map(c => ({ value: c.id, label: c.name }))]}
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Monto" type="number" step="0.01" min="0.01" value={form.amount} onChange={e => update('amount', e.target.value)} required />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Select label="Tipo interés" value={form.interest_type} onChange={e => update('interest_type', e.target.value)}
               options={[{ value: 'percentage', label: 'Porcentaje %' }, { value: 'fixed', label: 'Monto fijo' }]}
             />
@@ -211,7 +211,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
           return (
             <div className="bg-primary-light rounded-lg p-4 space-y-3">
               <p className="text-sm font-semibold text-blue-800">Resumen del cálculo</p>
-              <div className="grid grid-cols-4 gap-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                 <div className="bg-white rounded-lg p-2.5">
                   <p className="text-xs text-muted-foreground">Monto del préstamo</p>
                   <p className="font-semibold text-foreground">{formatCurrency(parseFloat(form.amount) || 0)}</p>
