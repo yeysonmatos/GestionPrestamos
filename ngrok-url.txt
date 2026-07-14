@@ -664,3 +664,5 @@ t=2026-07-14T08:35:45-0400 lvl=info msg="join connections" obj=join id=6d3b34c71
 t=2026-07-14T08:35:50-0400 lvl=info msg="join connections" obj=join id=389388d74b1f l=[::1]:3000 r=181.36.78.109:32233
 t=2026-07-14T08:35:57-0400 lvl=info msg="join connections" obj=join id=7928013e5c70 l=[::1]:3000 r=181.36.78.109:57520
 t=2026-07-14T08:36:02-0400 lvl=info msg="join connections" obj=join id=a8b10a84153d l=[::1]:3000 r=181.36.78.109:44187
+t=2026-07-14T09:20:42-0400 lvl=info msg="join connections" obj=join id=a17ebe269c9d l=[::1]:3000 r=152.166.159.240:54809
+t=2026-07-14T09:25:24-0400 lvl=info msg="join connections" obj=join id=bc2661d18a3f l=[::1]:3000 r=152.166.159.240:54915

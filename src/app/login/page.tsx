@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase-client'
-import { setAuthCookie } from '@/lib/auth-utils'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -20,12 +19,9 @@ export default function LoginPage() {
     setMessage('')
 
     if (mode === 'login') {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError(error.message)
-      else if (data.session) {
-        setAuthCookie(data.session)
-        window.location.href = '/dashboard'
-      }
+      else window.location.href = '/dashboard'
     } else {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setError(error.message)
