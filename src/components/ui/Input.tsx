@@ -20,7 +20,7 @@ export default function Input({ label, error, className, id, ...props }: InputPr
       <input
         id={inputId}
         className={cn(
-          'block w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring bg-card min-h-11',
+          'block w-full min-w-0 rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring bg-card min-h-11',
           error ? 'border-destructive focus:ring-destructive' : 'border-border',
           className
         )}
