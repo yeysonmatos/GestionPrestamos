@@ -181,7 +181,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
           </label>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {!form.open_ended && (
             <Input label="N° Cuotas" type="number" min="1" value={form.installments} onChange={e => update('installments', e.target.value)} required />
           )}
