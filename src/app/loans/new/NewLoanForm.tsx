@@ -181,7 +181,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
           </label>
         )}
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           {!form.open_ended && (
             <Input label="N° Cuotas" type="number" min="1" value={form.installments} onChange={e => update('installments', e.target.value)} required />
           )}
@@ -191,7 +191,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
           <Input label="Inicio" type="date" value={form.start_date} onChange={e => update('start_date', e.target.value)} required />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input label="Fecha primer pago" type="date" value={form.first_payment_date} onChange={e => update('first_payment_date', e.target.value)} required />
           {form.open_ended && (
             <Select label="Día de pago" value={form.payment_day} onChange={e => update('payment_day', e.target.value)}

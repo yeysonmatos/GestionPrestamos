@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -78,10 +78,10 @@ export default function DashboardContent({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Capital Prestado" value={formatCurrency(totalCapital)} icon={Wallet} />
-        <StatCard label="Capital Recuperado" value={formatCurrency(recoveredCapital)} icon={PiggyBank} />
-        <StatCard label="Capital Pendiente" value={formatCurrency(pendingCapital)} icon={DollarSign} />
-        <StatCard label="Intereses Generados" value={formatCurrency(generatedInterest)} icon={TrendingUp} />
+        <StatCard label="Capital Prestado" value={formatNumber(totalCapital)} icon={Wallet} />
+        <StatCard label="Capital Recuperado" value={formatNumber(recoveredCapital)} icon={PiggyBank} />
+        <StatCard label="Capital Pendiente" value={formatNumber(pendingCapital)} icon={DollarSign} />
+        <StatCard label="Intereses Generados" value={formatNumber(generatedInterest)} icon={TrendingUp} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -108,7 +108,7 @@ export default function DashboardContent({
             <Calendar className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
           </div>
           <div className="min-w-0">
-            <p className="text-lg md:text-xl font-bold text-foreground">{formatCurrency(todayTotal)}</p>
+            <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(todayTotal)}</p>
             <p className="text-xs text-muted-foreground">Cobros del día</p>
           </div>
         </Card>
@@ -117,7 +117,7 @@ export default function DashboardContent({
             <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
           <div className="min-w-0">
-            <p className="text-lg md:text-xl font-bold text-foreground">{formatCurrency(overdueTotal)}</p>
+            <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(overdueTotal)}</p>
             <p className="text-xs text-muted-foreground">Cobros vencidos</p>
           </div>
         </Card>

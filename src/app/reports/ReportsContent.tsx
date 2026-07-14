@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import PageHeader from '@/components/ui/PageHeader'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -93,40 +93,40 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
         description="Estadísticas y análisis de tu cartera"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
-            <Handshake className="h-5 w-5 text-primary" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+            <Handshake className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{stats.activeLoans}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{stats.activeLoans}</p>
             <p className="text-xs text-muted-foreground">Préstamos activos</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-success-light flex items-center justify-center">
-            <DollarSign className="h-5 w-5 text-success" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-success-light flex items-center justify-center shrink-0">
+            <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-success" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(stats.recoveredCapital)}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(stats.recoveredCapital)}</p>
             <p className="text-xs text-muted-foreground">Capital recuperado</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center">
-            <TrendingUp className="h-5 w-5 text-purple-600" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+            <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(stats.collectedInterest)}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(stats.collectedInterest)}</p>
             <p className="text-xs text-muted-foreground">Intereses cobrados</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-            <Percent className="h-5 w-5 text-emerald-600" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <Percent className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{stats.portfolioHealth}%</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{stats.portfolioHealth}%</p>
             <p className="text-xs text-muted-foreground">Salud cartera</p>
           </div>
         </Card>
@@ -174,14 +174,14 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <p className="text-xs text-muted-foreground">Capital prestado total</p>
-          <p className="text-lg font-bold text-foreground">{formatCurrency(stats.totalCapital)}</p>
+          <p className="text-lg font-bold text-foreground">{formatNumber(stats.totalCapital)}</p>
         </Card>
         <Card>
           <p className="text-xs text-muted-foreground">Capital pendiente</p>
-          <p className="text-lg font-bold text-warning">{formatCurrency(stats.pendingCapital)}</p>
+          <p className="text-lg font-bold text-warning">{formatNumber(stats.pendingCapital)}</p>
         </Card>
         <Card>
           <p className="text-xs text-muted-foreground">Clientes activos</p>
