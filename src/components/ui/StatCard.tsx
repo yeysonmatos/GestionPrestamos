@@ -16,7 +16,7 @@ export default function StatCard({ label, value, icon: Icon, trend, className }:
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{value}</p>
+          <p className="text-xl md:text-2xl font-bold text-foreground mt-1">{value}</p>
           {trend && (
             <p className={cn(
               'text-xs font-medium mt-1',
@@ -27,8 +27,8 @@ export default function StatCard({ label, value, icon: Icon, trend, className }:
           )}
         </div>
         {Icon && (
-          <div className="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
-            <Icon className="h-5 w-5 text-primary" />
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+            <Icon className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
         )}
       </div>

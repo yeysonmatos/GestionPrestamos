@@ -85,39 +85,39 @@ export default function DashboardContent({
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
-            <Users className="h-5 w-5 text-primary" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+            <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{activeClients}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{activeClients}</p>
             <p className="text-xs text-muted-foreground">Clientes activos</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{lateClientIds.size}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{lateClientIds.size}</p>
             <p className="text-xs text-muted-foreground">Clientes morosos</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-emerald-600" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <Calendar className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(todayTotal)}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{formatCurrency(todayTotal)}</p>
             <p className="text-xs text-muted-foreground">Cobros del día</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+        <Card className="flex items-center gap-3 sm:gap-4">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+            <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-foreground">{formatCurrency(overdueTotal)}</p>
+          <div className="min-w-0">
+            <p className="text-lg md:text-xl font-bold text-foreground">{formatCurrency(overdueTotal)}</p>
             <p className="text-xs text-muted-foreground">Cobros vencidos</p>
           </div>
         </Card>
