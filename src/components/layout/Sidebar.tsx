@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -51,7 +51,7 @@ export default function Sidebar() {
               href={item.href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors min-h-11',
                 isActive
                   ? 'bg-primary-light text-primary'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -67,7 +67,7 @@ export default function Sidebar() {
       <div className="p-3 border-t border-border">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-destructive transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-destructive transition-colors w-full min-h-11"
         >
           <LogOut className="h-5 w-5" />
           Cerrar sesión
@@ -86,7 +86,7 @@ export default function Sidebar() {
           </div>
           <span className="font-bold text-foreground">Mis Préstamos</span>
         </Link>
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 text-muted-foreground">
+        <button onClick={() => setMobileOpen(!mobileOpen)} className="min-h-11 min-w-11 flex items-center justify-center text-muted-foreground">
           {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </button>
       </div>

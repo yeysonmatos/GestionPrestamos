@@ -419,7 +419,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               <p className="text-xs text-muted-foreground mt-1">Día de pago: {loan.payment_day} de cada mes</p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button variant="secondary" size="sm" onClick={() => { loadDocs(); setShowDocs(true) }}>
               <FileText className="h-4 w-4 mr-1" /> Documentos
             </Button>
@@ -764,7 +764,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                     <p className="font-medium text-foreground">{doc.name}</p>
                     <p className="text-xs text-muted-foreground">{doc.type === 'contract' ? 'Contrato' : doc.type === 'promissory' ? 'Pagaré' : doc.type === 'guarantee' ? 'Garantía' : 'Foto'}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button variant="secondary" size="sm" onClick={async () => {
                       const { data } = await supabase.storage.from('documents').createSignedUrl(doc.path, 60)
                       if (data) window.open(data.signedUrl, '_blank')
@@ -794,7 +794,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <p className="flex justify-between"><span className="text-muted-foreground">Método:</span> <strong>{paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'}</strong></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Pendiente:</span> <strong>{formatCurrency(loan.remaining_amount)}</strong></p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <Button variant="secondary" className="flex-1" onClick={() => window.print()}>
               <Download className="h-4 w-4 mr-1" /> PDF
             </Button>

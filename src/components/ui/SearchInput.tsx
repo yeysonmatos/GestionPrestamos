@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,7 +19,7 @@ export default function SearchInput({ value, onChange, placeholder = 'Buscar...'
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring bg-card"
+        className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring bg-card min-h-11"
       />
     </div>
   )

@@ -1,4 +1,4 @@
-interface PageHeaderProps {
+﻿interface PageHeaderProps {
   title: string
   description?: string
   action?: React.ReactNode
@@ -6,9 +6,9 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, description, action }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">{title}</h1>
         {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
       </div>
       {action && <div className="flex gap-2">{action}</div>}
