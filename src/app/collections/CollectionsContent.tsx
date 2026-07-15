@@ -174,7 +174,8 @@ export default function CollectionsContent({
     }
 
     const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, installmentAmount)
-    const isNowFullyPaid = totalPaidOnInstallment >= installmentAmount
+    const expectedTotal = (installmentAmount - previouslyPaid) + (includeMora ? totalLateAmount : 0)
+    const isNowFullyPaid = amount >= expectedTotal
 
     const capitalAmount = isInterestOnly ? 0 : Math.min(paidToInstallment, inst.capital)
     const interestAmount = isInterestOnly ? paidToInstallment : Math.min(paidToInstallment, inst.interest)
@@ -199,16 +200,16 @@ export default function CollectionsContent({
 
     if (!error && payment) {
       if (!('isOpenEnded' in inst) || !inst.isOpenEnded) {
-        await supabase
-          .from('installments')
-          .update({
-            status: isNowFullyPaid ? 'paid' : 'pending',
-            paid_amount: totalPaidOnInstallment,
-            late_amount: paidToLate,
-            late_days: lateDays,
-            paid_at: isNowFullyPaid ? paymentDate : null,
-          })
-          .eq('id', (inst as Installment).id)
+          await supabase
+            .from('installments')
+            .update({
+              status: isNowFullyPaid ? 'paid' : 'pending',
+              paid_amount: totalPaidOnInstallment,
+              late_amount: totalLateAmount,
+              late_days: lateDays,
+              paid_at: isNowFullyPaid ? paymentDate : null,
+            })
+            .eq('id', (inst as Installment).id)
       }
 
       if (loan) {

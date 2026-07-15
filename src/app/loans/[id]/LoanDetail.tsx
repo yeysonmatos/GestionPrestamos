@@ -177,7 +177,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     }
 
     const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, inst.amount)
-    const isNowFullyPaid = totalPaidOnInstallment >= inst.amount
+    const expectedTotal = (inst.amount - previouslyPaid) + (includeMora ? totalLateAmount : 0)
+    const isNowFullyPaid = amount >= expectedTotal
 
     const capitalAmount = isInterestOnly ? 0 : Math.min(paidToInstallment, inst.capital)
     const interestAmount = isInterestOnly ? paidToInstallment : Math.min(paidToInstallment, inst.interest)
@@ -206,14 +207,14 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         .update({
           status: isNowFullyPaid ? 'paid' : 'pending',
           paid_amount: totalPaidOnInstallment,
-          late_amount: paidToLate,
+          late_amount: totalLateAmount,
           late_days: lateDays,
           paid_at: isNowFullyPaid ? paymentDate : null,
         })
         .eq('id', inst.id)
 
       const updatedInstallments = installments.map(i =>
-        i.id === inst.id ? { ...i, status: isNowFullyPaid ? 'paid' as const : 'pending' as const, paid_amount: totalPaidOnInstallment, paid_at: isNowFullyPaid ? paymentDate : null, late_days: lateDays, late_amount: paidToLate } : i
+        i.id === inst.id ? { ...i, status: isNowFullyPaid ? 'paid' as const : 'pending' as const, paid_amount: totalPaidOnInstallment, paid_at: isNowFullyPaid ? paymentDate : null, late_days: lateDays, late_amount: totalLateAmount } : i
       )
       setInstallments(updatedInstallments)
       setPayments(prev => [payment, ...prev])
