@@ -236,6 +236,12 @@ export default function CollectionsContent({
   function openPayment(inst: Installment | SyntheticInstallment) {
     setSelectedInstallment(inst)
     setPaymentAmount(String(inst.amount))
+    // Calcular mora dinámicamente al abrir el modal
+    const lateDays = calculateLateDays(inst.due_date)
+    const lateAmount = lateDays > 0 ? calculateLateAmount(inst.amount, lateDays, 0.5) : 0
+    // Guardamos los valores calculados temporalmente para el modal
+    setSelectedInstallment(prev => prev ? { ...prev, late_days: lateDays, late_amount: lateAmount } as typeof prev : null)
+    setIncludeMora(lateAmount > 0)
     setShowPayment(true)
   }
 
@@ -407,17 +413,19 @@ export default function CollectionsContent({
             </label>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="block w-full rounded-lg border border-border px-3 py-2 text-sm">
+                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
                 <option value="cash">Efectivo</option>
                 <option value="transfer">Transferencia</option>
                 <option value="deposit">Depósito</option>
                 <option value="other">Otro</option>
               </select>
             </div>
-            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required className="sm:col-span-1" />
+            <div className="min-w-0">
+              <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+            </div>
           </div>
           <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
           <div className="flex justify-end gap-2">

@@ -9,9 +9,9 @@ import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { Progress } from '@/components/ui/Progress'
-import { formatCurrency, formatDate, getStatusLabel } from '@/lib/utils'
+import { formatCurrency, formatDate, getStatusLabel, getLocalDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
-import { calculateLateDays, calculateLateAmount, calculateProportionalInterest } from '@/lib/calculations'
+import { calculateLateDays, calculateLateAmount, calculateProportionalInterest, calculateFrenchProportionalInterest } from '@/lib/calculations'
 import Link from 'next/link'
 import { ArrowLeft, Printer, FileText, Undo, Share2, Check, Download } from 'lucide-react'
 import type { Loan, Installment, Payment, Setting } from '@/types'
@@ -37,6 +37,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [showPayment, setShowPayment] = useState(false)
   const [paymentInstallmentId, setPaymentInstallmentId] = useState('')
   const [selectedPaymentInstallment, setSelectedPaymentInstallment] = useState<Installment | null>(null)
+  const [selectedInstallmentMora, setSelectedInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentNotes, setPaymentNotes] = useState('')
@@ -281,8 +282,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     const lastPayment = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
     const lastPaymentDate = lastPayment?.payment_date || loan.first_payment_date
     const daysSinceLastPayment = Math.max(0, Math.floor((new Date().getTime() - new Date(lastPaymentDate).getTime()) / (1000 * 60 * 60 * 24)))
-    const proportionalInterest = periodicRate > 0 && isInterestOnly
-      ? calculateProportionalInterest(remainingCapital, periodicRate, daysSinceLastPayment)
+    const monthlyRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+    const proportionalInterest = monthlyRate > 0
+      ? calculateProportionalInterest(remainingCapital, monthlyRate, daysSinceLastPayment)
       : 0
 
     const totalToPay = remainingCapital + proportionalInterest
@@ -296,7 +298,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         amount: totalToPay,
         capital_amount: remainingCapital,
         interest_amount: proportionalInterest,
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: getLocalDate(),
         method: paymentMethod,
         type: 'liquidation',
         notes: `Liquidación total${proportionalInterest > 0 ? ` (interés proporcional ${daysSinceLastPayment}d)` : ''}`,
@@ -471,6 +473,36 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           </span>
         </div>
 
+        {(() => {
+          const pendingInstallments = installments.filter(i => i.status === 'pending')
+          let totalLateDays = 0
+          let totalLateAmount = 0
+          let hasLate = false
+          
+          pendingInstallments.forEach(inst => {
+            const days = calculateLateDays(inst.due_date)
+            if (days > 0) {
+              hasLate = true
+              const lateAmt = calculateLateAmount(inst.amount, days, settings?.late_interest_rate || 0.5)
+              totalLateDays = Math.max(totalLateDays, days)
+              totalLateAmount += lateAmt
+            }
+          })
+          
+          if (hasLate) {
+            return (
+              <div key="mora-banner" className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-destructive font-medium">⏰ Préstamo atrasado</span>
+                  <Badge variant="late">{totalLateDays} días de mora</Badge>
+                  <span className="text-destructive font-medium ml-auto">{formatCurrency(totalLateAmount)} de mora</span>
+                </div>
+              </div>
+            )
+          }
+          return null
+        })()}
+
         {loan.status === 'active' && (
           <div className="flex gap-2 mt-4 pt-4 border-t border-border">
             <Button size="sm" onClick={() => {
@@ -596,11 +628,18 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               <select
                 value={paymentInstallmentId}
                 onChange={e => {
-                  setPaymentInstallmentId(e.target.value)
-                  const inst = installments.find(i => i.id === e.target.value)
+                  const id = e.target.value
+                  setPaymentInstallmentId(id)
+                  const inst = installments.find(i => i.id === id)
                   if (inst) {
                     setPaymentAmount(String(inst.amount))
                     setSelectedPaymentInstallment(inst)
+                    // Calcular mora dinámicamente
+                    const lateDays = calculateLateDays(inst.due_date)
+                    const lateAmount = lateDays > 0
+                      ? calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
+                      : 0
+                    setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount } : null)
                   }
                 }}
                 className="block w-full rounded-lg border border-border px-3 py-2 text-sm"
@@ -622,7 +661,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </p>
           )}
           <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
-          {selectedPaymentInstallment && selectedPaymentInstallment.late_amount > 0 && (
+          {selectedInstallmentMora && (
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -630,21 +669,23 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 onChange={e => setIncludeMora(e.target.checked)}
                 className="rounded border-border"
               />
-              <span>Incluir mora: <strong>{formatCurrency(selectedPaymentInstallment.late_amount)}</strong></span>
+              <span>Incluir mora: <strong>{formatCurrency(selectedInstallmentMora.lateAmount)}</strong> ({selectedInstallmentMora.lateDays} días)</span>
             </label>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="block w-full rounded-lg border border-border px-3 py-2 text-sm">
+                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
                 <option value="cash">Efectivo</option>
                 <option value="transfer">Transferencia</option>
                 <option value="deposit">Depósito</option>
                 <option value="other">Otro</option>
               </select>
             </div>
-            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required className="sm:col-span-1" />
+            <div className="min-w-0">
+              <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+            </div>
           </div>
           <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
           <div className="flex justify-end gap-2">
@@ -662,17 +703,19 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           <Input label="Monto a abonar" type="number" step="0.01" min="0.01" max={loan.remaining_amount}
             value={capitalAbonoAmount} onChange={e => setCapitalAbonoAmount(e.target.value)} required />
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="min-w-0">
               <label className="block text-sm font-medium text-gray-700 mb-1">Método</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="block w-full rounded-lg border border-border px-3 py-2 text-sm">
+                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
                 <option value="cash">Efectivo</option>
                 <option value="transfer">Transferencia</option>
                 <option value="deposit">Depósito</option>
                 <option value="other">Otro</option>
               </select>
             </div>
-            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+            <div className="min-w-0">
+              <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+            </div>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" type="button" onClick={() => setShowCapitalAbono(false)}>Cancelar</Button>

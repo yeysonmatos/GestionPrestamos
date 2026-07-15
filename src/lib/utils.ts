@@ -37,6 +37,11 @@ export function formatDateFull(date: string | Date): string {
   return formatDate(date, "d 'de' MMMM 'de' yyyy")
 }
 
+export function getLocalDate(date: Date = new Date()): string {
+  const d = date
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export function getInitials(name: string): string {
   return name
     .split(' ')
