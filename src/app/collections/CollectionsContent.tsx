@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation'
 import {
   CalendarCheck, AlertTriangle, Calendar, DollarSign,
 } from 'lucide-react'
-import type { Installment, Payment } from '@/types'
+import type { Installment, Payment, Client } from '@/types'
 
 interface OpenEndedLoan {
   id: string
@@ -44,7 +44,7 @@ interface SyntheticInstallment {
   status: 'pending' | 'paid' | 'late'
   late_days: number
   late_amount: number
-  loan: { loan_id: string; client: { id: string; name: string; phone: string | null } | null; amortization_type?: string; total_amount?: number; remaining_amount?: number }
+  loan: { loan_id: string; client: Client | null; amortization_type?: string; total_amount?: number; remaining_amount?: number }
   isOpenEnded: true
   openEndedLoan: OpenEndedLoan
 }
@@ -239,12 +239,12 @@ export default function CollectionsContent({
     setShowPayment(true)
   }
 
-  const allList = filter === 'today' ? allToday
+  const allList: (Installment | SyntheticInstallment)[] = filter === 'today' ? allToday
     : filter === 'overdue' ? enrichedOverdue
     : filter === 'upcoming' ? allUpcoming
     : []
 
-  const filteredList = allList.filter(inst => {
+  const filteredList: (Installment | SyntheticInstallment)[] = allList.filter(inst => {
     if (!search) return true
     const name = inst.loan?.client?.name?.toLowerCase() || ''
     return name.includes(search.toLowerCase())
@@ -340,7 +340,7 @@ export default function CollectionsContent({
         <Card><p className="text-sm text-muted-foreground text-center py-8">No hay cuotas pendientes</p></Card>
       ) : (
         <div className="space-y-3">
-          {filteredList.map(inst => {
+          {filteredList.map((inst: Installment | SyntheticInstallment) => {
             const client = inst.loan?.client
             const isOpen = ('isOpenEnded' in inst && inst.isOpenEnded)
             return (

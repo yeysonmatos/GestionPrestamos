@@ -12,7 +12,7 @@ import {
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { Installment, Payment } from '@/types'
+import type { Installment, Payment, Client, Loan } from '@/types'
 
 interface OpenEndedLoan {
   id: string
@@ -22,7 +22,7 @@ interface OpenEndedLoan {
   remaining_amount: number
   payment_day: number
   first_payment_date: string
-  client: { id: string; name: string; phone: string | null } | null
+  client: Client | undefined
 }
 
 function getNextDueDates(loan: OpenEndedLoan, count: number = 6): string[] {
@@ -66,8 +66,19 @@ export default function CalendarContent({ installments, payments, openEndedLoans
   }, [currentDate])
 
   const events = useMemo(() => {
-    const dueByDate: Record<string, (Installment | { id: string; loan_id: string; amount: number; number: number; loan: { client: { id: string; name: string } | null; loan_id: string } })[]> = {}
+    const dueByDate: Record<string, (Installment | SyntheticInstallment)[]> = {}
     const paidByDate: Record<string, Payment[]> = {}
+
+    interface SyntheticInstallment {
+      id: string
+      loan_id: string
+      client_id: string
+      amount: number
+      number: number
+      status: 'pending'
+      due_date: string
+      loan: Loan & { client?: Client }
+    }
 
     installments.forEach(inst => {
       const key = inst.due_date
@@ -82,9 +93,45 @@ export default function CalendarContent({ installments, payments, openEndedLoans
         dueByDate[due].push({
           id: `open_${loan.id}_${due}`,
           loan_id: loan.id,
+          client_id: loan.client?.id || '',
           amount: loan.installment_amount,
           number: 0,
-          loan: { client: loan.client, loan_id: loan.loan_id },
+          status: 'pending' as const,
+          due_date: due,
+          loan: {
+            id: loan.id,
+            loan_id: loan.loan_id,
+            user_id: '',
+            client_id: loan.client?.id || '',
+            amount: loan.amount,
+            interest_type: 'percentage' as const,
+            interest_rate: 0,
+            total_amount: loan.amount,
+            total_interest: 0,
+            installment_amount: loan.installment_amount,
+            installments: 0,
+            paid_installments: 0,
+            paid_amount: 0,
+            remaining_amount: loan.remaining_amount,
+            progress: 0,
+            frequency: 'monthly' as const,
+            start_date: loan.first_payment_date,
+            first_payment_date: loan.first_payment_date,
+            end_date: null,
+            amortization_type: 'interest_only' as const,
+            open_ended: true,
+            payment_day: loan.payment_day,
+            status: 'active' as const,
+            late_days: 0,
+            late_interest_rate: 0,
+            guarantee: null,
+            notes: null,
+            paid_at: null,
+            cancelled_at: null,
+            created_at: loan.first_payment_date,
+            updated_at: loan.first_payment_date,
+            client: loan.client,
+          } as Loan & { client?: Client },
         })
       })
     })
