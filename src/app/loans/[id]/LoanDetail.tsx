@@ -541,9 +541,10 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 <tr className="border-b border-border">
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">Vencimiento</th>
+                  {!isInterestOnly && <th className="text-right py-2 px-3 font-medium text-muted-foreground">Cuota</th>}
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Capital</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Interés</th>
-<th className="text-right py-2 px-3 font-medium text-muted-foreground">Saldo</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Saldo</th>
               <th className="text-center py-2 px-3 font-medium text-muted-foreground">Mora</th>
               <th className="text-center py-2 px-3 font-medium text-muted-foreground">Estado</th>
                 </tr>
@@ -553,6 +554,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   <tr key={inst.number} className="border-b border-border hover:bg-muted">
                     <td className="py-2 px-3 font-medium">{inst.number}</td>
                     <td className="py-2 px-3">{formatDate(inst.due_date)}</td>
+                    {!isInterestOnly && <td className="py-2 px-3 text-right">{formatCurrency(inst.amount)}</td>}
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.capital)}</td>
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.interest)}</td>
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.balance)}</td>
