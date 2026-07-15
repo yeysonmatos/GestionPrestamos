@@ -666,3 +666,6 @@ t=2026-07-14T08:35:57-0400 lvl=info msg="join connections" obj=join id=7928013e5
 t=2026-07-14T08:36:02-0400 lvl=info msg="join connections" obj=join id=a8b10a84153d l=[::1]:3000 r=181.36.78.109:44187
 t=2026-07-14T09:20:42-0400 lvl=info msg="join connections" obj=join id=a17ebe269c9d l=[::1]:3000 r=152.166.159.240:54809
 t=2026-07-14T09:25:24-0400 lvl=info msg="join connections" obj=join id=bc2661d18a3f l=[::1]:3000 r=152.166.159.240:54915
+t=2026-07-14T11:08:52-0400 lvl=info msg="received stop request" obj=app stopReq="{err:<nil> restart:false}"
+t=2026-07-14T11:08:52-0400 lvl=info msg="session closing" obj=tunnels.session err=nil
+t=2026-07-14T11:08:52-0400 lvl=info msg="accept failed" obj=tunnels.session obj=csess id=ffc38fbd8309 err="reconnecting session closed"

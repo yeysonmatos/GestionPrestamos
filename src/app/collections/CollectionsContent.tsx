@@ -79,9 +79,13 @@ export default function CollectionsContent({
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentNotes, setPaymentNotes] = useState('')
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'today' | 'overdue' | 'upcoming' | 'history'>('today')
+  const [includeMora, setIncludeMora] = useState(true)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -94,7 +98,10 @@ export default function CollectionsContent({
     const overdue: SyntheticInstallment[] = []
     const upcoming: SyntheticInstallment[] = []
 
-    const now = new Date().toISOString().split('T')[0]
+    const now = (() => {
+      const d = new Date()
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
 
     openEndedLoans.forEach(loan => {
       const due = getNextDueDate(loan)
@@ -150,7 +157,7 @@ export default function CollectionsContent({
     const isInterestOnly = isOpenEndedType || loan?.amortization_type === 'interest_only'
 
     const lateDays = calculateLateDays(inst.due_date)
-    const lateAmount = calculateLateAmount(inst.amount, lateDays, 0.5)
+    const lateAmount = includeMora ? calculateLateAmount(inst.amount, lateDays, 0.5) : 0
     const capitalAmount = isInterestOnly ? 0 : Math.min(amount, inst.capital)
     const interestAmount = isInterestOnly ? amount : Math.min(amount, inst.interest)
 
@@ -380,12 +387,28 @@ export default function CollectionsContent({
                 <p><strong>Cuota #{(selectedInstallment as Installment).number}</strong> — {formatCurrency(selectedInstallment.amount)}</p>
               )}
               <p><strong>Vence:</strong> {formatDate(selectedInstallment.due_date)}</p>
+              {selectedInstallment.late_amount > 0 && (
+                <p className="text-destructive font-medium">
+                  <strong>Mora:</strong> {formatCurrency(selectedInstallment.late_amount)} ({selectedInstallment.late_days} días)
+                </p>
+              )}
             </div>
           )}
           <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
-          <div className="grid grid-cols-2 gap-4">
+          {selectedInstallment && selectedInstallment.late_amount > 0 && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={includeMora}
+                onChange={e => setIncludeMora(e.target.checked)}
+                className="rounded border-border"
+              />
+              <span>Incluir mora: <strong>{formatCurrency(selectedInstallment.late_amount)}</strong></span>
+            </label>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Método</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
                 className="block w-full rounded-lg border border-border px-3 py-2 text-sm">
                 <option value="cash">Efectivo</option>
@@ -394,7 +417,7 @@ export default function CollectionsContent({
                 <option value="other">Otro</option>
               </select>
             </div>
-            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required className="sm:col-span-1" />
           </div>
           <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
           <div className="flex justify-end gap-2">

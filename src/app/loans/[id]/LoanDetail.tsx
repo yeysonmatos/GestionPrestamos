@@ -36,6 +36,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [payments, setPayments] = useState(initialPayments)
   const [showPayment, setShowPayment] = useState(false)
   const [paymentInstallmentId, setPaymentInstallmentId] = useState('')
+  const [selectedPaymentInstallment, setSelectedPaymentInstallment] = useState<Installment | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentNotes, setPaymentNotes] = useState('')
@@ -52,6 +53,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [docs, setDocs] = useState<{ id: string; name: string; type: string; path: string; mime_type: string | null; size: number | null; loan_id: string | null; client_id: string; created_at: string }[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
   const [successPayment, setSuccessPayment] = useState<Payment | null>(null)
+  const [includeMora, setIncludeMora] = useState(true)
 
   const isInterestOnly = loan.amortization_type === 'interest_only'
   const isOpenEnded = loan.open_ended
@@ -159,7 +161,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     if (!inst || isNaN(amount) || amount <= 0 || !userId) { setLoading(false); return }
 
     const lateDays = calculateLateDays(inst.due_date)
-    const lateAmount = calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
+    const lateAmount = includeMora ? calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5) : 0
 
     const capitalAmount = isInterestOnly ? 0 : Math.min(amount, inst.capital)
     const interestAmount = isInterestOnly ? amount : Math.min(amount, inst.interest)
@@ -474,6 +476,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <Button size="sm" onClick={() => {
               setPaymentAmount(isOpenEnded ? String(loan.installment_amount) : '')
               setPaymentInstallmentId('')
+              setIncludeMora(true)
               setShowPayment(true)
             }}>{isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}</Button>
             <Button variant="secondary" size="sm" onClick={() => setShowCapitalAbono(true)}>Abonar al capital</Button>
@@ -504,8 +507,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">{isInterestOnly ? 'Interés' : 'Cuota'}</th>
                   {!isInterestOnly && <th className="text-right py-2 px-3 font-medium text-muted-foreground">Capital</th>}
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Interés</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Saldo</th>
-                  <th className="text-center py-2 px-3 font-medium text-muted-foreground">Estado</th>
+<th className="text-right py-2 px-3 font-medium text-muted-foreground">Saldo</th>
+              <th className="text-center py-2 px-3 font-medium text-muted-foreground">Mora</th>
+              <th className="text-center py-2 px-3 font-medium text-muted-foreground">Estado</th>
                 </tr>
               </thead>
               <tbody>
@@ -517,6 +521,13 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                     {!isInterestOnly && <td className="py-2 px-3 text-right">{formatCurrency(inst.capital)}</td>}
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.interest)}</td>
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.balance)}</td>
+                    <td className="py-2 px-3 text-center">
+                      {inst.late_days > 0 && (
+                        <span className="text-xs text-destructive font-medium">
+                          {inst.late_days}d · {formatCurrency(inst.late_amount)}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2 px-3 text-center">
                       <Badge variant={inst.status === 'paid' ? 'paid' : 'active'}>
                         {inst.status === 'paid' ? 'Pagado' : 'Pendiente'}
@@ -577,7 +588,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         )}
       </Card>
 
-      <Modal open={showPayment} onClose={() => setShowPayment(false)} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
+<Modal open={showPayment} onClose={() => setShowPayment(false)} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
         <form onSubmit={handlePayInstallment} className="space-y-4">
           {!isOpenEnded && (
             <div>
@@ -587,7 +598,10 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 onChange={e => {
                   setPaymentInstallmentId(e.target.value)
                   const inst = installments.find(i => i.id === e.target.value)
-                  if (inst) setPaymentAmount(String(inst.amount))
+                  if (inst) {
+                    setPaymentAmount(String(inst.amount))
+                    setSelectedPaymentInstallment(inst)
+                  }
                 }}
                 className="block w-full rounded-lg border border-border px-3 py-2 text-sm"
                 required
@@ -608,9 +622,20 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </p>
           )}
           <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
-          <div className="grid grid-cols-2 gap-4">
+          {selectedPaymentInstallment && selectedPaymentInstallment.late_amount > 0 && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={includeMora}
+                onChange={e => setIncludeMora(e.target.checked)}
+                className="rounded border-border"
+              />
+              <span>Incluir mora: <strong>{formatCurrency(selectedPaymentInstallment.late_amount)}</strong></span>
+            </label>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Método</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
               <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
                 className="block w-full rounded-lg border border-border px-3 py-2 text-sm">
                 <option value="cash">Efectivo</option>
@@ -619,7 +644,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 <option value="other">Otro</option>
               </select>
             </div>
-            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required className="sm:col-span-1" />
           </div>
           <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
           <div className="flex justify-end gap-2">

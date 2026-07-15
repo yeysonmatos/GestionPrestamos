@@ -156,6 +156,9 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                     <p className="text-[10px] text-destructive font-medium">
                       {dayDue.length} vencen · {formatCurrency(totalDue)}
                     </p>
+                    {dayDue.some(i => i.status === 'pending' && parseISO(i.due_date) < new Date()) && (
+                      <p className="text-[10px] text-destructive font-medium">Atrasado</p>
+                    )}
                   </div>
                 )}
                 {dayPaid.length > 0 && (
@@ -188,11 +191,21 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                     </p>
                     <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
-                    <Badge variant={inst.status === 'pending' ? 'active' : 'paid'}>
-                      {inst.status === 'pending' ? 'Pendiente' : 'Pagado'}
-                    </Badge>
+<div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
+                      <Badge variant={
+                        inst.status === 'pending' && parseISO(inst.due_date) < new Date()
+                          ? 'late'
+                          : inst.status === 'pending'
+                          ? 'active'
+                          : 'paid'
+                      }>
+                        {inst.status === 'pending' && parseISO(inst.due_date) < new Date()
+                          ? 'Atrasado'
+                          : inst.status === 'pending'
+                          ? 'Pendiente'
+                          : 'Pagado'}
+                      </Badge>
                   </div>
                 </div>
               ))}

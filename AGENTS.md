@@ -58,6 +58,11 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 - [x] Modal de éxito post-pago con acciones: Descargar PDF, WhatsApp, Compartir
 - [x] Fecha de pago por defecto usa zona horaria local (no UTC)
 - [x] PWA: manifest.json, iconos SVG, service worker, meta tags iOS/Android
+- [x] Auth: `createBrowserClient` de @supabase/ssr (cookies sincronizadas client/server)
+- [x] UI responsiva iPhone 12 Mini: touch targets 44px (min-h-11), `min-w-0` en inputs date, grids stacked en mobile
+- [x] Formato moneda: `formatNumber`/`formatCurrency` sin decimales → `1,234,567` (sin $ en cards, con $ en formularios)
+- [x] NewLoanForm: grids responsive (stacked en mobile, 2 col tablet, 3-4 col desktop)
+- [x] Deploy: Vercel + Supabase Cloud (snwwvvmszizarakrozah.supabase.co), URL estable `loan-tracker-olive-eight.vercel.app`
 
 ### Pendiente
 - Nada por ahora
