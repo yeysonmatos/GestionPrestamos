@@ -228,6 +228,23 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     setLoading(false)
   }
 
+  function calcCapitalRemaining() {
+    const capitalPaid = installments.filter(i => i.status === 'paid').reduce((s, i) => s + i.capital, 0)
+    const abonoPaid = payments.filter(p => p.type === 'capital_abono' && p.status === 'paid').reduce((s, p) => s + p.amount, 0)
+    return Math.max(0, loan.amount - capitalPaid - abonoPaid)
+  }
+
+  function calcPendingMora() {
+    let total = 0
+    installments.filter(i => i.status === 'pending').forEach(inst => {
+      const days = calculateLateDays(inst.due_date)
+      if (days > 0) {
+        total += calculateLateAmount(inst.amount, days, settings?.late_interest_rate || 0.5)
+      }
+    })
+    return total
+  }
+
   async function handleCapitalAbono(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
@@ -255,14 +272,18 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       .single()
 
     if (!error) {
+      const currentCapitalRemaining = calcCapitalRemaining()
+      const newCapitalRemaining = Math.max(0, currentCapitalRemaining - amount)
+      const newProgress = Math.round(((loan.amount - newCapitalRemaining) / loan.amount) * 100)
+
       await supabase.from('loans').update({
         remaining_amount: remaining,
         paid_amount: Number(loan.paid_amount) + amount,
-        progress: Math.round(((loan.amount - remaining) / loan.amount) * 100),
+        progress: newProgress,
       }).eq('id', loan.id)
       await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
 
-      setLoan(prev => ({ ...prev, remaining_amount: remaining, paid_amount: Number(prev.paid_amount) + amount }))
+      setLoan(prev => ({ ...prev, remaining_amount: remaining, paid_amount: Number(prev.paid_amount) + amount, progress: newProgress }))
       setPayments(prev => [payment, ...prev])
       setSuccessPayment(payment)
       setShowSuccess(true)
@@ -276,18 +297,19 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     if (!userId) return
     setLoading(true)
 
-    const remainingCapital = Number(loan.remaining_amount)
-    if (remainingCapital <= 0) { setLoading(false); return }
+    const capitalRemaining = calcCapitalRemaining()
+    if (capitalRemaining <= 0) { setLoading(false); return }
 
     const lastPayment = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
     const lastPaymentDate = lastPayment?.payment_date || loan.first_payment_date
     const daysSinceLastPayment = Math.max(0, Math.floor((new Date().getTime() - new Date(lastPaymentDate).getTime()) / (1000 * 60 * 60 * 24)))
     const monthlyRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
     const proportionalInterest = monthlyRate > 0
-      ? calculateProportionalInterest(remainingCapital, monthlyRate, daysSinceLastPayment)
+      ? calculateProportionalInterest(capitalRemaining, monthlyRate, daysSinceLastPayment)
       : 0
+    const moraTotal = calcPendingMora()
 
-    const totalToPay = remainingCapital + proportionalInterest
+    const totalToPay = capitalRemaining + proportionalInterest + moraTotal
 
     const { data: payment, error } = await supabase
       .from('payments')
@@ -296,12 +318,13 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         client_id: loan.client_id,
         user_id: userId,
         amount: totalToPay,
-        capital_amount: remainingCapital,
+        capital_amount: capitalRemaining,
         interest_amount: proportionalInterest,
+        late_amount: moraTotal,
         payment_date: getLocalDate(),
         method: paymentMethod,
         type: 'liquidation',
-        notes: `Liquidación total${proportionalInterest > 0 ? ` (interés proporcional ${daysSinceLastPayment}d)` : ''}`,
+        notes: `Liquidación total${proportionalInterest > 0 ? ` (interés proporcional ${daysSinceLastPayment}d)` : ''}${moraTotal > 0 ? ` + ${formatCurrency(moraTotal)} de mora` : ''}`,
       })
       .select()
       .single()
@@ -632,13 +655,12 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   setPaymentInstallmentId(id)
                   const inst = installments.find(i => i.id === id)
                   if (inst) {
-                    setPaymentAmount(String(inst.amount))
-                    setSelectedPaymentInstallment(inst)
-                    // Calcular mora dinámicamente
                     const lateDays = calculateLateDays(inst.due_date)
                     const lateAmount = lateDays > 0
                       ? calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
                       : 0
+                    setPaymentAmount(String(inst.amount + (includeMora && lateAmount > 0 ? lateAmount : 0)))
+                    setSelectedPaymentInstallment(inst)
                     setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount } : null)
                   }
                 }}
@@ -661,16 +683,30 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </p>
           )}
           <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
-          {selectedInstallmentMora && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={includeMora}
-                onChange={e => setIncludeMora(e.target.checked)}
-                className="rounded border-border"
-              />
-              <span>Incluir mora: <strong>{formatCurrency(selectedInstallmentMora.lateAmount)}</strong> ({selectedInstallmentMora.lateDays} días)</span>
-            </label>
+          {selectedInstallmentMora && selectedPaymentInstallment && (
+            <>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={includeMora}
+                  onChange={e => {
+                    const checked = e.target.checked
+                    setIncludeMora(checked)
+                    const baseAmount = selectedPaymentInstallment.amount
+                    const moraAmount = selectedInstallmentMora.lateAmount
+                    setPaymentAmount(String(checked ? baseAmount + moraAmount : baseAmount))
+                  }}
+                  className="rounded border-border"
+                />
+                <span>Incluir mora: <strong>{formatCurrency(selectedInstallmentMora.lateAmount)}</strong> ({selectedInstallmentMora.lateDays} días)</span>
+              </label>
+              <p className="text-sm text-right font-semibold">
+                Total: {formatCurrency(selectedPaymentInstallment.amount)}
+                {includeMora && <> + {formatCurrency(selectedInstallmentMora.lateAmount)}</>}
+                {' = '}
+                <span className="text-foreground">{formatCurrency(selectedPaymentInstallment.amount + (includeMora ? selectedInstallmentMora.lateAmount : 0))}</span>
+              </p>
+            </>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="min-w-0">
@@ -698,9 +734,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       <Modal open={showCapitalAbono} onClose={() => setShowCapitalAbono(false)} title="Abonar al capital">
         <form onSubmit={handleCapitalAbono} className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Capital pendiente: <strong>{formatCurrency(loan.remaining_amount)}</strong>
+            Capital pendiente: <strong>{formatCurrency(calcCapitalRemaining())}</strong>
           </p>
-          <Input label="Monto a abonar" type="number" step="0.01" min="0.01" max={loan.remaining_amount}
+          <Input label="Monto a abonar" type="number" step="0.01" min="0.01" max={calcCapitalRemaining()}
             value={capitalAbonoAmount} onChange={e => setCapitalAbonoAmount(e.target.value)} required />
           <div className="grid grid-cols-2 gap-4">
             <div className="min-w-0">
@@ -726,35 +762,49 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
       <Modal open={showLiquidation} onClose={() => setShowLiquidation(false)} title="Liquidar préstamo">
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Capital pendiente: <strong>{formatCurrency(loan.remaining_amount)}</strong>
-          </p>
-          {isInterestOnly && periodicRate > 0 && (
-            <>
-              {(() => {
-                const lastPayment = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
-                const lastDate = lastPayment?.payment_date || loan.first_payment_date
-                const days = Math.max(0, Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)))
-                const propInterest = calculateProportionalInterest(Number(loan.remaining_amount), periodicRate, days)
-                return (
-                  <>
-                    <p className="text-sm text-muted-foreground">
-                      Días desde último pago: <strong>{days}</strong>
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Interés proporcional ({days}d): <strong>{formatCurrency(propInterest)}</strong>
-                    </p>
-                    <p className="text-sm font-semibold text-foreground">
-                      Total a pagar: <strong>{formatCurrency(Number(loan.remaining_amount) + propInterest)}</strong>
-                    </p>
-                  </>
-                )
-              })()}
-            </>
-          )}
-          <p className="text-sm text-muted-foreground">
-            Al liquidar, el préstamo se marcará como pagado.
-          </p>
+          {(() => {
+            const capRemaining = calcCapitalRemaining()
+            if (capRemaining <= 0) return <p className="text-sm text-muted-foreground">No hay capital pendiente</p>
+
+            const lastPayment = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
+            const lastDate = lastPayment?.payment_date || loan.first_payment_date
+            const days = Math.max(0, Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)))
+            const monthlyRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+            const propInterest = monthlyRate > 0 ? calculateProportionalInterest(capRemaining, monthlyRate, days) : 0
+            const mora = calcPendingMora()
+            const total = capRemaining + propInterest + mora
+
+            return (
+              <div className="space-y-3">
+                <div className="bg-muted rounded-lg p-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Capital pendiente</span>
+                    <span className="font-semibold">{formatCurrency(capRemaining)}</span>
+                  </div>
+                  {propInterest > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Interés proporcional ({days}d)</span>
+                      <span className="font-semibold">{formatCurrency(propInterest)}</span>
+                    </div>
+                  )}
+                  {mora > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-destructive">Mora pendiente</span>
+                      <span className="font-semibold text-destructive">{formatCurrency(mora)}</span>
+                    </div>
+                  )}
+                  <hr className="border-border my-1" />
+                  <div className="flex justify-between text-base">
+                    <span className="font-bold">Monto total restante</span>
+                    <span className="font-bold text-foreground">{formatCurrency(total)}</span>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Al liquidar, el préstamo se marcará como pagado.
+                </p>
+              </div>
+            )
+          })()}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowLiquidation(false)}>Cancelar</Button>
             <Button onClick={handleLiquidation} loading={loading}>Confirmar liquidación</Button>
