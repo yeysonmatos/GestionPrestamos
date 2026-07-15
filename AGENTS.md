@@ -66,3 +66,15 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 
 ### Pendiente
 - Nada por ahora
+
+## Hoy — 15 Jul 2026
+
+### Completado
+- [x] **Pagos parciales**: HandlePay acepta cualquier monto; asigna primero a cuota, luego a mora
+- [x] **Parcial badge**: `(paid_amount > 0 && status !== 'paid')` → badge "Parcial" en Collections cards, LoanDetail tabla amortización, Calendar cuotas
+- [x] **Dropdown cuota**: Filtra `status !== 'paid'` (incluye parciales), muestra monto restante + pagado antes
+- [x] **Mora dinámica**: openPayment/onChange calcula mora al abrir; checkbox toggle actualiza paymentAmount (sin mora → solo cuota restante, con mora → cuota + mora)
+- [x] **Modal total summary**: Subtotal cuota + Mora = Total (solo visible cuando hay mora)
+- [x] **handlePay allocation**: `paidToInstallment = Math.min(amount, remaining)`, `paidToLate = Math.max(0, amount - paidToInstallment)`
+- [x] **paid_amount tracking**: `installments.update({ paid_amount: totalPaidOnInstallment })` en lugar de sobreescribir con amount total; `paid_at` solo si fully paid
+- [x] **Loan stats**: `fullyPaidCount` (no paidCount) para progress/remaining; partial payments no cuentan como paid

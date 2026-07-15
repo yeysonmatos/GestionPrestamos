@@ -148,7 +148,6 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
     setLoading(false)
   }
-
   async function handlePayInstallment(e: React.FormEvent) {
     if (isInterestOnly && isOpenEnded) {
       return handlePayInterest(e)
@@ -162,10 +161,26 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     if (!inst || isNaN(amount) || amount <= 0 || !userId) { setLoading(false); return }
 
     const lateDays = calculateLateDays(inst.due_date)
-    const lateAmount = includeMora ? calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5) : 0
+    const totalLateAmount = calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
 
-    const capitalAmount = isInterestOnly ? 0 : Math.min(amount, inst.capital)
-    const interestAmount = isInterestOnly ? amount : Math.min(amount, inst.interest)
+    const previouslyPaid = inst.paid_amount || 0
+
+    let paidToInstallment: number
+    let paidToLate: number
+
+    if (includeMora) {
+      paidToInstallment = Math.min(amount, inst.amount - previouslyPaid)
+      paidToLate = Math.max(0, amount - paidToInstallment)
+    } else {
+      paidToInstallment = amount
+      paidToLate = 0
+    }
+
+    const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, inst.amount)
+    const isNowFullyPaid = totalPaidOnInstallment >= inst.amount
+
+    const capitalAmount = isInterestOnly ? 0 : Math.min(paidToInstallment, inst.capital)
+    const interestAmount = isInterestOnly ? paidToInstallment : Math.min(paidToInstallment, inst.interest)
 
     const { data: payment, error } = await supabase
       .from('payments')
@@ -177,7 +192,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         amount,
         capital_amount: capitalAmount,
         interest_amount: interestAmount,
-        late_amount: lateAmount,
+        late_amount: paidToLate,
         payment_date: paymentDate,
         method: paymentMethod,
         notes: paymentNotes || null,
@@ -188,35 +203,42 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     if (!error && payment) {
       await supabase
         .from('installments')
-        .update({ status: 'paid', paid_at: paymentDate, paid_amount: amount, late_days: lateDays, late_amount: lateAmount })
+        .update({
+          status: isNowFullyPaid ? 'paid' : 'pending',
+          paid_amount: totalPaidOnInstallment,
+          late_amount: paidToLate,
+          late_days: lateDays,
+          paid_at: isNowFullyPaid ? paymentDate : null,
+        })
         .eq('id', inst.id)
 
       const updatedInstallments = installments.map(i =>
-        i.id === inst.id ? { ...i, status: 'paid' as const, paid_at: paymentDate, paid_amount: amount, late_days: lateDays, late_amount: lateAmount } : i
+        i.id === inst.id ? { ...i, status: isNowFullyPaid ? 'paid' as const : 'pending' as const, paid_amount: totalPaidOnInstallment, paid_at: isNowFullyPaid ? paymentDate : null, late_days: lateDays, late_amount: paidToLate } : i
       )
       setInstallments(updatedInstallments)
       setPayments(prev => [payment, ...prev])
 
-      const paidCount = updatedInstallments.filter(i => i.status === 'paid').length
+      const fullyPaidCount = updatedInstallments.filter(i => i.status === 'paid').length
       const paidAmount = updatedInstallments.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0)
-      const progress = Math.round((paidCount / loan.installments) * 100)
+      const progress = Math.round((fullyPaidCount / loan.installments) * 100)
       const remaining = isInterestOnly
         ? loan.remaining_amount
         : Math.max(0, loan.total_amount - paidAmount)
 
       const updates: Record<string, string | number | boolean> = {
-        paid_installments: paidCount,
+        paid_installments: fullyPaidCount,
         paid_amount: paidAmount,
         remaining_amount: remaining,
         progress,
       }
-      if (!isInterestOnly && paidCount >= loan.installments) {
+      if (!isInterestOnly && fullyPaidCount >= loan.installments) {
         updates.status = 'paid'
         updates.paid_at = new Date().toISOString()
       }
 
       await supabase.from('loans').update(updates).eq('id', loan.id)
       await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
+
       setLoan(prev => ({ ...prev, ...updates }))
 
       setSuccessPayment(payment)
@@ -573,6 +595,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                         {inst.status === 'paid' ? 'Pagado' :
                          new Date(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
                       </Badge>
+                      {(inst.paid_amount ?? 0) > 0 && inst.status !== 'paid' && (
+                        <Badge variant="active">Parcial</Badge>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -645,7 +670,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                     const lateAmount = lateDays > 0
                       ? calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
                       : 0
-                    setPaymentAmount(String(inst.amount + (includeMora && lateAmount > 0 ? lateAmount : 0)))
+                    const remaining = inst.amount - (inst.paid_amount || 0)
+                    setPaymentAmount(String(remaining + (includeMora && lateAmount > 0 ? lateAmount : 0)))
                     setSelectedPaymentInstallment(inst)
                     setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount } : null)
                   }
@@ -654,11 +680,15 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 required
               >
                 <option value="">Seleccionar cuota...</option>
-                {installments.filter(i => i.status === 'pending').map(inst => (
-                  <option key={inst.id} value={inst.id}>
-                    #{inst.number} - {formatCurrency(inst.amount)} - Vence: {formatDate(inst.due_date)}
-                  </option>
-                ))}
+                {installments.filter(i => i.status !== 'paid').map(inst => {
+                  const remaining = inst.amount - (inst.paid_amount || 0)
+                  const isPartial = (inst.paid_amount || 0) > 0
+                  return (
+                    <option key={inst.id} value={inst.id}>
+                      #{inst.number} - {formatCurrency(remaining)}{isPartial ? ` (Pagado ${formatCurrency(inst.paid_amount!)})` : ''} - Vence: {formatDate(inst.due_date)}
+                    </option>
+                  )
+                })}
               </select>
             </div>
           )}

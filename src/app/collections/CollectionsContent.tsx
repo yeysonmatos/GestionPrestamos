@@ -86,6 +86,7 @@ export default function CollectionsContent({
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'today' | 'overdue' | 'upcoming' | 'history'>('today')
   const [includeMora, setIncludeMora] = useState(true)
+  const [installmentMora, setInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -156,10 +157,27 @@ export default function CollectionsContent({
     const isOpenEndedType = 'isOpenEnded' in inst && inst.isOpenEnded
     const isInterestOnly = isOpenEndedType || loan?.amortization_type === 'interest_only'
 
+    const installmentAmount = inst.amount
     const lateDays = calculateLateDays(inst.due_date)
-    const lateAmount = includeMora ? calculateLateAmount(inst.amount, lateDays, 0.5) : 0
-    const capitalAmount = isInterestOnly ? 0 : Math.min(amount, inst.capital)
-    const interestAmount = isInterestOnly ? amount : Math.min(amount, inst.interest)
+    const totalLateAmount = calculateLateAmount(inst.amount, lateDays, 0.5)
+    const previouslyPaid = inst.paid_amount || 0
+
+    let paidToInstallment: number
+    let paidToLate: number
+
+    if (includeMora) {
+      paidToInstallment = Math.min(amount, installmentAmount - previouslyPaid)
+      paidToLate = Math.max(0, amount - paidToInstallment)
+    } else {
+      paidToInstallment = amount
+      paidToLate = 0
+    }
+
+    const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, installmentAmount)
+    const isNowFullyPaid = totalPaidOnInstallment >= installmentAmount
+
+    const capitalAmount = isInterestOnly ? 0 : Math.min(paidToInstallment, inst.capital)
+    const interestAmount = isInterestOnly ? paidToInstallment : Math.min(paidToInstallment, inst.interest)
 
     const { data: payment, error } = await supabase
       .from('payments')
@@ -171,7 +189,7 @@ export default function CollectionsContent({
         amount,
         capital_amount: capitalAmount,
         interest_amount: interestAmount,
-        late_amount: lateAmount,
+        late_amount: paidToLate,
         payment_date: paymentDate,
         method: paymentMethod,
         notes: paymentNotes || null,
@@ -183,7 +201,13 @@ export default function CollectionsContent({
       if (!('isOpenEnded' in inst) || !inst.isOpenEnded) {
         await supabase
           .from('installments')
-          .update({ status: 'paid', paid_at: paymentDate, paid_amount: amount, late_days: lateDays, late_amount: lateAmount })
+          .update({
+            status: isNowFullyPaid ? 'paid' : 'pending',
+            paid_amount: totalPaidOnInstallment,
+            late_amount: paidToLate,
+            late_days: lateDays,
+            paid_at: isNowFullyPaid ? paymentDate : null,
+          })
           .eq('id', (inst as Installment).id)
       }
 
@@ -194,22 +218,22 @@ export default function CollectionsContent({
           .eq('loan_id', inst.loan_id)
 
         if (updatedInstallments) {
-          const paidCount = updatedInstallments.filter(i => i.status === 'paid').length
+          const fullyPaidCount = updatedInstallments.filter(i => i.status === 'paid').length
           const paidAmount = updatedInstallments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0)
           const progress = updatedInstallments.length > 0
-            ? Math.round((paidCount / updatedInstallments.length) * 100)
+            ? Math.round((fullyPaidCount / updatedInstallments.length) * 100)
             : 0
           const remaining = isInterestOnly
             ? (loan.remaining_amount ?? 0)
             : Math.max(0, Number(loan.total_amount) - paidAmount)
 
           const updates: Record<string, string | number | boolean> = {
-            paid_installments: paidCount,
+            paid_installments: fullyPaidCount,
             paid_amount: paidAmount,
             remaining_amount: remaining,
             progress,
           }
-          if (!isInterestOnly && updatedInstallments.length > 0 && paidCount >= updatedInstallments.length) {
+          if (!isInterestOnly && updatedInstallments.length > 0 && fullyPaidCount >= updatedInstallments.length) {
             updates.status = 'paid'
             updates.paid_at = new Date().toISOString()
           }
@@ -223,6 +247,7 @@ export default function CollectionsContent({
       setShowPayment(false)
       setSelectedInstallment(null)
       setPaymentAmount('')
+      setInstallmentMora(null)
       router.refresh()
     }
 
@@ -235,13 +260,13 @@ export default function CollectionsContent({
 
   function openPayment(inst: Installment | SyntheticInstallment) {
     setSelectedInstallment(inst)
-    setPaymentAmount(String(inst.amount))
-    // Calcular mora dinámicamente al abrir el modal
     const lateDays = calculateLateDays(inst.due_date)
     const lateAmount = lateDays > 0 ? calculateLateAmount(inst.amount, lateDays, 0.5) : 0
-    // Guardamos los valores calculados temporalmente para el modal
-    setSelectedInstallment(prev => prev ? { ...prev, late_days: lateDays, late_amount: lateAmount } as typeof prev : null)
-    setIncludeMora(lateAmount > 0)
+    const hasMora = lateAmount > 0
+    setInstallmentMora(hasMora ? { lateDays, lateAmount } : null)
+    setIncludeMora(hasMora)
+    const remaining = inst.amount - (inst.paid_amount || 0)
+    setPaymentAmount(String(hasMora ? remaining + lateAmount : remaining))
     setShowPayment(true)
   }
 
@@ -359,6 +384,9 @@ export default function CollectionsContent({
                       <Badge variant={filter === 'overdue' ? 'late' : 'active'}>
                         {filter === 'today' ? 'Hoy' : filter === 'overdue' ? `Vence ${inst.late_days > 0 ? `hace ${inst.late_days}d` : ''}` : formatDate(inst.due_date)}
                       </Badge>
+                      {(inst.paid_amount ?? 0) > 0 && (
+                        <Badge variant="active">Parcial</Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {isOpen ? 'Interés' : `Cuota #${inst.number}`} · {inst.loan?.loan_id || inst.loan_id}
@@ -384,54 +412,90 @@ export default function CollectionsContent({
 
       <Modal open={showPayment} onClose={() => setShowPayment(false)} title="Registrar cobro">
         <form onSubmit={handlePay} className="space-y-4">
-          {selectedInstallment && (
-            <div className="bg-primary-light rounded-lg p-3 text-sm text-primary">
-              <p><strong>Cliente:</strong> {selectedInstallment.loan?.client?.name}</p>
-              {('isOpenEnded' in selectedInstallment && selectedInstallment.isOpenEnded) ? (
-                <p><strong>Interés del período</strong> — {formatCurrency(selectedInstallment.amount)}</p>
-              ) : (
-                <p><strong>Cuota #{(selectedInstallment as Installment).number}</strong> — {formatCurrency(selectedInstallment.amount)}</p>
-              )}
-              <p><strong>Vence:</strong> {formatDate(selectedInstallment.due_date)}</p>
-              {selectedInstallment.late_amount > 0 && (
-                <p className="text-destructive font-medium">
-                  <strong>Mora:</strong> {formatCurrency(selectedInstallment.late_amount)} ({selectedInstallment.late_days} días)
-                </p>
-              )}
-            </div>
-          )}
-          <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
-          {selectedInstallment && selectedInstallment.late_amount > 0 && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={includeMora}
-                onChange={e => setIncludeMora(e.target.checked)}
-                className="rounded border-border"
-              />
-              <span>Incluir mora: <strong>{formatCurrency(selectedInstallment.late_amount)}</strong></span>
-            </label>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
-              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
-                <option value="cash">Efectivo</option>
-                <option value="transfer">Transferencia</option>
-                <option value="deposit">Depósito</option>
-                <option value="other">Otro</option>
-              </select>
-            </div>
-            <div className="min-w-0">
-              <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
-            </div>
-          </div>
-          <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" type="button" onClick={() => { setShowPayment(false); setSelectedInstallment(null) }}>Cancelar</Button>
-            <Button type="submit" loading={loading}>Registrar cobro</Button>
-          </div>
+          {selectedInstallment && (() => {
+            const inst = selectedInstallment
+            const remaining = inst.amount - (inst.paid_amount || 0)
+            const mora = installmentMora
+            const cuotaSubtotal = includeMora ? remaining : parseFloat(paymentAmount || '0')
+            const moraAmount = includeMora && mora ? mora.lateAmount : 0
+            const total = (includeMora && mora ? remaining + mora.lateAmount : remaining)
+            return (
+              <>
+                <div className="bg-primary-light rounded-lg p-3 text-sm text-primary">
+                  <p><strong>Cliente:</strong> {inst.loan?.client?.name}</p>
+                  {('isOpenEnded' in inst && inst.isOpenEnded) ? (
+                    <p><strong>Interés del período</strong> — {formatCurrency(inst.amount)}</p>
+                  ) : (
+                    <p><strong>Cuota #{(inst as Installment).number}</strong> — {formatCurrency(inst.amount)}</p>
+                  )}
+                  <p><strong>Vence:</strong> {formatDate(inst.due_date)}</p>
+                  {(inst.paid_amount ?? 0) > 0 && (
+                    <p className="text-warning font-medium"><strong>Pagado antes:</strong> {formatCurrency(inst.paid_amount!)}</p>
+                  )}
+                  {remaining > 0 && <p><strong>Restante:</strong> {formatCurrency(remaining)}</p>}
+                  {mora && (
+                    <p className="text-destructive font-medium">
+                      <strong>Mora:</strong> {formatCurrency(mora.lateAmount)} ({mora.lateDays} días)
+                    </p>
+                  )}
+                </div>
+                <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
+                {mora && (
+                  <>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={includeMora}
+                        onChange={e => {
+                          const checked = e.target.checked
+                          setIncludeMora(checked)
+                          setPaymentAmount(String(checked ? remaining + (mora?.lateAmount ?? 0) : remaining))
+                        }}
+                        className="rounded border-border"
+                      />
+                      <span>Incluir mora: <strong>{formatCurrency(mora.lateAmount)}</strong></span>
+                    </label>
+                    <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subtotal cuota</span>
+                        <span className="font-medium">{formatCurrency(remaining)}</span>
+                      </div>
+                      {includeMora && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Mora ({mora.lateDays}d)</span>
+                          <span className="font-medium text-destructive">{formatCurrency(mora.lateAmount)}</span>
+                        </div>
+                      )}
+                      <div className="border-t pt-1 flex justify-between font-semibold">
+                        <span>Total</span>
+                        <span>{formatCurrency(includeMora ? remaining + mora.lateAmount : remaining)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="min-w-0">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
+                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
+                      <option value="cash">Efectivo</option>
+                      <option value="transfer">Transferencia</option>
+                      <option value="deposit">Depósito</option>
+                      <option value="other">Otro</option>
+                    </select>
+                  </div>
+                  <div className="min-w-0">
+                    <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+                  </div>
+                </div>
+                <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" type="button" onClick={() => { setShowPayment(false); setSelectedInstallment(null); setInstallmentMora(null) }}>Cancelar</Button>
+                  <Button type="submit" loading={loading}>Registrar cobro</Button>
+                </div>
+              </>
+            )
+          })()}
         </form>
       </Modal>
     </div>

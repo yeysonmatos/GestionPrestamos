@@ -253,6 +253,9 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                           ? 'Pendiente'
                           : 'Pagado'}
                       </Badge>
+                      {(inst.paid_amount ?? 0) > 0 && inst.status !== 'paid' && (
+                        <Badge variant="active">Parcial</Badge>
+                      )}
                   </div>
                 </div>
               ))}
