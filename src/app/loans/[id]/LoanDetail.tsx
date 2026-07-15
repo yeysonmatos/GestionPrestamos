@@ -470,7 +470,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 pt-4 border-t border-border">
           <div>
             <p className="text-xs text-muted-foreground">{isInterestOnly ? 'Interés por período' : 'Cuota'}</p>
             <p className="font-semibold">{formatCurrency(loan.installment_amount)}</p>
@@ -484,8 +484,20 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <p className="font-semibold text-success">{formatCurrency(loan.paid_amount)}</p>
           </div>
           <div>
+            <p className="text-xs text-muted-foreground">Mora</p>
+            <p className="font-semibold text-destructive">{formatCurrency(calcPendingMora())}</p>
+          </div>
+          <div>
             <p className="text-xs text-muted-foreground">Pendiente</p>
-            <p className="font-semibold text-warning">{formatCurrency(isInterestOnly ? loan.remaining_amount : loan.total_amount - loan.paid_amount)}</p>
+            <p className="font-semibold text-warning">{(() => {
+              const capRemaining = calcCapitalRemaining()
+              const lastPmt = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
+              const lastDate = lastPmt?.payment_date || loan.first_payment_date
+              const daysSince = Math.max(0, Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)))
+              const monthRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+              const propInt = monthRate > 0 ? calculateProportionalInterest(capRemaining, monthRate, daysSince) : 0
+              return formatCurrency(capRemaining + propInt + calcPendingMora())
+            })()}</p>
           </div>
         </div>
 
@@ -495,36 +507,6 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             {progressValue}% · {isOpenEnded ? `${formatCurrency(Number(loan.amount) - Number(loan.remaining_amount))}/${formatCurrency(loan.amount)} capital` : `${loan.paid_installments}/${loan.installments} cuotas`}
           </span>
         </div>
-
-        {(() => {
-          const pendingInstallments = installments.filter(i => i.status === 'pending')
-          let totalLateDays = 0
-          let totalLateAmount = 0
-          let hasLate = false
-          
-          pendingInstallments.forEach(inst => {
-            const days = calculateLateDays(inst.due_date)
-            if (days > 0) {
-              hasLate = true
-              const lateAmt = calculateLateAmount(inst.amount, days, settings?.late_interest_rate || 0.5)
-              totalLateDays = Math.max(totalLateDays, days)
-              totalLateAmount += lateAmt
-            }
-          })
-          
-          if (hasLate) {
-            return (
-              <div key="mora-banner" className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <span className="text-destructive font-medium">⏰ Préstamo atrasado</span>
-                  <Badge variant="late">{totalLateDays} días de mora</Badge>
-                  <span className="text-destructive font-medium ml-auto">{formatCurrency(totalLateAmount)} de mora</span>
-                </div>
-              </div>
-            )
-          }
-          return null
-        })()}
 
         {loan.status === 'active' && (
           <div className="flex gap-2 mt-4 pt-4 border-t border-border">
@@ -559,8 +541,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 <tr className="border-b border-border">
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
                   <th className="text-left py-2 px-3 font-medium text-muted-foreground">Vencimiento</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{isInterestOnly ? 'Interés' : 'Cuota'}</th>
-                  {!isInterestOnly && <th className="text-right py-2 px-3 font-medium text-muted-foreground">Capital</th>}
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Capital</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Interés</th>
 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Saldo</th>
               <th className="text-center py-2 px-3 font-medium text-muted-foreground">Mora</th>
@@ -572,8 +553,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   <tr key={inst.number} className="border-b border-border hover:bg-muted">
                     <td className="py-2 px-3 font-medium">{inst.number}</td>
                     <td className="py-2 px-3">{formatDate(inst.due_date)}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(inst.amount)}</td>
-                    {!isInterestOnly && <td className="py-2 px-3 text-right">{formatCurrency(inst.capital)}</td>}
+                    <td className="py-2 px-3 text-right">{formatCurrency(inst.capital)}</td>
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.interest)}</td>
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.balance)}</td>
                     <td className="py-2 px-3 text-center">
@@ -584,8 +564,12 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                       )}
                     </td>
                     <td className="py-2 px-3 text-center">
-                      <Badge variant={inst.status === 'paid' ? 'paid' : 'active'}>
-                        {inst.status === 'paid' ? 'Pagado' : 'Pendiente'}
+                      <Badge variant={
+                        inst.status === 'paid' ? 'paid' :
+                        new Date(inst.due_date) < new Date() ? 'late' : 'active'
+                      }>
+                        {inst.status === 'paid' ? 'Pagado' :
+                         new Date(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
                       </Badge>
                     </td>
                   </tr>
@@ -795,7 +779,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   )}
                   <hr className="border-border my-1" />
                   <div className="flex justify-between text-base">
-                    <span className="font-bold">Monto total restante</span>
+                    <span className="font-bold">Total</span>
                     <span className="font-bold text-foreground">{formatCurrency(total)}</span>
                   </div>
                 </div>
