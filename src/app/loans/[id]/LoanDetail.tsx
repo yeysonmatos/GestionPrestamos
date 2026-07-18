@@ -131,6 +131,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       const paidAmount = Number(loan.paid_amount) + amount
       const updates: Record<string, string | number | boolean> = {
         paid_amount: paidAmount,
+        remaining_amount: Math.max(0, Number(loan.remaining_amount) - amount),
       }
       if (!isOpenEnded) {
         const paidCount = isInterestOnly
