@@ -622,7 +622,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           </span>
         </div>
 
-        {loan.status === 'active' && (
+        {(loan.status === 'active' || loan.status.startsWith('late')) && (
           <div className="flex gap-2 mt-4 pt-4 border-t border-border">
             <Button size="sm" onClick={() => {
               setPaymentAmount(isOpenEnded ? String(loan.installment_amount) : '')
