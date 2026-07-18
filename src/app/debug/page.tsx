@@ -14,7 +14,7 @@ export default async function DebugPage() {
 
   return (
     <pre style={{ fontSize: 12 }}>
-{JSON.stringify({ loans, payments, installments }, null, 2)}
+{JSON.stringify({ loans, loan53, loanL100001, payments, installments }, null, 2)}
     </pre>
   )
 }
