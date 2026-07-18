@@ -47,6 +47,8 @@ interface Props {
   openEndedLoans: OpenEndedLoan[]
 }
 
+const pendingStatuses = ['pending', 'partial']
+
 export default function CalendarContent({ installments, payments, openEndedLoans }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date())
 
@@ -203,7 +205,7 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                     <p className="text-[10px] text-destructive font-medium">
                       {dayDue.length} vencen · {formatCurrency(totalDue)}
                     </p>
-                    {dayDue.some(i => i.status === 'pending' && parseISO(i.due_date) < new Date()) && (
+                    {dayDue.some(i => pendingStatuses.includes(i.status) && parseISO(i.due_date) < new Date()) && (
                       <p className="text-[10px] text-destructive font-medium">Atrasado</p>
                     )}
                   </div>
@@ -223,12 +225,12 @@ export default function CalendarContent({ installments, payments, openEndedLoans
         <h3 className="text-base font-semibold text-foreground mb-4">
           Cuotas del {format(currentDate, "MMMM 'de' yyyy", { locale: es })}
         </h3>
-        {installments.filter(i => isSameMonth(parseISO(i.due_date), currentDate) && i.status === 'pending').length === 0 ? (
+        {installments.filter(i => isSameMonth(parseISO(i.due_date), currentDate) && pendingStatuses.includes(i.status)).length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No hay cuotas pendientes este mes</p>
         ) : (
           <div className="space-y-2">
             {installments
-              .filter(i => isSameMonth(parseISO(i.due_date), currentDate) && i.status === 'pending')
+              .filter(i => isSameMonth(parseISO(i.due_date), currentDate) && pendingStatuses.includes(i.status))
               .slice(0, 10)
               .map(inst => (
                 <div key={inst.id} className="flex items-center justify-between py-2 border-b last:border-0">
@@ -241,21 +243,12 @@ export default function CalendarContent({ installments, payments, openEndedLoans
 <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
                       <Badge variant={
-                        inst.status === 'pending' && parseISO(inst.due_date) < new Date()
-                          ? 'late'
-                          : inst.status === 'pending'
-                          ? 'active'
-                          : 'paid'
+                        inst.status === 'partial' ? 'active' :
+                        parseISO(inst.due_date) < new Date() ? 'late' : 'active'
                       }>
-                        {inst.status === 'pending' && parseISO(inst.due_date) < new Date()
-                          ? 'Atrasado'
-                          : inst.status === 'pending'
-                          ? 'Pendiente'
-                          : 'Pagado'}
+                        {inst.status === 'partial' ? 'Parcial' :
+                         parseISO(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
                       </Badge>
-                      {(inst.paid_amount ?? 0) > 0 && inst.status !== 'paid' && (
-                        <Badge variant="active">Parcial</Badge>
-                      )}
                   </div>
                 </div>
               ))}

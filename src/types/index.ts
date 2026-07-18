@@ -74,7 +74,7 @@ export interface Loan {
   amortization_type: 'interest_only' | 'french'
   open_ended: boolean
   payment_day: number | null
-  status: 'active' | 'paid' | 'late' | 'cancelled'
+  status: 'active' | 'paid' | 'late' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'cancelled'
   late_days: number
   late_interest_rate: number
   guarantee: string | null
@@ -95,9 +95,10 @@ export interface Installment {
   interest: number
   balance: number
   paid_amount: number
+  paid_late_amount: number
   due_date: string
   paid_at: string | null
-  status: 'pending' | 'paid' | 'late'
+  status: 'pending' | 'paid' | 'late' | 'partial'
   late_days: number
   late_amount: number
   loan?: Loan & { client?: Client }
@@ -152,6 +153,7 @@ export interface Setting {
   notify_upcoming_days: number
   default_installments: number
   default_frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly'
+  grace_days: number
   language: string
   updated_at: string
 }

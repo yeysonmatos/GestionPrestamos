@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -12,11 +12,12 @@ import { Avatar } from '@/components/ui/Avatar'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
+import { processInstallmentPayment, updateLoanAfterPayment } from '@/lib/payments'
 import { useRouter } from 'next/navigation'
 import {
   CalendarCheck, AlertTriangle, Calendar, DollarSign,
 } from 'lucide-react'
-import type { Installment, Payment, Client } from '@/types'
+import type { Installment, Payment, Client, Setting } from '@/types'
 
 interface OpenEndedLoan {
   id: string
@@ -39,6 +40,7 @@ interface SyntheticInstallment {
   interest: number
   balance: number
   paid_amount: number
+  paid_late_amount: number
   due_date: string
   paid_at: string | null
   status: 'pending' | 'paid' | 'late'
@@ -65,10 +67,11 @@ interface Props {
   upcomingInstallments: Installment[]
   recentPayments: Payment[]
   openEndedLoans: OpenEndedLoan[]
+  settings: Setting | null
 }
 
 export default function CollectionsContent({
-  todayInstallments, overdueInstallments, upcomingInstallments, recentPayments, openEndedLoans,
+  todayInstallments: initialToday, overdueInstallments: initialOverdue, upcomingInstallments: initialUpcoming, recentPayments: initialPayments, openEndedLoans, settings,
 }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -84,9 +87,17 @@ export default function CollectionsContent({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })
   const [loading, setLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   const [filter, setFilter] = useState<'today' | 'overdue' | 'upcoming' | 'history'>('today')
   const [includeMora, setIncludeMora] = useState(true)
   const [installmentMora, setInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
+  const [todayInstallments, setTodayInstallments] = useState(initialToday)
+  const [overdueInstallments, setOverdueInstallments] = useState(initialOverdue)
+  const [upcomingInstallments, setUpcomingInstallments] = useState(initialUpcoming)
+  const [payments, setPayments] = useState(initialPayments)
+
+  const lateInterestRate = settings?.late_interest_rate || 0.5
+  const graceDays = settings?.grace_days || 0
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -116,6 +127,7 @@ export default function CollectionsContent({
         interest: loan.installment_amount,
         balance: loan.remaining_amount,
         paid_amount: 0,
+        paid_late_amount: 0,
         due_date: due,
         paid_at: null,
         status: 'pending',
@@ -134,140 +146,154 @@ export default function CollectionsContent({
     return { today, overdue, upcoming }
   }, [openEndedLoans])
 
-  const allToday = [...todayInstallments, ...synthetic.today]
-  const allOverdue = [...overdueInstallments, ...synthetic.overdue]
-  const allUpcoming = [...upcomingInstallments, ...synthetic.upcoming]
+  const allToday = useMemo(() => [...todayInstallments, ...synthetic.today], [todayInstallments, synthetic.today])
+  const allOverdue = useMemo(() => [...overdueInstallments, ...synthetic.overdue], [overdueInstallments, synthetic.overdue])
+  const allUpcoming = useMemo(() => [...upcomingInstallments, ...synthetic.upcoming], [upcomingInstallments, synthetic.upcoming])
 
   const enrichedOverdue = useMemo(() => {
     return allOverdue.map(inst => {
-      const lateDays = calculateLateDays(inst.due_date)
-      const lateAmount = calculateLateAmount(inst.amount, lateDays, 0.5)
-      return { ...inst, late_days: Math.max(inst.late_days, lateDays), late_amount: Math.max(inst.late_amount, lateAmount) }
+      const lateDays = calculateLateDays(inst.due_date, graceDays)
+      const remaining = inst.amount - (inst.paid_amount || 0)
+      const totalLate = calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, lateInterestRate)
+      const paidLate = inst.paid_late_amount || 0
+      const remainingLate = Math.max(0, totalLate - paidLate)
+      return { ...inst, late_days: Math.max(inst.late_days, lateDays), late_amount: remainingLate }
     })
-  }, [allOverdue])
+  }, [allOverdue, lateInterestRate])
 
-  async function handlePay(e: React.FormEvent) {
+  const handlePay = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedInstallment || !userId) return
+    const inst = selectedInstallment
+    const isOpenEndedType = 'isOpenEnded' in inst && inst.isOpenEnded
+
+    if (isOpenEndedType) {
+      setLoading(true)
+      setPaymentError('')
+      const amount = parseFloat(paymentAmount)
+      if (isNaN(amount) || amount <= 0) { setPaymentError('Monto inválido'); setLoading(false); return }
+
+      const { data: payment, error } = await supabase
+        .from('payments')
+        .insert({
+          loan_id: inst.loan_id,
+          client_id: inst.client_id,
+          user_id: userId,
+          amount,
+          capital_amount: 0,
+          interest_amount: amount,
+          payment_date: paymentDate,
+          method: paymentMethod,
+          notes: paymentNotes || null,
+        })
+        .select()
+        .single()
+
+      if (error) { setPaymentError('Error al registrar pago: ' + error.message); setLoading(false); return }
+
+      if (payment) {
+        const { data: loanData } = await supabase
+          .from('loans')
+          .select('paid_amount, remaining_amount')
+          .eq('id', inst.loan_id)
+          .single()
+
+        if (loanData) {
+          const newPaid = Number(loanData.paid_amount) + amount
+          const newRemaining = Math.max(0, Number(loanData.remaining_amount))
+          await supabase.from('loans').update({
+            paid_amount: newPaid,
+            remaining_amount: newRemaining,
+          }).eq('id', inst.loan_id)
+          await supabase.rpc('update_client_stats', { p_client_id: inst.client_id })
+        }
+
+        setPayments(prev => [payment, ...prev])
+        setShowPayment(false)
+        setSelectedInstallment(null)
+        setPaymentAmount('')
+        setInstallmentMora(null)
+        router.refresh()
+      }
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
 
     const amount = parseFloat(paymentAmount)
-    const inst = selectedInstallment
-    const loan = inst.loan
-    const isOpenEndedType = 'isOpenEnded' in inst && inst.isOpenEnded
-    const isInterestOnly = isOpenEndedType || loan?.amortization_type === 'interest_only'
+    if (isNaN(amount) || amount <= 0) { setLoading(false); return }
 
-    const installmentAmount = inst.amount
-    const lateDays = calculateLateDays(inst.due_date)
-    const totalLateAmount = calculateLateAmount(inst.amount, lateDays, 0.5)
-    const previouslyPaid = inst.paid_amount || 0
+    const realInst = inst as Installment
 
-    let paidToInstallment: number
-    let paidToLate: number
-
-    if (includeMora) {
-      paidToInstallment = Math.min(amount, installmentAmount - previouslyPaid)
-      paidToLate = Math.max(0, amount - paidToInstallment)
-    } else {
-      paidToInstallment = amount
-      paidToLate = 0
-    }
-
-    const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, installmentAmount)
-    const expectedTotal = (installmentAmount - previouslyPaid) + (includeMora ? totalLateAmount : 0)
-    const isNowFullyPaid = amount >= expectedTotal
-
-    const capitalAmount = isInterestOnly ? 0 : Math.min(paidToInstallment, inst.capital)
-    const interestAmount = isInterestOnly ? paidToInstallment : Math.min(paidToInstallment, inst.interest)
-
-    const { data: payment, error } = await supabase
-      .from('payments')
-      .insert({
-        loan_id: inst.loan_id,
-        installment_id: ('isOpenEnded' in inst && inst.isOpenEnded) ? null : (inst as Installment).id,
+    try {
+      const loanForPayment = {
+        id: inst.loan_id,
         client_id: inst.client_id,
-        user_id: userId,
+        amortization_type: inst.loan?.amortization_type || 'french',
+        amount: Number(inst.loan?.total_amount || 0),
+        installments: 0,
+        total_amount: Number(inst.loan?.total_amount || 0),
+        remaining_amount: Number(inst.loan?.remaining_amount || 0),
+      }
+      const { payment, allocation } = await processInstallmentPayment(supabase as any, {
+        loan: loanForPayment as any,
+        installment: realInst,
         amount,
-        capital_amount: capitalAmount,
-        interest_amount: interestAmount,
-        late_amount: paidToLate,
-        payment_date: paymentDate,
+        includeMora,
+        paymentDate,
         method: paymentMethod,
-        notes: paymentNotes || null,
+        notes: paymentNotes,
+        userId,
+        lateInterestRate,
+        graceDays,
       })
-      .select()
-      .single()
 
-    if (!error && payment) {
-      if (!('isOpenEnded' in inst) || !inst.isOpenEnded) {
-          await supabase
-            .from('installments')
-            .update({
-              status: isNowFullyPaid ? 'paid' : 'pending',
-              paid_amount: totalPaidOnInstallment,
-              late_amount: totalLateAmount,
-              late_days: lateDays,
-              paid_at: isNowFullyPaid ? paymentDate : null,
-            })
-            .eq('id', (inst as Installment).id)
+      const loanUpdates = await updateLoanAfterPayment(supabase as any, inst.loan_id, inst.client_id)
+
+      const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
+      const updatedInstallment: Installment = {
+        ...realInst,
+        status: newStatus,
+        paid_amount: allocation.totalPaidOnInstallment,
+        paid_late_amount: allocation.newPaidLateAmount,
+        late_amount: allocation.totalLateAmount,
+        late_days: allocation.lateDays,
+        paid_at: allocation.isNowFullyPaid ? paymentDate : null,
       }
 
-      if (loan) {
-        const { data: updatedInstallments } = await supabase
-          .from('installments')
-          .select('*')
-          .eq('loan_id', inst.loan_id)
-
-        if (updatedInstallments) {
-          const fullyPaidCount = updatedInstallments.filter(i => i.status === 'paid').length
-          const paidAmount = updatedInstallments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0)
-          const progress = updatedInstallments.length > 0
-            ? Math.round((fullyPaidCount / updatedInstallments.length) * 100)
-            : 0
-          const remaining = isInterestOnly
-            ? (loan.remaining_amount ?? 0)
-            : Math.max(0, Number(loan.total_amount) - paidAmount)
-
-          const updates: Record<string, string | number | boolean> = {
-            paid_installments: fullyPaidCount,
-            paid_amount: paidAmount,
-            remaining_amount: remaining,
-            progress,
-          }
-          if (!isInterestOnly && updatedInstallments.length > 0 && fullyPaidCount >= updatedInstallments.length) {
-            updates.status = 'paid'
-            updates.paid_at = new Date().toISOString()
-          }
-
-          await supabase.from('loans').update(updates).eq('id', inst.loan_id)
-        }
-      }
-
-      await supabase.rpc('update_client_stats', { p_client_id: inst.client_id })
+      setTodayInstallments(prev => prev.map(i => i.id === realInst.id ? updatedInstallment : i))
+      setOverdueInstallments(prev => prev.map(i => i.id === realInst.id ? updatedInstallment : i))
+      setUpcomingInstallments(prev => prev.map(i => i.id === realInst.id ? updatedInstallment : i))
+      setPayments(prev => [payment, ...prev])
 
       setShowPayment(false)
       setSelectedInstallment(null)
       setPaymentAmount('')
       setInstallmentMora(null)
       router.refresh()
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : 'Error al procesar el pago')
     }
 
     setLoading(false)
-  }
+  }, [selectedInstallment, userId, paymentAmount, includeMora, paymentDate, paymentMethod, paymentNotes, lateInterestRate, graceDays, supabase, router])
 
-  const todayTotal = allToday.reduce((s, i) => s + Number(i.amount), 0)
-  const overdueTotal = enrichedOverdue.reduce((s, i) => s + Number(i.amount), 0)
-  const upcomingTotal = allUpcoming.reduce((s, i) => s + Number(i.amount), 0)
+  const todayTotal = useMemo(() => allToday.reduce((s, i) => s + Number(i.amount), 0), [allToday])
+  const overdueTotal = useMemo(() => enrichedOverdue.reduce((s, i) => s + Number(i.amount), 0), [enrichedOverdue])
+  const upcomingTotal = useMemo(() => allUpcoming.reduce((s, i) => s + Number(i.amount), 0), [allUpcoming])
 
   function openPayment(inst: Installment | SyntheticInstallment) {
     setSelectedInstallment(inst)
-    const lateDays = calculateLateDays(inst.due_date)
-    const lateAmount = lateDays > 0 ? calculateLateAmount(inst.amount, lateDays, 0.5) : 0
-    const hasMora = lateAmount > 0
-    setInstallmentMora(hasMora ? { lateDays, lateAmount } : null)
-    setIncludeMora(hasMora)
+    const lateDays = calculateLateDays(inst.due_date, graceDays)
     const remaining = inst.amount - (inst.paid_amount || 0)
-    setPaymentAmount(String(hasMora ? remaining + lateAmount : remaining))
+    const totalLate = lateDays > 0 ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, lateInterestRate) : 0
+    const paidLate = ('paid_late_amount' in inst ? (inst.paid_late_amount || 0) : 0)
+    const remainingLate = Math.max(0, totalLate - paidLate)
+    const hasMora = remainingLate > 0
+    setInstallmentMora(hasMora ? { lateDays, lateAmount: remainingLate } : null)
+    setIncludeMora(hasMora)
+    setPaymentAmount(String(hasMora ? remaining + remainingLate : remaining))
     setShowPayment(true)
   }
 
@@ -326,7 +352,7 @@ export default function CollectionsContent({
             { key: 'today', label: 'Hoy', count: allToday.length },
             { key: 'overdue', label: 'Vencidos', count: enrichedOverdue.length },
             { key: 'upcoming', label: 'Próximos', count: allUpcoming.length },
-            { key: 'history', label: 'Historial', count: recentPayments.length },
+            { key: 'history', label: 'Historial', count: payments.length },
           ] as const).map(tab => (
             <button
               key={tab.key}
@@ -346,11 +372,11 @@ export default function CollectionsContent({
       {filter === 'history' ? (
         <Card>
           <h3 className="text-base font-semibold text-foreground mb-4">Últimos cobros realizados</h3>
-          {recentPayments.length === 0 ? (
+          {payments.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">Sin pagos registrados</p>
           ) : (
             <div className="space-y-2">
-              {recentPayments.map(p => (
+              {payments.map(p => (
                 <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div className="flex items-center gap-3">
                     <Avatar name={p.loan?.client?.name || '?'} size="sm" />
@@ -375,6 +401,7 @@ export default function CollectionsContent({
           {filteredList.map((inst: Installment | SyntheticInstallment) => {
             const client = inst.loan?.client
             const isOpen = ('isOpenEnded' in inst && inst.isOpenEnded)
+            const remainingLate = Math.max(0, (inst.late_amount || 0) - ((inst as Installment).paid_late_amount || 0))
             return (
               <Card key={inst.id} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -382,10 +409,17 @@ export default function CollectionsContent({
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-foreground">{client?.name || 'Eliminado'}</p>
-                      <Badge variant={filter === 'overdue' ? 'late' : 'active'}>
+                      <Badge variant={
+                        filter === 'overdue'
+                          ? inst.late_days > 60 ? 'late_61_90'
+                            : inst.late_days > 30 ? 'late_31_60'
+                            : inst.late_days > 0 ? 'late_1_30'
+                            : 'late'
+                          : 'active'
+                      }>
                         {filter === 'today' ? 'Hoy' : filter === 'overdue' ? `Vence ${inst.late_days > 0 ? `hace ${inst.late_days}d` : ''}` : formatDate(inst.due_date)}
                       </Badge>
-                      {(inst.paid_amount ?? 0) > 0 && (
+                      {(inst.paid_amount ?? 0) > 0 && inst.status !== 'paid' && (
                         <Badge variant="active">Parcial</Badge>
                       )}
                     </div>
@@ -397,8 +431,8 @@ export default function CollectionsContent({
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="font-bold text-foreground">{formatCurrency(inst.amount)}</p>
-                    {inst.late_amount > 0 && (
-                      <p className="text-xs text-destructive">+{formatCurrency(inst.late_amount)} mora</p>
+                    {remainingLate > 0 && (
+                      <p className="text-xs text-destructive">+{formatCurrency(remainingLate)} mora</p>
                     )}
                   </div>
                   <Button size="sm" onClick={() => openPayment(inst)}>
@@ -413,13 +447,14 @@ export default function CollectionsContent({
 
       <Modal open={showPayment} onClose={() => setShowPayment(false)} title="Registrar cobro">
         <form onSubmit={handlePay} className="space-y-4">
+          {paymentError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+          )}
           {selectedInstallment && (() => {
             const inst = selectedInstallment
             const remaining = inst.amount - (inst.paid_amount || 0)
             const mora = installmentMora
-            const cuotaSubtotal = includeMora ? remaining : parseFloat(paymentAmount || '0')
             const moraAmount = includeMora && mora ? mora.lateAmount : 0
-            const total = (includeMora && mora ? remaining + mora.lateAmount : remaining)
             return (
               <>
                 <div className="bg-primary-light rounded-lg p-3 text-sm text-primary">

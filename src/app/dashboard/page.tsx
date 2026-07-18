@@ -1,9 +1,11 @@
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import DashboardContent from './DashboardContent'
+import { updateAllLoanLateStatuses } from '@/lib/loan-status'
 
 export default async function DashboardPage() {
   const supabase = await createServerSideClient()
+  await updateAllLoanLateStatuses(supabase)
 
   const { data: loans } = await supabase
     .from('loans')
@@ -35,7 +37,7 @@ export default async function DashboardPage() {
   const { data: overdueInstallments } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'partial'])
     .lt('due_date', today)
 
   const tomorrow = new Date()
@@ -45,7 +47,7 @@ export default async function DashboardPage() {
   const { data: upcomingInstallments } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'partial'])
     .gte('due_date', today)
     .lte('due_date', tomorrowStr)
     .order('due_date', { ascending: true })

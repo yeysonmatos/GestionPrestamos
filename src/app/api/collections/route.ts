@@ -9,18 +9,18 @@ export async function GET(request: NextRequest) {
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
     .eq('due_date', today)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'partial'])
 
   const { data: overdueInstallments, error: err2 } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'partial'])
     .lt('due_date', today)
 
   const { data: upcomingInstallments, error: err3 } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .eq('status', 'pending')
+    .in('status', ['pending', 'partial'])
     .gte('due_date', today)
 
   if (err1 || err2 || err3) {

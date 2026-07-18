@@ -47,7 +47,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
     const amount = parseFloat(form.amount)
     const rate = parseFloat(form.interest_rate)
     const numInstallments = parseInt(form.installments)
-    if (!amount || !rate || !form.start_date || !form.first_payment_date) return null
+    if (amount <= 0 || !rate || !form.start_date || !form.first_payment_date) return null
     if (!form.open_ended && !numInstallments) return null
 
     try {
@@ -81,6 +81,8 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
     const amount = parseFloat(form.amount)
     const rate = parseFloat(form.interest_rate)
     const numInstallments = form.open_ended ? 0 : parseInt(form.installments)
+
+    if (amount <= 0) { setError('El monto debe ser mayor a cero'); setLoading(false); return }
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('Debes iniciar sesión'); setLoading(false); return }

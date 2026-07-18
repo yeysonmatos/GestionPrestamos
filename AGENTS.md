@@ -78,3 +78,32 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 - [x] **handlePay allocation**: `paidToInstallment = Math.min(amount, remaining)`, `paidToLate = Math.max(0, amount - paidToInstallment)`
 - [x] **paid_amount tracking**: `installments.update({ paid_amount: totalPaidOnInstallment })` en lugar de sobreescribir con amount total; `paid_at` solo si fully paid
 - [x] **Loan stats**: `fullyPaidCount` (no paidCount) para progress/remaining; partial payments no cuentan como paid
+
+### Fix aplicado
+- [x] **isNowFullyPaid bug**: Comparaba `totalPaidOnInstallment >= installmentAmount` → si la cuota quedaba cubierta (5000/5000) marcaba `paid` aunque faltara mora. Corregido a `amount >= (remaining) + (includeMora ? totalLateAmount : 0)`
+- [x] **late_amount**: Ahora guarda `totalLateAmount` (mora total calculada) en vez de `paidToLate` (solo lo pagado a mora), para que el badge en cards refleje la deuda real
+
+### Pendiente de corregir
+- Nada por ahora
+
+## Hoy — 18 Jul 2026
+
+### Refactor mayor (sesión 1)
+- [x] **Shared payment service**, `paid_late_amount` tracking, reversión inteligente, settings en Collections, sync UI, etc.
+
+### Fixes aplicados (sesión 2)
+- [x] **CR-1**: Collections pasaba `amortization_type: 'french'` forzado — ahora usa el tipo real del préstamo (toma `amortization_type` de `inst.loan`)
+- [x] **CR-2**: Reversión sumaba `capital_amount` en vez de `payment.amount` para `remaining_amount` — corregido a `payment.amount`
+- [x] **CR-3**: `recalculateInstallment` ponía `paid_at = today` — ahora usa la fecha del pago más reciente
+- [x] **CR-5**: Query de próximos usaba `>= today` solapándose con los de hoy — cambiado a `> today`
+- [x] **CR-6**: `paidToInstallment` sin cap en `remaining` cuando `includeMora=false` — ahora siempre capped
+- [x] **H-2/H-3**: Catch blocks silenciosos reemplazados con `setPaymentError()` + UI visible en modales
+- [x] **H-4**: Resultado de installment update no se verificaba — ahora lanza error si falla
+- [x] **H-5**: División por cero en francesa con `n=0` — guard clause añadido
+- [x] **H-6**: `calculateLateDays` mezclaba UTC/local — ahora usa `differenceInCalendarDays` de date-fns
+- [x] **H-10**: Mora se calculaba sobre `installment.amount` completo — ahora sobre `remaining` (saldo restante)
+- [x] **H-11**: `paidCount = 0 + 1` para open-ended — saltado cuando `isOpenEnded`
+- [x] **M-2**: Interest-only cerrado nunca pasaba a 'paid' — eliminado filtro `!isInterestOnly` en auto-complete
+- [x] **M-6**: Pago open-ended en Cobros no actualizaba loan — ahora actualiza `paid_amount` y llama `update_client_stats`
+- [x] **M-8**: Balance threshold `< 0.01` cambiado a `< 0.005` para mejor precisión
+- [x] **L-3**: Montos negativos pasaban validación (`!amount`) — cambiado a `amount <= 0`

@@ -11,13 +11,14 @@ import Modal from '@/components/ui/Modal'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, formatDate, getStatusLabel, getLocalDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
-import { calculateLateDays, calculateLateAmount, calculateProportionalInterest, calculateFrenchProportionalInterest } from '@/lib/calculations'
+import { calculateLateDays, calculateLateAmount, calculateProportionalInterest, calculateLoan } from '@/lib/calculations'
+import { processInstallmentPayment, updateLoanAfterPayment, recalculateInstallment } from '@/lib/payments'
 import Link from 'next/link'
 import { ArrowLeft, Printer, FileText, Undo, Share2, Check, Download } from 'lucide-react'
 import type { Loan, Installment, Payment, Setting } from '@/types'
 
-const statusVariant: Record<string, 'active' | 'paid' | 'cancelled' | 'default' | 'late'> = {
-  active: 'active', paid: 'paid', late: 'late', cancelled: 'cancelled',
+const statusVariant: Record<string, 'active' | 'paid' | 'cancelled' | 'default' | 'late' | 'late_1_30' | 'late_31_60' | 'late_61_90'> = {
+  active: 'active', paid: 'paid', late: 'late', late_1_30: 'late_1_30', late_31_60: 'late_31_60', late_61_90: 'late_61_90', cancelled: 'cancelled',
 }
 
 interface Props {
@@ -46,6 +47,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   })
   const [loading, setLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
   const [showContract, setShowContract] = useState(false)
   const [showCapitalAbono, setShowCapitalAbono] = useState(false)
   const [capitalAbonoAmount, setCapitalAbonoAmount] = useState('')
@@ -100,12 +102,20 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       .select()
       .single()
 
-    if (!error && payment) {
+    if (error) {
+      setPaymentError('Error al registrar pago: ' + error.message)
+      setLoading(false)
+      return
+    }
+
+    if (payment) {
       if (!isOpenEnded) {
         const inst = installments.find(i => i.id === paymentInstallmentId)
         if (inst) {
-          const lateDays = calculateLateDays(inst.due_date)
-          const lateAmount = calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
+          const graceDays = settings?.grace_days || 0
+          const lateDays = calculateLateDays(inst.due_date, graceDays)
+          const remainingLate = inst.amount - (inst.paid_amount || 0)
+          const lateAmount = calculateLateAmount(remainingLate > 0 ? remainingLate : inst.amount, lateDays, settings?.late_interest_rate || 0.5)
 
           await supabase
             .from('installments')
@@ -118,20 +128,16 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         }
       }
 
-      const paidCount = isOpenEnded ? 0 : installments.filter(i => i.status === 'paid').length + 1
       const paidAmount = Number(loan.paid_amount) + amount
-      const progress = isOpenEnded
-        ? Math.round(((loan.amount - Number(loan.remaining_amount)) / loan.amount) * 100)
-        : Math.round((paidCount / loan.installments) * 100)
-
       const updates: Record<string, string | number | boolean> = {
-        paid_installments: paidCount,
         paid_amount: paidAmount,
-        progress,
       }
-      if (!isOpenEnded && !isInterestOnly && paidCount >= loan.installments) {
-        updates.status = 'paid'
-        updates.paid_at = new Date().toISOString()
+      if (!isOpenEnded) {
+        const paidCount = isInterestOnly
+          ? 0
+          : installments.filter(i => i.status === 'paid').length + 1
+        updates.paid_installments = paidCount
+        updates.progress = Math.round((paidCount / loan.installments) * 100)
       }
 
       await supabase.from('loans').update(updates).eq('id', loan.id)
@@ -160,92 +166,48 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     const inst = installments.find(i => i.id === paymentInstallmentId)
     if (!inst || isNaN(amount) || amount <= 0 || !userId) { setLoading(false); return }
 
-    const lateDays = calculateLateDays(inst.due_date)
-    const totalLateAmount = calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
+    try {
+      const lateInterestRate = settings?.late_interest_rate || 0.5
+      const graceDays = settings?.grace_days || 0
 
-    const previouslyPaid = inst.paid_amount || 0
-
-    let paidToInstallment: number
-    let paidToLate: number
-
-    if (includeMora) {
-      paidToInstallment = Math.min(amount, inst.amount - previouslyPaid)
-      paidToLate = Math.max(0, amount - paidToInstallment)
-    } else {
-      paidToInstallment = amount
-      paidToLate = 0
-    }
-
-    const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, inst.amount)
-    const expectedTotal = (inst.amount - previouslyPaid) + (includeMora ? totalLateAmount : 0)
-    const isNowFullyPaid = amount >= expectedTotal
-
-    const capitalAmount = isInterestOnly ? 0 : Math.min(paidToInstallment, inst.capital)
-    const interestAmount = isInterestOnly ? paidToInstallment : Math.min(paidToInstallment, inst.interest)
-
-    const { data: payment, error } = await supabase
-      .from('payments')
-      .insert({
-        loan_id: loan.id,
-        installment_id: inst.id,
-        client_id: loan.client_id,
-        user_id: userId,
+      const { payment, allocation } = await processInstallmentPayment(supabase as any, {
+        loan,
+        installment: inst,
         amount,
-        capital_amount: capitalAmount,
-        interest_amount: interestAmount,
-        late_amount: paidToLate,
-        payment_date: paymentDate,
+        includeMora,
+        paymentDate,
         method: paymentMethod,
-        notes: paymentNotes || null,
+        notes: paymentNotes,
+        userId,
+        lateInterestRate,
+        graceDays,
       })
-      .select()
-      .single()
 
-    if (!error && payment) {
-      await supabase
-        .from('installments')
-        .update({
-          status: isNowFullyPaid ? 'paid' : 'pending',
-          paid_amount: totalPaidOnInstallment,
-          late_amount: totalLateAmount,
-          late_days: lateDays,
-          paid_at: isNowFullyPaid ? paymentDate : null,
-        })
-        .eq('id', inst.id)
+      const loanUpdates = await updateLoanAfterPayment(supabase as any, loan.id, loan.client_id)
 
-      const updatedInstallments = installments.map(i =>
-        i.id === inst.id ? { ...i, status: isNowFullyPaid ? 'paid' as const : 'pending' as const, paid_amount: totalPaidOnInstallment, paid_at: isNowFullyPaid ? paymentDate : null, late_days: lateDays, late_amount: totalLateAmount } : i
-      )
-      setInstallments(updatedInstallments)
+      const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
+      const updatedInstallment: Installment = {
+        ...inst,
+        status: newStatus,
+        paid_amount: allocation.totalPaidOnInstallment,
+        paid_late_amount: allocation.newPaidLateAmount,
+        late_amount: allocation.totalLateAmount,
+        late_days: allocation.lateDays,
+        paid_at: allocation.isNowFullyPaid ? paymentDate : null,
+      }
+
+      setInstallments(prev => prev.map(i =>
+        i.id === inst.id ? updatedInstallment : i
+      ))
+      setLoan(prev => ({ ...prev, ...loanUpdates }))
       setPayments(prev => [payment, ...prev])
-
-      const fullyPaidCount = updatedInstallments.filter(i => i.status === 'paid').length
-      const paidAmount = updatedInstallments.filter(i => i.status === 'paid').reduce((s, i) => s + i.amount, 0)
-      const progress = Math.round((fullyPaidCount / loan.installments) * 100)
-      const remaining = isInterestOnly
-        ? loan.remaining_amount
-        : Math.max(0, loan.total_amount - paidAmount)
-
-      const updates: Record<string, string | number | boolean> = {
-        paid_installments: fullyPaidCount,
-        paid_amount: paidAmount,
-        remaining_amount: remaining,
-        progress,
-      }
-      if (!isInterestOnly && fullyPaidCount >= loan.installments) {
-        updates.status = 'paid'
-        updates.paid_at = new Date().toISOString()
-      }
-
-      await supabase.from('loans').update(updates).eq('id', loan.id)
-      await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
-
-      setLoan(prev => ({ ...prev, ...updates }))
 
       setSuccessPayment(payment)
       setShowSuccess(true)
       setPaymentAmount('')
       setPaymentInstallmentId('')
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : 'Error al procesar el pago')
     }
 
     setLoading(false)
@@ -259,10 +221,15 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
   function calcPendingMora() {
     let total = 0
-    installments.filter(i => i.status === 'pending').forEach(inst => {
-      const days = calculateLateDays(inst.due_date)
+    const rate = settings?.late_interest_rate || 0.5
+    const graceDays = settings?.grace_days || 0
+    installments.filter(i => i.status === 'pending' || i.status === 'partial').forEach(inst => {
+      const days = calculateLateDays(inst.due_date, graceDays)
       if (days > 0) {
-        total += calculateLateAmount(inst.amount, days, settings?.late_interest_rate || 0.5)
+        const remaining = inst.amount - (inst.paid_amount || 0)
+        const totalLate = calculateLateAmount(remaining > 0 ? remaining : inst.amount, days, rate)
+        const paidLate = inst.paid_late_amount || 0
+        total += Math.max(0, totalLate - paidLate)
       }
     })
     return total
@@ -272,10 +239,10 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     e.preventDefault()
     setLoading(true)
 
-    const amount = parseFloat(capitalAbonoAmount)
-    if (!amount || amount <= 0 || !userId) { setLoading(false); return }
+    const abono = parseFloat(capitalAbonoAmount)
+    if (!abono || abono <= 0 || !userId) { setLoading(false); return }
 
-    const remaining = Math.max(0, Number(loan.remaining_amount) - amount)
+    const remaining = Math.max(0, Number(loan.remaining_amount) - abono)
 
     const { data: payment, error } = await supabase
       .from('payments')
@@ -283,8 +250,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         loan_id: loan.id,
         client_id: loan.client_id,
         user_id: userId,
-        amount,
-        capital_amount: amount,
+        amount: abono,
+        capital_amount: abono,
         interest_amount: 0,
         payment_date: paymentDate,
         method: paymentMethod,
@@ -295,18 +262,75 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       .single()
 
     if (!error) {
-      const currentCapitalRemaining = calcCapitalRemaining()
-      const newCapitalRemaining = Math.max(0, currentCapitalRemaining - amount)
-      const newProgress = Math.round(((loan.amount - newCapitalRemaining) / loan.amount) * 100)
+      const pendingInsts = installments.filter(i => i.status !== 'paid').sort((a, b) => a.number - b.number)
+      const newProgress = Math.round(((loan.amount - (calcCapitalRemaining() - abono)) / loan.amount) * 100)
 
-      await supabase.from('loans').update({
-        remaining_amount: remaining,
-        paid_amount: Number(loan.paid_amount) + amount,
-        progress: newProgress,
-      }).eq('id', loan.id)
+      if (isInterestOnly && pendingInsts.length > 0) {
+        const daysInPeriod = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }[loan.frequency] || 30
+        const monthlyRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+        const periodicRate = monthlyRate / 30 * daysInPeriod
+        const currentPrincipal = Number(loan.remaining_amount)
+        const newPrincipal = Math.max(0, currentPrincipal - abono)
+        const newInterestPerPeriod = Math.round(newPrincipal * periodicRate * 100) / 100
+        const lastNum = pendingInsts[pendingInsts.length - 1].number
+
+        for (const inst of pendingInsts) {
+          const isLast = inst.number === lastNum
+          const newAmount = isLast ? newInterestPerPeriod + newPrincipal : newInterestPerPeriod
+
+          await supabase.from('installments').update({
+            amount: newAmount,
+            capital: isLast ? newPrincipal : 0,
+            interest: newInterestPerPeriod,
+            balance: isLast ? 0 : newPrincipal,
+          }).eq('id', inst.id)
+        }
+
+        await supabase.from('loans').update({
+          installment_amount: newInterestPerPeriod,
+          remaining_amount: remaining,
+          paid_amount: Number(loan.paid_amount) + abono,
+          progress: newProgress,
+        }).eq('id', loan.id)
+
+        setLoan(prev => ({ ...prev, installment_amount: newInterestPerPeriod, remaining_amount: remaining, paid_amount: Number(prev.paid_amount) + abono, progress: newProgress }))
+        setInstallments(prev => prev.map(inst => {
+          if (inst.status === 'paid') return inst
+          const isLast = inst.number === lastNum
+          const newAmt = isLast ? newInterestPerPeriod + newPrincipal : newInterestPerPeriod
+          return { ...inst, amount: newAmt, capital: isLast ? newPrincipal : 0, interest: newInterestPerPeriod, balance: isLast ? 0 : newPrincipal }
+        }))
+      } else {
+        let remainingAbono = abono
+        const reductions: Record<string, number> = {}
+
+        for (const inst of pendingInsts) {
+          if (remainingAbono <= 0) break
+          const reduction = Math.min(remainingAbono, inst.capital)
+          reductions[inst.id] = reduction
+          remainingAbono -= reduction
+
+          await supabase.from('installments').update({
+            amount: Math.max(0, inst.amount - reduction),
+            capital: Math.max(0, inst.capital - reduction),
+            balance: Math.max(0, inst.balance - reduction),
+          }).eq('id', inst.id)
+        }
+
+        await supabase.from('loans').update({
+          remaining_amount: remaining,
+          paid_amount: Number(loan.paid_amount) + abono,
+          progress: newProgress,
+        }).eq('id', loan.id)
+
+        setLoan(prev => ({ ...prev, remaining_amount: remaining, paid_amount: Number(prev.paid_amount) + abono, progress: newProgress }))
+        setInstallments(prev => prev.map(inst => {
+          const reduction = reductions[inst.id]
+          return reduction ? { ...inst, amount: Math.max(0, inst.amount - reduction), capital: Math.max(0, inst.capital - reduction), balance: Math.max(0, inst.balance - reduction) } : inst
+        }))
+      }
+
       await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
-
-      setLoan(prev => ({ ...prev, remaining_amount: remaining, paid_amount: Number(prev.paid_amount) + amount, progress: newProgress }))
       setPayments(prev => [payment, ...prev])
       setSuccessPayment(payment)
       setShowSuccess(true)
@@ -360,7 +384,24 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         progress: 100,
         paid_at: new Date().toISOString(),
       }).eq('id', loan.id)
+
+      const today = new Date().toISOString().split('T')[0]
+      const { data: liquidatedInsts } = await supabase
+        .from('installments')
+        .update({ status: 'paid', paid_at: today, paid_amount: 0 })
+        .eq('loan_id', loan.id)
+        .neq('status', 'paid')
+        .select()
+
       await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
+
+      if (liquidatedInsts) {
+        setInstallments(prev => prev.map(i =>
+          liquidatedInsts.some(li => li.id === i.id)
+            ? { ...i, status: 'paid' as const, paid_at: today }
+            : i
+        ))
+      }
 
       setLoan(prev => ({ ...prev, status: 'paid', remaining_amount: 0, paid_amount: Number(prev.paid_amount) + totalToPay, progress: 100 }))
       setPayments(prev => [payment, ...prev])
@@ -379,17 +420,69 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     const payment = payments.find(p => p.id === paymentId)
     if (!payment || payment.status !== 'paid') return
 
-    const { error } = await supabase
+    const { error: revError } = await supabase
       .from('payments')
       .update({ status: 'reversed', reversal_reason: reason, reversed_at: new Date().toISOString(), reversed_by: userId })
       .eq('id', paymentId)
 
-    if (error) return
+    if (revError) {
+      alert('Error al revertir el pago: ' + revError.message)
+      return
+    }
 
     const newPaidAmount = Math.max(0, Number(loan.paid_amount) - Number(payment.amount))
-    const newRemaining = isOpenEnded || isInterestOnly
-      ? Number(loan.remaining_amount) + Number(payment.amount)
-      : Number(loan.remaining_amount) + Number(payment.capital_amount)
+    const newRemaining = Number(loan.remaining_amount) + Number(payment.amount)
+
+    if (payment.type === 'capital_abono') {
+      await supabase.from('loans').update({
+        paid_amount: newPaidAmount,
+        remaining_amount: newRemaining,
+      }).eq('id', loan.id)
+
+      await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
+
+      const pendingInsts = installments.filter(i => i.status !== 'paid')
+
+      if (pendingInsts.length > 0) {
+        const originalSchedule = calculateLoan({
+          amount: Number(loan.amount),
+          interest_type: loan.interest_type,
+          interest_rate: Number(loan.interest_rate),
+          installments: loan.installments,
+          frequency: loan.frequency,
+          start_date: loan.start_date,
+          amortization_type: loan.amortization_type,
+          open_ended: loan.open_ended,
+        })
+
+        for (const inst of pendingInsts) {
+          const original = originalSchedule.installments.find(r => r.number === inst.number)
+          if (original) {
+            await supabase.from('installments').update({
+              amount: original.amount,
+              capital: original.capital,
+              interest: original.interest,
+              balance: original.balance,
+            }).eq('id', inst.id)
+          }
+        }
+
+        setInstallments(prev => prev.map(inst => {
+          if (inst.status === 'paid') return inst
+          const original = originalSchedule.installments.find(r => r.number === inst.number)
+          return original ? { ...inst, amount: original.amount, capital: original.capital, interest: original.interest, balance: original.balance } : inst
+        }))
+      }
+
+      setLoan(prev => ({
+        ...prev,
+        paid_amount: newPaidAmount,
+        remaining_amount: newRemaining,
+      }))
+      setPayments(prev => prev.map(p => p.id === paymentId ? { ...p, status: 'reversed' as const, reversal_reason: reason } : p))
+      return
+    }
+
     const newInstallments = !isInterestOnly && !isOpenEnded
       ? Math.max(0, (loan.paid_installments || 0) - 1)
       : loan.paid_installments
@@ -406,14 +499,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
 
     if (payment.installment_id) {
-      await supabase
-        .from('installments')
-        .update({ status: 'pending', paid_at: null, paid_amount: 0, late_days: 0, late_amount: 0 })
-        .eq('id', payment.installment_id)
+      const updated = await recalculateInstallment(supabase as any, payment.installment_id)
 
       setInstallments(prev => prev.map(i =>
         i.id === payment.installment_id
-          ? { ...i, status: 'pending' as const, paid_at: null, paid_amount: 0, late_days: 0, late_amount: 0 }
+          ? { ...i, ...updated } as Installment
           : i
       ))
     }
@@ -582,23 +672,25 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.interest)}</td>
                     <td className="py-2 px-3 text-right">{formatCurrency(inst.balance)}</td>
                     <td className="py-2 px-3 text-center">
-                      {inst.late_days > 0 && (
-                        <span className="text-xs text-destructive font-medium">
-                          {inst.late_days}d · {formatCurrency(inst.late_amount)}
-                        </span>
-                      )}
+                      {(() => {
+                        const remainingLate = Math.max(0, (inst.late_amount || 0) - (inst.paid_late_amount || 0))
+                        return inst.late_days > 0 && (
+                          <span className="text-xs text-destructive font-medium">
+                            {inst.late_days}d · {formatCurrency(remainingLate)}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="py-2 px-3 text-center">
                       <Badge variant={
                         inst.status === 'paid' ? 'paid' :
+                        inst.status === 'partial' ? 'active' :
                         new Date(inst.due_date) < new Date() ? 'late' : 'active'
                       }>
                         {inst.status === 'paid' ? 'Pagado' :
+                         inst.status === 'partial' ? 'Parcial' :
                          new Date(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
                       </Badge>
-                      {(inst.paid_amount ?? 0) > 0 && inst.status !== 'paid' && (
-                        <Badge variant="active">Parcial</Badge>
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -657,6 +749,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
 <Modal open={showPayment} onClose={() => setShowPayment(false)} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
         <form onSubmit={handlePayInstallment} className="space-y-4">
+          {paymentError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+          )}
           {!isOpenEnded && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{isInterestOnly ? 'Cuota de interés a pagar' : 'Cuota a pagar'}</label>
@@ -667,14 +762,17 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   setPaymentInstallmentId(id)
                   const inst = installments.find(i => i.id === id)
                   if (inst) {
-                    const lateDays = calculateLateDays(inst.due_date)
-                    const lateAmount = lateDays > 0
-                      ? calculateLateAmount(inst.amount, lateDays, settings?.late_interest_rate || 0.5)
-                      : 0
+                    const graceDays = settings?.grace_days || 0
+                    const lateDays = calculateLateDays(inst.due_date, graceDays)
                     const remaining = inst.amount - (inst.paid_amount || 0)
-                    setPaymentAmount(String(remaining + (includeMora && lateAmount > 0 ? lateAmount : 0)))
+                    const totalLate = lateDays > 0
+                      ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate || 0.5)
+                      : 0
+                    const paidLate = inst.paid_late_amount || 0
+                    const remainingLate = Math.max(0, totalLate - paidLate)
+                    setPaymentAmount(String(remaining + (includeMora && remainingLate > 0 ? remainingLate : 0)))
                     setSelectedPaymentInstallment(inst)
-                    setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount } : null)
+                    setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount: remainingLate } : null)
                   }
                 }}
                 className="block w-full rounded-lg border border-border px-3 py-2 text-sm"
@@ -709,19 +807,20 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   onChange={e => {
                     const checked = e.target.checked
                     setIncludeMora(checked)
-                    const baseAmount = selectedPaymentInstallment.amount
+                    const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
                     const moraAmount = selectedInstallmentMora.lateAmount
-                    setPaymentAmount(String(checked ? baseAmount + moraAmount : baseAmount))
+                    setPaymentAmount(String(checked ? remaining + moraAmount : remaining))
                   }}
                   className="rounded border-border"
                 />
                 <span>Incluir mora: <strong>{formatCurrency(selectedInstallmentMora.lateAmount)}</strong> ({selectedInstallmentMora.lateDays} días)</span>
               </label>
               <p className="text-sm text-right font-semibold">
-                Total: {formatCurrency(selectedPaymentInstallment.amount)}
-                {includeMora && <> + {formatCurrency(selectedInstallmentMora.lateAmount)}</>}
-                {' = '}
-                <span className="text-foreground">{formatCurrency(selectedPaymentInstallment.amount + (includeMora ? selectedInstallmentMora.lateAmount : 0))}</span>
+                {(() => {
+                  const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
+                  const moraAmount = includeMora ? (selectedInstallmentMora?.lateAmount || 0) : 0
+                  return <>Subtotal: {formatCurrency(remaining)}{includeMora && <> + Mora: {formatCurrency(moraAmount)}</>} = <span className="text-foreground">{formatCurrency(remaining + moraAmount)}</span></>
+                })()}
               </p>
             </>
           )}
@@ -925,7 +1024,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           <p className="text-xl font-semibold text-foreground">Pago registrado correctamente</p>
           <div className="bg-muted rounded-lg p-4 text-left space-y-1.5 text-sm">
             <p className="flex justify-between"><span className="text-muted-foreground">Monto:</span> <strong>{formatCurrency(successPayment?.amount || 0)}</strong></p>
-            <p className="flex justify-between"><span className="text-muted-foreground">Fecha:</span> <strong>{formatDate(paymentDate)}</strong></p>
+            <p className="flex justify-between"><span className="text-muted-foreground">Fecha:</span> <strong>{formatDate(successPayment?.payment_date || paymentDate)}</strong></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Método:</span> <strong>{paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'}</strong></p>
             <p className="flex justify-between"><span className="text-muted-foreground">Pendiente:</span> <strong>{formatCurrency(loan.remaining_amount)}</strong></p>
           </div>
@@ -934,7 +1033,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               <Download className="h-4 w-4 mr-1" /> PDF
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
-              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(paymentDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+              const actualDate = successPayment?.payment_date || paymentDate
+              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -945,7 +1045,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               <Share2 className="h-4 w-4 mr-1" /> WhatsApp
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
-              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(paymentDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+              const actualDate = successPayment?.payment_date || paymentDate
+              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
             }}>
               <Share2 className="h-4 w-4 mr-1" /> Compartir

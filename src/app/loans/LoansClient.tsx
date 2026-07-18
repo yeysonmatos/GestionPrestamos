@@ -27,7 +27,7 @@ export default function LoansClient({ loans: initialLoans }: Props) {
 
   const filtered = loans.filter(l => {
     const matchesSearch = !search || l.client?.name?.toLowerCase().includes(search.toLowerCase()) || l.loan_id?.includes(search) || l.client?.phone?.includes(search)
-    const matchesFilter = filter === 'all' || l.status === filter
+    const matchesFilter = filter === 'all' || l.status === filter || (filter === 'late' && ['late','late_1_30','late_31_60','late_61_90'].includes(l.status))
     const matchesType = typeFilter === 'all' || l.amortization_type === typeFilter
     const matchesFreq = freqFilter === 'all' || l.frequency === freqFilter
     return matchesSearch && matchesFilter && matchesType && matchesFreq
@@ -37,7 +37,10 @@ export default function LoansClient({ loans: initialLoans }: Props) {
     { key: 'all', label: 'Todos', count: loans.length },
     { key: 'active', label: 'Activos', count: loans.filter(l => l.status === 'active').length },
     { key: 'paid', label: 'Pagados', count: loans.filter(l => l.status === 'paid').length },
-    { key: 'late', label: 'Atrasados', count: loans.filter(l => l.status === 'late').length },
+    { key: 'late', label: 'Atrasados', count: loans.filter(l => ['late','late_1_30','late_31_60','late_61_90'].includes(l.status)).length },
+    { key: 'late_1_30', label: 'Mora 1-30d', count: loans.filter(l => l.status === 'late_1_30').length },
+    { key: 'late_31_60', label: 'Mora 31-60d', count: loans.filter(l => l.status === 'late_31_60').length },
+    { key: 'late_61_90', label: 'Mora 61-90d', count: loans.filter(l => l.status === 'late_61_90').length },
     { key: 'cancelled', label: 'Cancelados', count: loans.filter(l => l.status === 'cancelled').length },
   ]
 
@@ -101,7 +104,7 @@ export default function LoansClient({ loans: initialLoans }: Props) {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-foreground">{loan.client?.name || 'Eliminado'}</p>
-                        <Badge variant={loan.status as 'active' | 'paid' | 'late' | 'cancelled'}>{getStatusLabel(loan.status)}</Badge>
+                        <Badge variant={loan.status as any}>{getStatusLabel(loan.status)}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">{loan.loan_id} · {formatDate(loan.start_date)}</p>
                     </div>

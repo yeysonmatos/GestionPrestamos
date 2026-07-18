@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS loans (
   amortization_type TEXT DEFAULT 'interest_only' CHECK (amortization_type IN ('interest_only', 'french')),
   open_ended BOOLEAN DEFAULT false,
   payment_day INTEGER CHECK (payment_day BETWEEN 1 AND 31),
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paid', 'late', 'cancelled')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paid', 'late', 'late_1_30', 'late_31_60', 'late_61_90', 'cancelled')),
   late_days INTEGER DEFAULT 0,
   late_interest_rate DECIMAL(8,4) DEFAULT 0,
   guarantee TEXT,
@@ -118,9 +118,10 @@ CREATE TABLE IF NOT EXISTS installments (
   paid_amount DECIMAL(14,2) DEFAULT 0,
   due_date DATE NOT NULL,
   paid_at DATE,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'late')),
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'late', 'partial')),
   late_days INTEGER DEFAULT 0,
-  late_amount DECIMAL(14,2) DEFAULT 0
+  late_amount DECIMAL(14,2) DEFAULT 0,
+  paid_late_amount DECIMAL(14,2) DEFAULT 0
 );
 
 ALTER TABLE installments ENABLE ROW LEVEL SECURITY;
@@ -187,6 +188,7 @@ CREATE TABLE IF NOT EXISTS settings (
   notify_upcoming_days INTEGER DEFAULT 3,
   default_installments INTEGER DEFAULT 10,
   default_frequency TEXT DEFAULT 'weekly' CHECK (default_frequency IN ('daily', 'weekly', 'biweekly', 'monthly')),
+  grace_days INTEGER DEFAULT 0,
   language TEXT DEFAULT 'es',
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -244,11 +246,8 @@ BEGIN
       SELECT COALESCE(SUM(paid_amount),0) FROM loans WHERE client_id = p_client_id
     ),
     balance         = (
-      SELECT COALESCE(SUM(amount),0) FROM loans WHERE client_id = p_client_id AND status IN ('active','late')
-    ) - (
-      SELECT COALESCE(SUM(capital_amount),0) FROM payments
-      WHERE client_id = p_client_id AND status = 'paid'
-      AND payment_date IS NOT NULL
+      SELECT COALESCE(SUM(remaining_amount),0) FROM loans
+      WHERE client_id = p_client_id AND status IN ('active','late')
     )
   WHERE id = p_client_id;
 END;
@@ -295,3 +294,16 @@ ALTER TABLE clients ADD COLUMN IF NOT EXISTS gps_lng DECIMAL(10,7);
 ALTER TABLE loans ADD COLUMN IF NOT EXISTS amortization_type TEXT DEFAULT 'interest_only';
 ALTER TABLE loans ADD COLUMN IF NOT EXISTS open_ended BOOLEAN DEFAULT false;
 ALTER TABLE loans ADD COLUMN IF NOT EXISTS payment_day INTEGER;
+
+ALTER TABLE installments ADD COLUMN IF NOT EXISTS paid_late_amount DECIMAL(14,2) DEFAULT 0;
+
+-- Migración: update_client_stats balance ahora usa remaining_amount
+SELECT public.update_client_stats(id) FROM clients;
+
+-- Migración: grace_days en settings
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS grace_days INTEGER DEFAULT 0;
+
+-- Migración: nuevos estados de mora en loans
+ALTER TABLE loans DROP CONSTRAINT IF EXISTS loans_status_check;
+ALTER TABLE loans ADD CONSTRAINT loans_status_check
+  CHECK (status IN ('active', 'paid', 'late', 'late_1_30', 'late_31_60', 'late_61_90', 'cancelled'));

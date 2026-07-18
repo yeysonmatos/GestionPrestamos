@@ -1,4 +1,4 @@
-import { addDays, addWeeks, addMonths, format, parseISO } from 'date-fns'
+import { addDays, addWeeks, addMonths, format, parseISO, differenceInCalendarDays } from 'date-fns'
 
 interface CalculateLoanInput {
   amount: number
@@ -110,6 +110,10 @@ function calculateFrenchAmortization(
   startDate: string,
   frequency: string,
 ): CalculateLoanResult {
+  if (n <= 0) {
+    return { total_amount: 0, total_interest: 0, installment_amount: 0, installments: [] }
+  }
+
   let installmentAmount: number
   if (periodicRate === 0) {
     installmentAmount = principal / n
@@ -126,7 +130,7 @@ function calculateFrenchAmortization(
     const interest = balance * periodicRate
     const capital = installmentAmount - interest
     balance -= capital
-    if (balance < 0.01) balance = 0
+    if (Math.abs(balance) < 0.005) balance = 0
 
     totalInterest += interest
 
@@ -166,8 +170,8 @@ function calculateFlatRate(
   for (let i = 1; i <= n; i++) {
     const capital = installmentAmount * capitalRatio
     const interest = installmentAmount - capital
-    remainingBalance -= capital
-    if (remainingBalance < 0.01) remainingBalance = 0
+    remainingBalance -= installmentAmount
+    if (Math.abs(remainingBalance) < 0.005) remainingBalance = 0
 
     schedule.push({
       number: i,
@@ -209,14 +213,13 @@ function calcDueDate(startDate: string, frequency: string, installmentNumber: nu
   }
 }
 
-export function calculateLateDays(dueDate: string): number {
-  const due = new Date(dueDate)
+export function calculateLateDays(dueDate: string, graceDays: number = 0): number {
+  const due = parseISO(dueDate)
   const now = new Date()
-  const diff = now.getTime() - due.getTime()
-  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)))
+  return Math.max(0, differenceInCalendarDays(now, due) - graceDays)
 }
 
-export function calculateLateAmount(installmentAmount: number, lateDays: number, lateInterestRate: number): number {
+export function calculateLateAmount(amount: number, lateDays: number, lateInterestRate: number): number {
   if (lateDays <= 0 || lateInterestRate <= 0) return 0
-  return round(installmentAmount * (lateInterestRate / 100) * lateDays)
+  return round(amount * (lateInterestRate / 100) * lateDays)
 }

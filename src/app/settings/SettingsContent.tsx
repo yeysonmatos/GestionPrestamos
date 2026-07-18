@@ -24,6 +24,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
     currency: settings?.currency || 'MXN',
     late_interest_rate: String(settings?.late_interest_rate || 0.5),
     loan_id_prefix: settings?.loan_id_prefix || 'L-',
+    grace_days: String(settings?.grace_days || 0),
     notify_upcoming_days: String(settings?.notify_upcoming_days || 3),
     default_installments: String(settings?.default_installments || 10),
     default_frequency: settings?.default_frequency || 'weekly',
@@ -52,6 +53,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       currency: form.currency,
       late_interest_rate: parseFloat(form.late_interest_rate),
       loan_id_prefix: form.loan_id_prefix,
+      grace_days: parseInt(form.grace_days) || 0,
       notify_upcoming_days: parseInt(form.notify_upcoming_days),
       default_installments: parseInt(form.default_installments),
       default_frequency: form.default_frequency,
@@ -123,6 +125,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
               />
               <Input label="Prefijo ID préstamo" value={form.loan_id_prefix} onChange={e => update('loan_id_prefix', e.target.value)} />
               <Input label="Tasa de mora diaria (%)" type="number" step="0.01" value={form.late_interest_rate} onChange={e => update('late_interest_rate', e.target.value)} />
+              <Input label="Días de gracia (sin mora)" type="number" min="0" value={form.grace_days} onChange={e => update('grace_days', e.target.value)} />
               <Input label="Notificar antes de (días)" type="number" value={form.notify_upcoming_days} onChange={e => update('notify_upcoming_days', e.target.value)} />
             </div>
           </div>
