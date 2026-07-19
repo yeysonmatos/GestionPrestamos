@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Option {
@@ -34,9 +34,16 @@ export default function ActionSheet({ open, onClose, options, selected, onSelect
   }, [open, onClose])
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
+        <motion.div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
           <motion.div
             className="fixed inset-0 bg-black/40"
             initial={{ opacity: 0 }}
@@ -90,7 +97,7 @@ export default function ActionSheet({ open, onClose, options, selected, onSelect
               </button>
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   )
