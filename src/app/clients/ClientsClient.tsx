@@ -7,13 +7,15 @@ import Badge from '@/components/ui/Badge'
 import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
-import Modal from '@/components/ui/Modal'
+import BottomSheet from '@/components/ui/BottomSheet'
 import Input, { Select } from '@/components/ui/Input'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, getTrustLevelColor, getStatusLabel } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import Link from 'next/link'
-import { Plus, Phone, FileText } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Phone, FileText, CaretDown, ArrowsClockwise } from '@phosphor-icons/react'
+import ActionSheet from '@/components/ui/ActionSheet'
 import type { Client, Loan } from '@/types'
 
 interface Props {
@@ -37,6 +39,7 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
   const [clients, setClients] = useState(initialClients)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({
     first_name: '', last_name: '', nickname: '', sex: '', document_type: 'cedula',
@@ -45,6 +48,7 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
   const supabase = createClient()
 
   const loanCounts = useMemo(() => {
@@ -138,12 +142,22 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
       <PageHeader
         title="Clientes"
         description="Gestiona tus clientes y su información"
-        action={<Button onClick={() => setShowModal(true)}><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button>}
+        action={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button><Button onClick={() => setShowModal(true)}><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button></div>}
       />
 
       <div className="flex flex-col sm:flex-row gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nombre, teléfono o documento..." className="flex-1" />
-        <div className="flex gap-1">
+        <button onClick={() => setShowFilterSheet(true)}
+          className="w-full sm:hidden flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm bg-card min-h-11">
+          <span className="font-medium">{tabs.find(t => t.key === filter)?.label || 'Todos'}</span>
+          <span className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">({tabs.find(t => t.key === filter)?.count || 0})</span>
+            <CaretDown className="h-4 w-4 text-muted-foreground" />
+          </span>
+        </button>
+        <ActionSheet open={showFilterSheet} onClose={() => setShowFilterSheet(false)}
+          options={tabs} selected={filter} onSelect={v => setFilter(v as any)} title="Filtrar clientes" />
+        <div className="hidden sm:flex gap-1">
           {tabs.map(tab => (
             <button
               key={tab.key}
@@ -226,7 +240,7 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Nuevo cliente" className="max-w-lg">
+      <BottomSheet open={showModal} onClose={() => { setShowModal(false); setForm({ first_name: '', last_name: '', nickname: '', sex: '', document_type: 'cedula', document: '', phone: '', whatsapp: '', phone_alt: '', email: '', provincia: '', municipio: '', sector: '', calle: '', numero: '', referencia: '' }) }} title="Nuevo cliente">
         <form onSubmit={handleCreate} className="space-y-5">
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-3">Información Personal</h4>
@@ -275,12 +289,12 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
           </div>
 
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>Cancelar</Button>
-            <Button type="submit" loading={loading}>Guardar</Button>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
+            <Button type="submit" loading={loading} className="flex-1">Guardar</Button>
           </div>
         </form>
-      </Modal>
+      </BottomSheet>
     </div>
   )
 }

@@ -11,9 +11,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import {
-  Wallet, PiggyBank, DollarSign, TrendingUp, Users, AlertTriangle,
+  Wallet, PiggyBank, CurrencyDollar, TrendUp, Users, Warning,
   Calendar, ArrowRight,
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 import type { Loan, Payment, Client, Installment } from '@/types'
 
 interface Props {
@@ -80,8 +80,8 @@ export default function DashboardContent({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Capital Prestado" value={formatNumber(totalCapital)} icon={Wallet} />
         <StatCard label="Capital Recuperado" value={formatNumber(recoveredCapital)} icon={PiggyBank} />
-        <StatCard label="Capital Pendiente" value={formatNumber(pendingCapital)} icon={DollarSign} />
-        <StatCard label="Intereses Generados" value={formatNumber(generatedInterest)} icon={TrendingUp} />
+        <StatCard label="Capital Pendiente" value={formatNumber(pendingCapital)} icon={CurrencyDollar} />
+        <StatCard label="Intereses Generados" value={formatNumber(generatedInterest)} icon={TrendUp} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -96,7 +96,7 @@ export default function DashboardContent({
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
           <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
+            <Warning className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
           <div className="min-w-0">
             <p className="text-lg md:text-xl font-bold text-foreground">{lateClientIds.size}</p>
@@ -114,7 +114,7 @@ export default function DashboardContent({
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
           <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
+            <Warning className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
           <div className="min-w-0">
             <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(overdueTotal)}</p>

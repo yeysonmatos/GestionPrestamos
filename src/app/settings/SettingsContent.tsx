@@ -7,7 +7,7 @@ import Input, { Select } from '@/components/ui/Input'
 import PageHeader from '@/components/ui/PageHeader'
 import { createClient } from '@/lib/supabase-client'
 import { CURRENCIES, FREQUENCIES } from '@/types'
-import { Save } from 'lucide-react'
+import { FloppyDisk } from '@phosphor-icons/react'
 import type { Setting } from '@/types'
 
 interface Props {
@@ -142,7 +142,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
 
           <div className="flex justify-end pt-2">
             <Button type="submit" loading={saving}>
-              <Save className="h-4 w-4 mr-1" /> Guardar configuración
+              <FloppyDisk className="h-4 w-4 mr-1" /> Guardar configuración
             </Button>
           </div>
         </form>

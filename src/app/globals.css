@@ -1,15 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #D97706;
-  --color-primary-hover: #B45309;
-  --color-primary-light: #FEF3C7;
+  --color-primary: #2563EB;
+  --color-primary-hover: #3B82F6;
+  --color-primary-light: #60A5FA;
   --color-on-primary: #FFFFFF;
-  --color-secondary: #F59E0B;
-  --color-secondary-light: #FFFBEB;
-  --color-accent: #7C3AED;
-  --color-accent-hover: #6D28D9;
-  --color-accent-light: #F5F3FF;
+  --color-accent: #8B5CF6;
+  --color-accent-hover: #7C3AED;
+  --color-accent-light: #EDE9FE;
   --color-background: #F8FAFC;
   --color-foreground: #0F172A;
   --color-muted: #F1F5F9;
@@ -18,11 +16,13 @@
   --color-card: #FFFFFF;
   --color-destructive: #EF4444;
   --color-destructive-hover: #DC2626;
-  --color-success: #10B981;
-  --color-success-light: #D1FAE5;
+  --color-success: #22C55E;
+  --color-success-light: #4ADE80;
   --color-warning: #F59E0B;
   --color-warning-light: #FEF3C7;
-  --color-ring: #D97706;
+  --color-ring: #2563EB;
+  --color-sidebar: #081528;
+  --color-sidebar-hover: #0F2A55;
   --font-family-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
 }
 

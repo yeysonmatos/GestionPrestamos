@@ -7,14 +7,14 @@ import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Modal from '@/components/ui/Modal'
+import BottomSheet from '@/components/ui/BottomSheet'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, formatDate, getStatusLabel, getLocalDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { calculateLateDays, calculateLateAmount, calculateProportionalInterest, calculateLoan } from '@/lib/calculations'
 import { processInstallmentPayment, updateLoanAfterPayment, recalculateInstallment } from '@/lib/payments'
 import Link from 'next/link'
-import { ArrowLeft, Printer, FileText, Undo, Share2, Check, Download } from 'lucide-react'
+import { ArrowLeft, FileText, ArrowCounterClockwise, ShareNetwork, Check, DownloadSimple, ChatCircle, Scroll, FileArrowDown } from '@phosphor-icons/react'
 import type { Loan, Installment, Payment, Setting } from '@/types'
 
 const statusVariant: Record<string, 'active' | 'paid' | 'cancelled' | 'default' | 'late' | 'late_1_30' | 'late_31_60' | 'late_61_90'> = {
@@ -564,32 +564,38 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`🧾 ${loan.loan_id} · ${loan.client?.name}`)}`, '_blank')
               }
-            }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-lg hover:bg-muted transition-colors" title="WhatsApp">💬</button>
-            <button type="button" onClick={() => { loadDocs(); setShowDocs(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" title="Documentos">📄</button>
-            <button type="button" onClick={() => setShowContract(true)} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" title="Contrato">📋</button>
+            }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="WhatsApp">
+              <ChatCircle className="h-5 w-5" />
+            </button>
+            <button type="button" onClick={() => { loadDocs(); setShowDocs(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Documentos">
+              <FileText className="h-5 w-5" />
+            </button>
+            <button type="button" onClick={() => setShowContract(true)} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-purple-600 hover:bg-purple-50 transition-colors" title="Contrato">
+              <Scroll className="h-5 w-5" />
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-5 gap-2 mt-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-4">
           <div className="bg-muted rounded-lg p-2.5 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{isInterestOnly ? 'Interés' : 'Cuota'}</p>
-            <p className="text-sm font-bold text-foreground">{formatCurrency(loan.installment_amount)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">{isInterestOnly ? 'Interés' : 'Cuota'}</p>
+            <p className="text-sm font-bold text-foreground truncate">{formatCurrency(loan.installment_amount)}</p>
           </div>
           <div className="bg-muted rounded-lg p-2.5 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Capital</p>
-            <p className="text-sm font-bold text-foreground">{formatCurrency(loan.amount)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">Capital</p>
+            <p className="text-sm font-bold text-foreground truncate">{formatCurrency(loan.amount)}</p>
           </div>
           <div className="bg-muted rounded-lg p-2.5 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pagado</p>
-            <p className="text-sm font-bold text-success">{formatCurrency(loan.paid_amount)}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">Pagado</p>
+            <p className="text-sm font-bold text-success truncate">{formatCurrency(loan.paid_amount)}</p>
           </div>
           <div className="bg-muted rounded-lg p-2.5 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Mora</p>
-            <p className="text-sm font-bold text-destructive">{formatCurrency(calcPendingMora())}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">Mora</p>
+            <p className="text-sm font-bold text-destructive truncate">{formatCurrency(calcPendingMora())}</p>
           </div>
           <div className="bg-muted rounded-lg p-2.5 text-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pendiente</p>
-            <p className="text-sm font-bold text-foreground">{formatCurrency(Number(loan.remaining_amount))}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider truncate">Pendiente</p>
+            <p className="text-sm font-bold text-foreground truncate">{formatCurrency(Number(loan.remaining_amount))}</p>
           </div>
         </div>
 
@@ -842,9 +848,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                             } else {
                               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
                             }
-                          }} className="w-7 h-7 rounded-md hover:bg-muted flex items-center justify-center text-sm transition-colors" title="WhatsApp">💬</button>
+                          }} className="w-7 h-7 rounded-md hover:bg-emerald-50 hover:text-emerald-600 flex items-center justify-center transition-colors" title="WhatsApp"><ChatCircle className="h-3.5 w-3.5" /></button>
                           <button onClick={() => handleReversePayment(p.id)} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
-                            <Undo className="h-3.5 w-3.5 text-destructive" />
+                            <ArrowCounterClockwise className="h-3.5 w-3.5 text-destructive" />
                           </button>
                         </>
                       )}
@@ -869,7 +875,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         )}
       </Card>
 
-<Modal open={showPayment} onClose={() => setShowPayment(false)} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
+<BottomSheet open={showPayment} onClose={() => setShowPayment(false)} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
         <form onSubmit={handlePayInstallment} className="space-y-4">
         {paymentError && (
           <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg animate-in fade-in">{paymentError}</div>
@@ -1042,14 +1048,14 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" type="button" onClick={() => setShowPayment(false)}>Cancelar</Button>
-          <Button type="submit" loading={loading}>Pagar</Button>
+        <div className="flex gap-2 pt-2">
+          <Button variant="secondary" type="button" onClick={() => setShowPayment(false)} className="flex-1">Cancelar</Button>
+          <Button type="submit" loading={loading} className="flex-1">Pagar</Button>
         </div>
         </form>
-      </Modal>
+      </BottomSheet>
 
-      <Modal open={showCapitalAbono} onClose={() => setShowCapitalAbono(false)} title="Abonar al capital">
+      <BottomSheet open={showCapitalAbono} onClose={() => setShowCapitalAbono(false)} title="Abonar al capital">
         <form onSubmit={handleCapitalAbono} className="space-y-4">
           {(() => {
             const capRemaining = calcCapitalRemaining()
@@ -1118,9 +1124,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                  <Button variant="secondary" type="button" onClick={() => setShowCapitalAbono(false)}>Cancelar</Button>
-                  <Button type="submit" loading={loading}>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="secondary" type="button" onClick={() => setShowCapitalAbono(false)} className="flex-1">Cancelar</Button>
+                  <Button type="submit" loading={loading} className="flex-1">
                     {abono > 0 ? `Abonar ${formatCurrency(abono)}` : 'Abonar'}
                   </Button>
                 </div>
@@ -1128,9 +1134,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             )
           })()}
         </form>
-      </Modal>
+      </BottomSheet>
 
-      <Modal open={showLiquidation} onClose={() => setShowLiquidation(false)} title="Liquidar préstamo">
+      <BottomSheet open={showLiquidation} onClose={() => setShowLiquidation(false)} title="Liquidar préstamo">
         <div className="space-y-4">
           {(() => {
             const capRemaining = calcCapitalRemaining()
@@ -1175,14 +1181,14 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               </div>
             )
           })()}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setShowLiquidation(false)}>Cancelar</Button>
-            <Button onClick={handleLiquidation} loading={loading}>Confirmar liquidación</Button>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setShowLiquidation(false)} className="flex-1">Cancelar</Button>
+            <Button onClick={handleLiquidation} loading={loading} className="flex-1">Confirmar liquidación</Button>
           </div>
         </div>
-      </Modal>
+      </BottomSheet>
 
-      <Modal open={showContract} onClose={() => setShowContract(false)} title="Contrato de préstamo" className="max-w-2xl">
+      <BottomSheet open={showContract} onClose={() => setShowContract(false)} title="Contrato de préstamo">
         <div className="text-sm text-gray-700 space-y-3">
           <p className="text-center font-bold text-base">CONTRATO DE PRÉSTAMO</p>
           <p>Por medio del presente contrato, se formaliza el préstamo entre:</p>
@@ -1209,9 +1215,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           {loan.guarantee && <p><strong>GARANTÍA:</strong> {loan.guarantee}</p>}
           <p className="pt-4 text-xs text-muted-foreground">Documento generado el {formatDate(new Date().toISOString())}</p>
         </div>
-      </Modal>
+      </BottomSheet>
 
-      <Modal open={showDocs} onClose={() => setShowDocs(false)} title="Documentos del préstamo" className="max-w-lg">
+      <BottomSheet open={showDocs} onClose={() => setShowDocs(false)} title="Documentos del préstamo">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
             {['contract', 'promissory', 'guarantee', 'photo'].map(type => {
@@ -1268,9 +1274,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </div>
           )}
         </div>
-      </Modal>
+      </BottomSheet>
 
-      <Modal open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
+      <BottomSheet open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
         <div className="text-center space-y-5 py-2">
           <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
             <Check className="h-8 w-8 text-green-600" />
@@ -1284,7 +1290,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button variant="secondary" className="flex-1" onClick={() => window.print()}>
-              <Download className="h-4 w-4 mr-1" /> PDF
+              <FileArrowDown className="h-4 w-4 mr-1" /> PDF
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               const actualDate = successPayment?.payment_date || paymentDate
@@ -1296,19 +1302,19 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
               }
             }}>
-              <Share2 className="h-4 w-4 mr-1" /> WhatsApp
+              <ChatCircle className="h-4 w-4 mr-1" /> WhatsApp
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               const actualDate = successPayment?.payment_date || paymentDate
               const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
             }}>
-              <Share2 className="h-4 w-4 mr-1" /> Compartir
+              <ShareNetwork className="h-4 w-4 mr-1" /> Compartir
             </Button>
           </div>
           <Button className="w-full" onClick={() => setShowSuccess(false)}>Cerrar</Button>
         </div>
-      </Modal>
+      </BottomSheet>
     </div>
   )
 }

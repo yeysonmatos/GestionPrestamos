@@ -11,7 +11,7 @@ import {
   addDays, addMonths, subMonths, isSameMonth, isSameDay, parseISO,
 } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import type { Installment, Payment, Client, Loan } from '@/types'
 
 interface OpenEndedLoan {
@@ -163,13 +163,13 @@ export default function CalendarContent({ installments, payments, openEndedLoans
       <Card>
         <div className="flex items-center justify-between mb-4">
           <Button variant="ghost" size="sm" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
-            <ChevronLeft className="h-5 w-5" />
+            <CaretLeft className="h-5 w-5" />
           </Button>
           <h2 className="text-lg font-semibold text-foreground">
             {format(currentDate, "MMMM 'de' yyyy", { locale: es })}
           </h2>
           <Button variant="ghost" size="sm" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
-            <ChevronRight className="h-5 w-5" />
+            <CaretRight className="h-5 w-5" />
           </Button>
         </div>
 

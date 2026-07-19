@@ -10,7 +10,9 @@ import EmptyState from '@/components/ui/EmptyState'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, formatDate, getStatusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { Plus, Phone, Calendar, LayoutGrid, Table2, Filter } from 'lucide-react'
+import { Plus, Phone, Calendar, SquaresFour, Table, Funnel, CaretDown, ArrowsClockwise } from '@phosphor-icons/react'
+import ActionSheet from '@/components/ui/ActionSheet'
+import { useRouter } from 'next/navigation'
 import type { Loan } from '@/types'
 
 interface Props {
@@ -42,11 +44,15 @@ const avatarColors: Record<string, string> = {
 }
 
 export default function LoansClient({ loans: initialLoans }: Props) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [freqFilter, setFreqFilter] = useState<string>('all')
   const [showFilters, setShowFilters] = useState(false)
+  const [showFilterSheet, setShowFilterSheet] = useState(false)
+  const [showTypeSheet, setShowTypeSheet] = useState(false)
+  const [showFreqSheet, setShowFreqSheet] = useState(false)
   const [view, setView] = useState<ViewMode>('cards')
   const [loans] = useState(initialLoans)
 
@@ -106,13 +112,28 @@ export default function LoansClient({ loans: initialLoans }: Props) {
         title="Préstamos"
         description="Gestiona los préstamos activos y su plan de pagos"
         action={
-          <Link href="/loans/new">
-            <Button><Plus className="h-4 w-4 mr-1" /> Nuevo préstamo</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center">
+              <ArrowsClockwise className="h-4 w-4" />
+            </Button>
+            <Link href="/loans/new">
+              <Button><Plus className="h-4 w-4 mr-1" /> Nuevo préstamo</Button>
+            </Link>
+          </div>
         }
       />
 
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <button onClick={() => setShowFilterSheet(true)}
+        className="w-full sm:hidden flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm bg-card min-h-11">
+        <span className="font-medium">{tabs.find(t => t.key === filter)?.label || 'Todos'}</span>
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">({tabs.find(t => t.key === filter)?.count || 0})</span>
+          <CaretDown className="h-4 w-4 text-muted-foreground" />
+        </span>
+      </button>
+      <ActionSheet open={showFilterSheet} onClose={() => setShowFilterSheet(false)}
+        options={tabs} selected={filter} onSelect={setFilter} title="Filtrar préstamos" />
+      <div className="hidden sm:flex gap-1.5">
         {tabs.map(tab => (
           <button
             key={tab.key}
@@ -130,9 +151,9 @@ export default function LoansClient({ loans: initialLoans }: Props) {
 
       <div className="flex items-center gap-2">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por cliente, ID o teléfono..." className="flex-1" />
-        <div className="relative">
+        <div className="hidden sm:block relative">
           <Button variant="secondary" size="sm" onClick={() => setShowFilters(!showFilters)} className="gap-1">
-            <Filter className="h-4 w-4" /> Filtros
+            <Funnel className="h-4 w-4" /> Filtros
           </Button>
           {showFilters && (
             <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-lg p-4 w-64">
@@ -163,12 +184,28 @@ export default function LoansClient({ loans: initialLoans }: Props) {
             </div>
           )}
         </div>
+        <div className="sm:hidden flex gap-1.5">
+          <button onClick={() => setShowTypeSheet(true)}
+            className="px-2.5 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
+            Tipo: {typeFilter === 'all' ? 'Todos' : typeFilter === 'french' ? 'Francesa' : 'Interés'}
+          </button>
+          <button onClick={() => setShowFreqSheet(true)}
+            className="px-2.5 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
+            Frec: {freqFilter === 'all' ? 'Todas' : freqFilter === 'daily' ? 'Diario' : freqFilter === 'weekly' ? 'Semanal' : freqFilter === 'biweekly' ? 'Quincenal' : 'Mensual'}
+          </button>
+        </div>
+        <ActionSheet open={showTypeSheet} onClose={() => setShowTypeSheet(false)}
+          options={[{ key: 'all', label: 'Todos' }, { key: 'french', label: 'Francesa' }, { key: 'interest_only', label: 'Interés' }]}
+          selected={typeFilter} onSelect={setTypeFilter} title="Tipo de amortización" />
+        <ActionSheet open={showFreqSheet} onClose={() => setShowFreqSheet(false)}
+          options={[{ key: 'all', label: 'Todas' }, { key: 'daily', label: 'Diario' }, { key: 'weekly', label: 'Semanal' }, { key: 'biweekly', label: 'Quincenal' }, { key: 'monthly', label: 'Mensual' }]}
+          selected={freqFilter} onSelect={setFreqFilter} title="Frecuencia" />
         <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
           <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
-            <LayoutGrid className="h-4 w-4" />
+            <SquaresFour className="h-4 w-4" />
           </button>
           <button onClick={() => setView('table')} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla">
-            <Table2 className="h-4 w-4" />
+            <Table className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -206,9 +243,9 @@ export default function LoansClient({ loans: initialLoans }: Props) {
                       {clientInitial}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm text-foreground truncate">{loan.client?.name || 'Eliminado'}</p>
-                        <span className="text-xs text-muted-foreground">{loan.loan_id}</span>
+                      <p className="font-semibold text-sm text-foreground truncate">{loan.client?.name || 'Eliminado'}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-muted-foreground">{loan.loan_id}</span>
                         <Badge variant={isLate ? 'late' : loan.status as any}>{getStatusLabel(loan.status)}</Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">

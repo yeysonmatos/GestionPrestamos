@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import Modal from '@/components/ui/Modal'
+import BottomSheet from '@/components/ui/BottomSheet'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
@@ -85,7 +85,7 @@ export default function PeopleClient({ people: initialPeople, loans }: Props) {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Nueva persona">
+      <BottomSheet open={showModal} onClose={() => setShowModal(false)} title="Nueva persona">
         <form onSubmit={handleCreate} className="space-y-4">
           <Input
             label="Nombre"
@@ -100,12 +100,12 @@ export default function PeopleClient({ people: initialPeople, loans }: Props) {
             onChange={e => setNotes(e.target.value)}
             placeholder="Teléfono, referencia, etc."
           />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>Cancelar</Button>
-            <Button type="submit" loading={loading}>Guardar</Button>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
+            <Button type="submit" loading={loading} className="flex-1">Guardar</Button>
           </div>
         </form>
-      </Modal>
+      </BottomSheet>
     </div>
   )
 }

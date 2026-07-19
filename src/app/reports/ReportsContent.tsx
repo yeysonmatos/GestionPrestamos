@@ -9,11 +9,11 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import {
-  TrendingUp, DollarSign, Users, Handshake, Percent,
-} from 'lucide-react'
+  TrendUp, CurrencyDollar, Users, Handshake, Percent,
+} from '@phosphor-icons/react'
 import type { Loan, Payment, Client } from '@/types'
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6']
+const COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6']
 
 interface Props {
   loans: Loan[]
@@ -105,7 +105,7 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
           <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-success-light flex items-center justify-center shrink-0">
-            <DollarSign className="h-4 w-4 md:h-5 md:w-5 text-success" />
+            <CurrencyDollar className="h-4 w-4 md:h-5 md:w-5 text-success" />
           </div>
           <div className="min-w-0">
             <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(stats.recoveredCapital)}</p>
@@ -114,7 +114,7 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
           <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
-            <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
+            <TrendUp className="h-4 w-4 md:h-5 md:w-5 text-purple-600" />
           </div>
           <div className="min-w-0">
             <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(stats.collectedInterest)}</p>

@@ -5,71 +5,105 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import {
-  LayoutDashboard, Users, Handshake, Calendar,
-  FileText, Settings, LogOut, Menu, X, ChevronDown,
-} from 'lucide-react'
-import { useState } from 'react'
+  Layout, Users, Handshake, HandCoins,
+  Calendar, ChartBar, FileText, Gear, SignOut,
+  List, X,
+} from '@phosphor-icons/react'
+import { useState, useEffect } from 'react'
 
 const menuItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: Layout },
   { href: '/clients', label: 'Clientes', icon: Users },
   { href: '/loans', label: 'Préstamos', icon: Handshake },
-  { href: '/collections', label: 'Cobros', icon: Calendar },
+  { href: '/collections', label: 'Cobros', icon: HandCoins },
   { href: '/calendar', label: 'Calendario', icon: Calendar },
-  { href: '/reports', label: 'Reportes', icon: FileText },
+  { href: '/reports', label: 'Reportes', icon: ChartBar },
   { href: '/documents', label: 'Documentos', icon: FileText },
-  { href: '/settings', label: 'Configuración', icon: Settings },
+  { href: '/settings', label: 'Configuración', icon: Gear },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const supabase = createClient()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUserEmail(data.user.email ?? null)
+    })
+  }, [supabase])
 
   async function handleLogout() {
     await supabase.auth.signOut()
     window.location.href = '/login'
   }
 
+  function isActivePath(href: string) {
+    if (href === '/dashboard') return pathname === href
+    return pathname.startsWith(href + '/') || pathname === href
+  }
+
   const sidebarContent = (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-border">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Handshake className="h-4 w-4 text-on-primary" />
+    <div className="flex flex-col h-full bg-gradient-to-b from-[#081528] to-[#0F2A55]">
+      {/* Logo */}
+      <div className="p-5 border-b border-white/10">
+        <Link href="/dashboard" className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#2563EB] shadow-lg shadow-[#8B5CF6]/25 flex items-center justify-center shrink-0">
+            <Handshake className="h-5 w-5 text-white" weight="fill" />
           </div>
-          <span className="font-bold text-foreground">Mis Préstamos</span>
+          <div className="min-w-0">
+            <span className="font-semibold text-white text-lg tracking-tight block leading-tight">Mis Préstamos</span>
+            <span className="text-[11px] text-blue-300/70 tracking-wide">Control profesional</span>
+          </div>
         </Link>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {menuItems.map(item => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const isActive = isActivePath(item.href)
+          const Icon = item.icon
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-colors min-h-11',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative min-h-11',
                 isActive
-                  ? 'bg-primary-light text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  ? 'text-white bg-blue-500/20 shadow-sm'
+                  : 'text-blue-300/70 hover:text-white hover:bg-blue-500/10'
               )}
             >
-              <item.icon className="h-5 w-5" />
+              {isActive && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 rounded-r-full bg-[#8B5CF6] shadow-sm shadow-[#8B5CF6]/50" />
+              )}
+              <Icon
+                className={cn('h-5 w-5 shrink-0', isActive ? 'text-[#8B5CF6]' : 'text-blue-300/50')}
+                weight={isActive ? 'fill' : 'regular'}
+              />
               {item.label}
             </Link>
           )
         })}
       </nav>
 
-      <div className="p-3 border-t border-border">
+      {/* User section */}
+      <div className="p-3 border-t border-white/10">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#8B5CF6] to-[#2563EB] flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
+            {userEmail ? userEmail[0].toUpperCase() : '?'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-white font-medium truncate">{userEmail ?? 'Usuario'}</p>
+          </div>
+        </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-50 hover:text-destructive transition-colors w-full min-h-11"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-300/70 hover:text-red-400 hover:bg-red-500/10 transition-colors w-full min-h-11 mt-0.5"
         >
-          <LogOut className="h-5 w-5" />
+          <SignOut className="h-5 w-5 shrink-0" />
           Cerrar sesión
         </button>
       </div>
@@ -79,33 +113,33 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-card border-b border-border px-4 h-14 flex items-center justify-between">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[#081528] border-b border-white/10 px-4 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Handshake className="h-4 w-4 text-on-primary" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#2563EB] flex items-center justify-center">
+            <Handshake className="h-4 w-4 text-white" weight="fill" />
           </div>
-          <span className="font-bold text-foreground">Mis Préstamos</span>
+          <span className="font-semibold text-white">Mis Préstamos</span>
         </Link>
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="min-h-11 min-w-11 flex items-center justify-center text-muted-foreground">
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        <button onClick={() => setMobileOpen(!mobileOpen)} className="min-h-11 min-w-11 flex items-center justify-center text-blue-300/70 hover:text-white transition-colors">
+          {mobileOpen ? <X className="h-6 w-6" /> : <List className="h-6 w-6" />}
         </button>
       </div>
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
+        <div className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Mobile sidebar */}
       <div className={cn(
-        'lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-card shadow-xl transform transition-transform',
+        'lg:hidden fixed inset-y-0 left-0 z-50 w-72 shadow-2xl transform transition-transform duration-300 ease-out',
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         {sidebarContent}
       </div>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 bg-card border-r border-border z-30">
+      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 z-30">
         {sidebarContent}
       </aside>
     </>

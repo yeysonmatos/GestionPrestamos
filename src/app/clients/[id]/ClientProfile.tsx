@@ -7,10 +7,11 @@ import Badge from '@/components/ui/Badge'
 import { Progress } from '@/components/ui/Progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs'
 import Input, { Select } from '@/components/ui/Input'
+import BottomSheet from '@/components/ui/BottomSheet'
 import { formatCurrency, formatDate, getTrustLevelColor, getStatusLabel } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import Link from 'next/link'
-import { ArrowLeft, Pencil, Phone, Mail, MapPin, FileText, Calendar, DollarSign, TrendingUp, Wallet, CreditCard } from 'lucide-react'
+import { ArrowLeft, Pencil, Phone, Envelope, MapPin, FileText, Calendar, CurrencyDollar, TrendUp, Wallet, CreditCard } from '@phosphor-icons/react'
 import type { Client, Loan, Payment, Document } from '@/types'
 
 interface Props {
@@ -124,7 +125,7 @@ export default function ClientProfile({ client: initialClient, loans, payments, 
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm text-white/80">
                 {client.phone && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {client.phone}</span>}
-                {client.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {client.email}</span>}
+                {client.email && <span className="flex items-center gap-1"><Envelope className="h-3.5 w-3.5" /> {client.email}</span>}
                 {client.document && <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> {client.document}</span>}
                 {client.nickname && <span className="opacity-70">&ldquo;{client.nickname}&rdquo;</span>}
               </div>
@@ -177,7 +178,7 @@ export default function ClientProfile({ client: initialClient, loans, payments, 
             Préstamos activos ({activeLoans.length})
           </TabsTrigger>
           <TabsTrigger value="payments">
-            <TrendingUp className="h-4 w-4 mr-1.5" />
+            <TrendUp className="h-4 w-4 mr-1.5" />
             Historial de pagos
           </TabsTrigger>
           <TabsTrigger value="documents">
@@ -287,66 +288,60 @@ export default function ClientProfile({ client: initialClient, loans, payments, 
         </TabsContent>
       </Tabs>
 
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setEditing(false)} />
-          <div className="relative bg-card rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold mb-4">Editar cliente</h2>
-            <form onSubmit={handleSave} className="space-y-5">
-              <div>
-                <h4 className="text-sm font-semibold text-foreground mb-3">Información Personal</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input label="Nombres *" value={form.first_name} onChange={e => setForm(p => ({ ...p, first_name: e.target.value }))} required />
-                  <Input label="Apellidos *" value={form.last_name} onChange={e => setForm(p => ({ ...p, last_name: e.target.value }))} required />
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <Input label="Apodo" value={form.nickname} onChange={e => setForm(p => ({ ...p, nickname: e.target.value }))} placeholder="Opcional" />
-                  <Select label="Sexo" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}
-                    options={[{ value: '', label: 'Seleccionar...' }, { value: 'M', label: 'Masculino' }, { value: 'F', label: 'Femenino' }]}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <Select label="Tipo documento" value={form.document_type} onChange={e => setForm(p => ({ ...p, document_type: e.target.value }))}
-                    options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }, { value: 'otro', label: 'Otro' }]}
-                  />
-                  <Input label="N° Documento" value={form.document} onChange={e => setForm(p => ({ ...p, document: e.target.value }))} />
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-foreground mb-3">Contacto</h4>
-                <Input label="Teléfono principal *" type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} required />
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <Input label="WhatsApp" type="tel" value={form.whatsapp} onChange={e => setForm(p => ({ ...p, whatsapp: e.target.value }))} placeholder="Si es el mismo dejar vacío" />
-                  <Input label="Teléfono secundario" type="tel" value={form.phone_alt} onChange={e => setForm(p => ({ ...p, phone_alt: e.target.value }))} />
-                </div>
-                <Input label="Correo electrónico" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="mt-3" />
-              </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-foreground mb-3">Dirección</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input label="Provincia" value={form.provincia} onChange={e => setForm(p => ({ ...p, provincia: e.target.value }))} />
-                  <Input label="Municipio" value={form.municipio} onChange={e => setForm(p => ({ ...p, municipio: e.target.value }))} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <Input label="Sector" value={form.sector} onChange={e => setForm(p => ({ ...p, sector: e.target.value }))} />
-                  <Input label="Calle" value={form.calle} onChange={e => setForm(p => ({ ...p, calle: e.target.value }))} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <Input label="N° Casa/Apto" value={form.numero} onChange={e => setForm(p => ({ ...p, numero: e.target.value }))} />
-                  <Input label="Punto de referencia" value={form.referencia} onChange={e => setForm(p => ({ ...p, referencia: e.target.value }))} />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-border">
-                <Button variant="secondary" type="button" onClick={() => setEditing(false)}>Cancelar</Button>
-                <Button type="submit" loading={saving}>Guardar</Button>
-              </div>
-            </form>
+      <BottomSheet open={editing} onClose={() => setEditing(false)} title="Editar cliente">
+        <form onSubmit={handleSave} className="space-y-5">
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-3">Información Personal</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Nombres *" value={form.first_name} onChange={e => setForm(p => ({ ...p, first_name: e.target.value }))} required />
+              <Input label="Apellidos *" value={form.last_name} onChange={e => setForm(p => ({ ...p, last_name: e.target.value }))} required />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Input label="Apodo" value={form.nickname} onChange={e => setForm(p => ({ ...p, nickname: e.target.value }))} placeholder="Opcional" />
+              <Select label="Sexo" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}
+                options={[{ value: '', label: 'Seleccionar...' }, { value: 'M', label: 'Masculino' }, { value: 'F', label: 'Femenino' }]}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Select label="Tipo documento" value={form.document_type} onChange={e => setForm(p => ({ ...p, document_type: e.target.value }))}
+                options={[{ value: 'cedula', label: 'Cédula' }, { value: 'pasaporte', label: 'Pasaporte' }, { value: 'otro', label: 'Otro' }]}
+              />
+              <Input label="N° Documento" value={form.document} onChange={e => setForm(p => ({ ...p, document: e.target.value }))} />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-3">Contacto</h4>
+            <Input label="Teléfono principal *" type="tel" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} required />
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Input label="WhatsApp" type="tel" value={form.whatsapp} onChange={e => setForm(p => ({ ...p, whatsapp: e.target.value }))} placeholder="Si es el mismo dejar vacío" />
+              <Input label="Teléfono secundario" type="tel" value={form.phone_alt} onChange={e => setForm(p => ({ ...p, phone_alt: e.target.value }))} />
+            </div>
+            <Input label="Correo electrónico" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className="mt-3" />
+          </div>
+
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-3">Dirección</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Provincia" value={form.provincia} onChange={e => setForm(p => ({ ...p, provincia: e.target.value }))} />
+              <Input label="Municipio" value={form.municipio} onChange={e => setForm(p => ({ ...p, municipio: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Input label="Sector" value={form.sector} onChange={e => setForm(p => ({ ...p, sector: e.target.value }))} />
+              <Input label="Calle" value={form.calle} onChange={e => setForm(p => ({ ...p, calle: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Input label="N° Casa/Apto" value={form.numero} onChange={e => setForm(p => ({ ...p, numero: e.target.value }))} />
+              <Input label="Punto de referencia" value={form.referencia} onChange={e => setForm(p => ({ ...p, referencia: e.target.value }))} />
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2 border-t border-border">
+            <Button variant="secondary" type="button" onClick={() => setEditing(false)} className="flex-1">Cancelar</Button>
+            <Button type="submit" loading={saving} className="flex-1">Guardar</Button>
+          </div>
+        </form>
+      </BottomSheet>
     </div>
   )
 }

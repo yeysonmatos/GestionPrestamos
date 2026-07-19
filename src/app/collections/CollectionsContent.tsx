@@ -7,15 +7,16 @@ import Button from '@/components/ui/Button'
 import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
 import Input from '@/components/ui/Input'
-import Modal from '@/components/ui/Modal'
+import BottomSheet from '@/components/ui/BottomSheet'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
 import { processInstallmentPayment, updateLoanAfterPayment } from '@/lib/payments'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarCheck, AlertTriangle, Calendar, DollarSign, Plus,
-} from 'lucide-react'
+  CalendarCheck, Warning, Calendar, CurrencyDollar, Plus, CaretDown, ArrowsClockwise,
+} from '@phosphor-icons/react'
+import ActionSheet from '@/components/ui/ActionSheet'
 import type { Installment, Payment, Client, Setting } from '@/types'
 
 interface OpenEndedLoan {
@@ -112,6 +113,7 @@ export default function CollectionsContent({
   const [loading, setLoading] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [filter, setFilter] = useState<'today' | 'overdue' | 'upcoming' | 'history'>('today')
+  const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [includeMora, setIncludeMora] = useState(true)
   const [installmentMora, setInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
   const [todayInstallments, setTodayInstallments] = useState(initialToday)
@@ -421,7 +423,7 @@ export default function CollectionsContent({
       <PageHeader
         title="Cobros"
         description="Gestiona los pagos y cobros diarios"
-        action={<Button onClick={() => setShowQuickPayment(true)}><Plus className="h-4 w-4 mr-1" /> Registrar cobro</Button>}
+        action={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button><Button onClick={() => setShowQuickPayment(true)}><Plus className="h-4 w-4 mr-1" /> Registrar cobro</Button></div>}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -436,7 +438,7 @@ export default function CollectionsContent({
         </Card>
         <Card className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <Warning className="h-5 w-5 text-destructive" />
           </div>
           <div>
             <p className="text-xl font-bold text-foreground">{formatCurrency(overdueTotal)}</p>
@@ -456,7 +458,22 @@ export default function CollectionsContent({
 
       <div className="flex flex-col sm:flex-row gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por cliente..." className="flex-1" />
-        <div className="flex gap-1">
+        <button onClick={() => setShowFilterSheet(true)}
+          className="w-full sm:hidden flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm bg-card min-h-11">
+          <span className="font-medium">{({ today: 'Hoy', overdue: 'Vencidos', upcoming: 'Próximos', history: 'Historial' } as Record<string, string>)[filter]}</span>
+          <span className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">({[allToday.length, enrichedOverdue.length, allUpcoming.length, payments.length][['today', 'overdue', 'upcoming', 'history'].indexOf(filter)]})</span>
+            <CaretDown className="h-4 w-4 text-muted-foreground" />
+          </span>
+        </button>
+        <ActionSheet open={showFilterSheet} onClose={() => setShowFilterSheet(false)}
+          options={[
+            { key: 'today', label: 'Hoy', count: allToday.length },
+            { key: 'overdue', label: 'Vencidos', count: enrichedOverdue.length },
+            { key: 'upcoming', label: 'Próximos', count: allUpcoming.length },
+            { key: 'history', label: 'Historial', count: payments.length },
+          ]} selected={filter} onSelect={v => setFilter(v as any)} title="Filtrar cobros" />
+        <div className="hidden sm:flex gap-1">
           {([
             { key: 'today', label: 'Hoy', count: allToday.length },
             { key: 'overdue', label: 'Vencidos', count: enrichedOverdue.length },
@@ -501,16 +518,15 @@ export default function CollectionsContent({
                       {methodIcon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground">{p.loan?.client?.name}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${typeColor}`}>{typeLabel}</span>
-                        {p.method === 'cash' ? 'Efectivo' : p.method === 'transfer' ? 'Transferencia' : p.method === 'deposit' ? 'Depósito' : 'Otro'}
-                        {p.notes && ` · ${p.notes}`}
+                      <p className="font-semibold text-sm text-foreground truncate">{p.loan?.client?.name || 'Eliminado'}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 truncate">
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${typeColor}`}>{typeLabel}</span>
+                        <span className="truncate">{p.method === 'cash' ? 'Efectivo' : p.method === 'transfer' ? 'Transferencia' : p.method === 'deposit' ? 'Depósito' : 'Otro'}{p.notes ? ` · ${p.notes}` : ''}</span>
                       </p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-semibold text-success">{formatCurrency(p.amount)}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(p.payment_date)}</p>
+                    <div className="text-right flex-shrink-0 ml-1">
+                      <p className="font-semibold text-success text-sm">{formatCurrency(p.amount)}</p>
+                      <p className="text-[11px] text-muted-foreground">{formatDate(p.payment_date)}</p>
                     </div>
                   </div>
                 )
@@ -582,7 +598,7 @@ export default function CollectionsContent({
                       <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
                     )}
                     <Button size="sm" onClick={() => openPayment(inst)} className="mt-1.5 min-h-9">
-                      <DollarSign className="h-4 w-4 mr-1" /> Cobrar
+                      <CurrencyDollar className="h-4 w-4 mr-1" /> Cobrar
                     </Button>
                   </div>
                 </div>
@@ -592,7 +608,7 @@ export default function CollectionsContent({
         </div>
       )}
 
-      <Modal open={showPayment} onClose={() => setShowPayment(false)} title="Registrar cobro">
+      <BottomSheet open={showPayment} onClose={() => { setShowPayment(false); setSelectedInstallment(null); setInstallmentMora(null) }} title="Registrar cobro">
         <form onSubmit={handlePay} className="space-y-4">
           {paymentError && (
             <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
@@ -674,17 +690,17 @@ export default function CollectionsContent({
                   </div>
                 </div>
                 <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
-                <div className="flex justify-end gap-2">
-                  <Button variant="secondary" type="button" onClick={() => { setShowPayment(false); setSelectedInstallment(null); setInstallmentMora(null) }}>Cancelar</Button>
-                  <Button type="submit" loading={loading}>Cobrar</Button>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="secondary" type="button" className="flex-1" onClick={() => { setShowPayment(false); setSelectedInstallment(null); setInstallmentMora(null) }}>Cancelar</Button>
+                  <Button type="submit" loading={loading} className="flex-1">Cobrar</Button>
                 </div>
               </>
             )
           })()}
         </form>
-      </Modal>
+      </BottomSheet>
 
-      <Modal open={showQuickPayment} onClose={() => setShowQuickPayment(false)} title="Registrar cobro rápido" className="max-w-lg">
+      <BottomSheet open={showQuickPayment} onClose={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }} title="Registrar cobro rápido">
         <form onSubmit={handleQuickPayment} className="space-y-4">
           {qpError && (
             <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{qpError}</div>
@@ -773,14 +789,14 @@ export default function CollectionsContent({
 
               <Input label="Notas" value={qpNotes} onChange={e => setQpNotes(e.target.value)} placeholder="Referencia del pago" />
 
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" type="button" onClick={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }}>Cancelar</Button>
-                <Button type="submit" loading={qpLoading}>Registrar pago</Button>
+              <div className="flex gap-2 pt-2">
+                <Button variant="secondary" type="button" className="flex-1" onClick={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }}>Cancelar</Button>
+                <Button type="submit" loading={qpLoading} className="flex-1">Registrar pago</Button>
               </div>
             </>
           )}
         </form>
-      </Modal>
+      </BottomSheet>
     </div>
   )
 }

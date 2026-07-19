@@ -7,17 +7,17 @@ import Badge from '@/components/ui/Badge'
 import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
-import Modal from '@/components/ui/Modal'
+import BottomSheet from '@/components/ui/BottomSheet'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate, getStatusLabel } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { uploadFile, getFilePath } from '@/lib/storage'
-import { FileText, Image, Shield, FileSignature, Upload, Download, Trash2 } from 'lucide-react'
+import { FileText, Image, Shield, Signature, UploadSimple, DownloadSimple, Trash } from '@phosphor-icons/react'
 import type { Document } from '@/types'
 
 const typeIcons: Record<string, React.ReactNode> = {
   contract: <FileText className="h-5 w-5 text-blue-500" />,
-  promissory: <FileSignature className="h-5 w-5 text-purple-500" />,
+  promissory: <Signature className="h-5 w-5 text-purple-500" />,
   guarantee: <Shield className="h-5 w-5 text-green-500" />,
   photo: <Image className="h-5 w-5 text-yellow-500" />,
   note: <FileText className="h-5 w-5 text-muted-foreground" />,
@@ -105,7 +105,7 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
         description="Almacena contratos, pagarés y fotos de tus clientes"
         action={
           <Button onClick={() => setShowModal(true)}>
-            <Upload className="h-4 w-4 mr-1" /> Subir documento
+            <UploadSimple className="h-4 w-4 mr-1" /> Subir documento
           </Button>
         }
       />
@@ -133,7 +133,7 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
         <EmptyState
           title="No hay documentos"
           description="Sube tu primer documento para empezar."
-          action={<Button onClick={() => setShowModal(true)}><Upload className="h-4 w-4 mr-1" /> Subir documento</Button>}
+          action={<Button onClick={() => setShowModal(true)}><UploadSimple className="h-4 w-4 mr-1" /> Subir documento</Button>}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -155,10 +155,10 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
               </div>
               <div className="flex gap-1 mt-3 pt-2 border-t border-border">
                 <Button variant="ghost" size="sm" className="flex-1">
-                  <Download className="h-4 w-4 mr-1" /> Descargar
+                  <DownloadSimple className="h-4 w-4 mr-1" /> Descargar
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} className="text-destructive hover:text-destructive">
-                  <Trash2 className="h-4 w-4" />
+                  <Trash className="h-4 w-4" />
                 </Button>
               </div>
             </Card>
@@ -166,7 +166,7 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Subir documento">
+      <BottomSheet open={showModal} onClose={() => setShowModal(false)} title="Subir documento">
         <form onSubmit={handleUpload} className="space-y-4">
           <Input label="Nombre" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Dejar vacío para usar el nombre del archivo" />
           <Select label="Tipo" value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))}
@@ -188,12 +188,12 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
             />
           </div>
           <Input label="Notas" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" type="button" onClick={() => setShowModal(false)}>Cancelar</Button>
-            <Button type="submit" loading={loading}>Subir</Button>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowModal(false)} className="flex-1">Cancelar</Button>
+            <Button type="submit" loading={loading} className="flex-1">Subir</Button>
           </div>
         </form>
-      </Modal>
+      </BottomSheet>
     </div>
   )
 }
