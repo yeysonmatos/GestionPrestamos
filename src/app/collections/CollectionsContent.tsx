@@ -698,7 +698,7 @@ export default function CollectionsContent({
         </form>
       </BottomSheet>
 
-      <BottomSheet open={showQuickPayment} onClose={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }} title="Registrar cobro rápido">
+      <BottomSheet open={showQuickPayment} onClose={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }} title="Registrar cobro rápido" className="max-w-md sm:max-w-lg">
         <form onSubmit={handleQuickPayment} className="space-y-4">
           {qpError && (
             <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{qpError}</div>
