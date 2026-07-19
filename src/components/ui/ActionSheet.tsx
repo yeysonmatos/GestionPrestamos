@@ -36,9 +36,10 @@ export default function ActionSheet({ open, onClose, options, selected, onSelect
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/40 transition-opacity" />
+      <div className="fixed inset-0 bg-black/40 transition-opacity duration-200" style={{ opacity: open ? 1 : 0 }} />
       <div
-        className="relative w-full max-w-lg bg-card rounded-t-2xl shadow-2xl pb-safe-bottom animate-in slide-in-from-bottom duration-300"
+        className="relative w-full max-w-lg bg-card rounded-t-2xl shadow-2xl pb-safe-bottom"
+        style={{ transform: open ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 300ms cubic-bezier(0.32,0.72,0,1)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-center pt-3 pb-1">
