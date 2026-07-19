@@ -540,85 +540,88 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       </Link>
 
       <Card>
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-foreground">{formatCurrency(loan.amount)}</h1>
-              <Badge variant={statusVariant[loan.status] || 'default'}>{getStatusLabel(loan.status)}</Badge>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg flex-shrink-0">
+              {loan.client?.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
-            <p className="text-muted-foreground mt-1">
-              {loan.loan_id} · {loan.client?.name} · {formatDate(loan.start_date)}
-            </p>
-            <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-              <span>{loan.frequency === 'daily' ? 'Diario' : loan.frequency === 'weekly' ? 'Semanal' : loan.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}</span>
-              <span>{isOpenEnded ? 'Préstamo abierto' : `${loan.installments} cuotas`}</span>
-              <span>{isInterestOnly ? 'Solo interés' : 'Francesa'}</span>
-              <span>Tasa: {loan.interest_type === 'percentage' ? `${loan.interest_rate}%` : formatCurrency(loan.interest_rate)}</span>
-              {loan.guarantee && <span>Garantía: {loan.guarantee}</span>}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold text-foreground">{formatCurrency(loan.amount)}</h1>
+                <Badge variant={statusVariant[loan.status] || 'default'}>{getStatusLabel(loan.status)}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {loan.loan_id} · {loan.client?.name} · {formatDate(loan.start_date)}
+                {loan.client?.phone && (
+                  <span> · <a href={`tel:${loan.client.phone}`} className="text-primary hover:underline">{loan.client.phone}</a></span>
+                )}
+              </p>
             </div>
-            {isOpenEnded && loan.payment_day && (
-              <p className="text-xs text-muted-foreground mt-1">Día de pago: {loan.payment_day} de cada mes</p>
-            )}
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button variant="secondary" size="sm" onClick={() => { loadDocs(); setShowDocs(true) }}>
-              <FileText className="h-4 w-4 mr-1" /> Documentos
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowContract(true)}>
-              <FileText className="h-4 w-4 mr-1" /> Contrato
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => window.print()}>
-              <Printer className="h-4 w-4 mr-1" /> Recibo
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => {
-              const msg = `🧾 *RECIBO DE PAGO*\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(loan.amount)}\nCuota: ${formatCurrency(loan.installment_amount)}\nPagado: ${formatCurrency(loan.paid_amount)}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+          <div className="flex gap-1 flex-shrink-0">
+            <button type="button" onClick={() => {
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
-                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
-              } else {
-                navigator.clipboard.writeText(msg.replace(/\*/g, '').replace(/_/g, '')).then(() => alert('Recibo copiado al portapapeles'))
+                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`🧾 ${loan.loan_id} · ${loan.client?.name}`)}`, '_blank')
               }
-            }}>
-              <Share2 className="h-4 w-4" />
-            </Button>
+            }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-lg hover:bg-muted transition-colors" title="WhatsApp">💬</button>
+            <button type="button" onClick={() => { loadDocs(); setShowDocs(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" title="Documentos">📄</button>
+            <button type="button" onClick={() => setShowContract(true)} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-sm font-medium text-muted-foreground hover:bg-muted transition-colors" title="Contrato">📋</button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 pt-4 border-t border-border">
-          <div>
-            <p className="text-xs text-muted-foreground">{isInterestOnly ? 'Interés por período' : 'Cuota'}</p>
-            <p className="font-semibold">{formatCurrency(loan.installment_amount)}</p>
+        <div className="grid grid-cols-5 gap-2 mt-4">
+          <div className="bg-muted rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{isInterestOnly ? 'Interés' : 'Cuota'}</p>
+            <p className="text-sm font-bold text-foreground">{formatCurrency(loan.installment_amount)}</p>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Capital</p>
-            <p className="font-semibold">{formatCurrency(loan.amount)}</p>
+          <div className="bg-muted rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Capital</p>
+            <p className="text-sm font-bold text-foreground">{formatCurrency(loan.amount)}</p>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Pagado</p>
-            <p className="font-semibold text-success">{formatCurrency(loan.paid_amount)}</p>
+          <div className="bg-muted rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pagado</p>
+            <p className="text-sm font-bold text-success">{formatCurrency(loan.paid_amount)}</p>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Mora</p>
-            <p className="font-semibold text-destructive">{formatCurrency(calcPendingMora())}</p>
+          <div className="bg-muted rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Mora</p>
+            <p className="text-sm font-bold text-destructive">{formatCurrency(calcPendingMora())}</p>
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Pendiente</p>
-            <p className="font-semibold text-warning">{(() => {
-              const capRemaining = calcCapitalRemaining()
-              const lastPmt = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
-              const lastDate = lastPmt?.payment_date || loan.first_payment_date
-              const daysSince = Math.max(0, Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)))
-              const monthRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
-              const propInt = monthRate > 0 ? calculateProportionalInterest(capRemaining, monthRate, daysSince) : 0
-              return formatCurrency(capRemaining + propInt + calcPendingMora())
-            })()}</p>
+          <div className="bg-muted rounded-lg p-2.5 text-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Pendiente</p>
+            <p className="text-sm font-bold text-foreground">{formatCurrency(Number(loan.remaining_amount))}</p>
           </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
+            {loan.frequency === 'daily' ? 'Diario' : loan.frequency === 'weekly' ? 'Semanal' : loan.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}
+          </span>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
+            {isOpenEnded ? 'Abierto' : `${loan.installments} cuotas`}
+          </span>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
+            {isInterestOnly ? 'Solo interés' : 'Francesa'}
+          </span>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
+            Tasa: {loan.interest_type === 'percentage' ? `${loan.interest_rate}%` : formatCurrency(loan.interest_rate)}
+          </span>
+          {loan.guarantee && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
+              Garantía: {loan.guarantee}
+            </span>
+          )}
+          {isOpenEnded && loan.payment_day && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
+              Día {loan.payment_day}
+            </span>
+          )}
         </div>
 
         <div className="mt-4 flex items-center gap-4">
           <Progress value={progressValue} className="flex-1" />
-          <span className="text-sm text-muted-foreground">
-            {progressValue}% · {isOpenEnded ? `${formatCurrency(Number(loan.amount) - Number(loan.remaining_amount))}/${formatCurrency(loan.amount)} capital` : `${loan.paid_installments}/${loan.installments} cuotas`}
+          <span className="text-sm text-muted-foreground flex-shrink-0">
+            {progressValue}% · {isOpenEnded ? `${formatCurrency(Number(loan.amount) - Number(loan.remaining_amount))}/${formatCurrency(loan.amount)}` : `${loan.paid_installments}/${loan.installments} cuotas`}
           </span>
         </div>
 
@@ -629,9 +632,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               setPaymentInstallmentId('')
               setIncludeMora(true)
               setShowPayment(true)
-            }}>{isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}</Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowCapitalAbono(true)}>Abonar al capital</Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowLiquidation(true)}>Liquidar préstamo</Button>
+            }} className="min-h-11 flex-1 sm:flex-none">{isInterestOnly ? 'Pagar intereses' : 'Pagar cuota'}</Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowCapitalAbono(true)} className="min-h-11">Abonar</Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowLiquidation(true)} className="min-h-11">Liquidar</Button>
           </div>
         )}
       </Card>
@@ -649,231 +652,481 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <p>Capital pendiente: <strong>{formatCurrency(loan.remaining_amount)}</strong></p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">#</th>
-                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">Vencimiento</th>
-                  {!isInterestOnly && <th className="text-right py-2 px-3 font-medium text-muted-foreground">Cuota</th>}
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Capital</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Interés</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Saldo</th>
-              <th className="text-center py-2 px-3 font-medium text-muted-foreground">Mora</th>
-              <th className="text-center py-2 px-3 font-medium text-muted-foreground">Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {installments.map(inst => (
-                  <tr key={inst.number} className="border-b border-border hover:bg-muted">
-                    <td className="py-2 px-3 font-medium">{inst.number}</td>
-                    <td className="py-2 px-3">{formatDate(inst.due_date)}</td>
-                    {!isInterestOnly && <td className="py-2 px-3 text-right">{formatCurrency(inst.amount)}</td>}
-                    <td className="py-2 px-3 text-right">{formatCurrency(inst.capital)}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(inst.interest)}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(inst.balance)}</td>
-                    <td className="py-2 px-3 text-center">
-                      {(() => {
-                        const remainingLate = Math.max(0, (inst.late_amount || 0) - (inst.paid_late_amount || 0))
-                        return inst.late_days > 0 && (
-                          <span className="text-xs text-destructive font-medium">
-                            {inst.late_days}d · {formatCurrency(remainingLate)}
-                          </span>
-                        )
-                      })()}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      <Badge variant={
-                        inst.status === 'paid' ? 'paid' :
-                        inst.status === 'partial' ? 'active' :
-                        new Date(inst.due_date) < new Date() ? 'late' : 'active'
-                      }>
-                        {inst.status === 'paid' ? 'Pagado' :
-                         inst.status === 'partial' ? 'Parcial' :
-                         new Date(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="bg-muted rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Pendientes</p>
+                <p className="text-lg font-bold text-foreground">{installments.filter(i => i.status !== 'paid').length}</p>
+              </div>
+              <div className="bg-muted rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Pagadas</p>
+                <p className="text-lg font-bold text-success">{installments.filter(i => i.status === 'paid').length}</p>
+              </div>
+              <div className="bg-muted rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Por cobrar</p>
+                <p className="text-lg font-bold text-foreground">{formatCurrency(installments.filter(i => i.status !== 'paid').reduce((s, i) => s + (i.amount - (i.paid_amount || 0)), 0))}</p>
+              </div>
+              <div className="bg-muted rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Mora total</p>
+                <p className="text-lg font-bold text-destructive">{formatCurrency(calcPendingMora())}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {installments.map(inst => {
+                const remaining = inst.amount - (inst.paid_amount || 0)
+                const paidRatio = inst.paid_amount ? Math.round((inst.paid_amount / inst.amount) * 100) : 0
+                const now = new Date()
+                const dueDate = new Date(inst.due_date)
+                const daysLate = Math.max(0, Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)))
+                const isLate = now > dueDate && inst.status !== 'paid'
+                const remainingLate = Math.max(0, (inst.late_amount || 0) - (inst.paid_late_amount || 0))
+                const cardBorder = inst.status === 'paid' ? 'border-success/30' :
+                  inst.status === 'partial' ? 'border-blue-300' :
+                  isLate ? 'border-red-300' : 'border-amber-200'
+                const cardBg = inst.status === 'paid' ? 'bg-gray-50' :
+                  isLate ? 'bg-red-50/40' : ''
+                const numBg = inst.status === 'paid' ? 'bg-success/10 text-success' :
+                  inst.status === 'partial' ? 'bg-blue-100 text-blue-700' :
+                  isLate ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                const badgeLabel = inst.status === 'paid' ? 'Pagado' :
+                  inst.status === 'partial' ? 'Parcial' :
+                  isLate ? 'Atrasado' : 'Pendiente'
+                const badgeVariant: 'paid' | 'active' | 'late' | 'default' = inst.status === 'paid' ? 'paid' :
+                  inst.status === 'partial' ? 'active' :
+                  isLate ? 'late' : 'active'
+                return (
+                  <div key={inst.number} className={`rounded-xl border-2 p-4 ${cardBorder} ${cardBg} transition-shadow hover:shadow-sm`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${numBg}`}>
+                        {inst.number}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-foreground">{inst.status === 'paid' ? formatCurrency(inst.amount) : formatCurrency(remaining)}{inst.status === 'partial' && <span className="text-xs text-muted-foreground font-normal ml-1">restantes</span>}</p>
+                        <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
+                      </div>
+                      <Badge variant={badgeVariant}>{badgeLabel}</Badge>
+                    </div>
+                    {!isInterestOnly && (
+                      <div className="flex gap-4 text-xs text-muted-foreground mb-2 px-1">
+                        <span>Capital: <strong className="text-foreground">{formatCurrency(inst.capital)}</strong></span>
+                        <span>Interés: <strong className="text-foreground">{formatCurrency(inst.interest)}</strong></span>
+                        <span>Saldo: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
+                      </div>
+                    )}
+                    {isInterestOnly && (
+                      <div className="flex gap-4 text-xs text-muted-foreground mb-2 px-1">
+                        <span>Interés: <strong className="text-foreground">{formatCurrency(inst.interest)}</strong></span>
+                        <span>Balance: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 mb-3 px-1">
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${
+                          inst.status === 'paid' ? 'bg-success' :
+                          paidRatio > 0 ? 'bg-primary' : 'bg-muted'
+                        }`} style={{ width: `${paidRatio}%` }} />
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">{paidRatio}%</span>
+                    </div>
+                    {isLate && remainingLate > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-destructive font-medium mb-3 px-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+                        Mora: {formatCurrency(remainingLate)} ({daysLate} días)
+                      </div>
+                    )}
+                    {inst.status !== 'paid' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentInstallmentId(inst.id)
+                          setPaymentAmount(String(remaining))
+                          setSelectedPaymentInstallment(inst)
+                          const graceDays = settings?.grace_days || 0
+                          const ld = calculateLateDays(inst.due_date, graceDays)
+                          const totalLate = ld > 0
+                            ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, ld, settings?.late_interest_rate || 0.5)
+                            : 0
+                          const paidLate = inst.paid_late_amount || 0
+                          const remainingLateVal = Math.max(0, totalLate - paidLate)
+                          setSelectedInstallmentMora(ld > 0 ? { lateDays: ld, lateAmount: remainingLateVal } : null)
+                          setIncludeMora(true)
+                          setShowPayment(true)
+                        }}
+                        className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+                      >
+                        {isInterestOnly ? `Pagar ${formatCurrency(inst.interest)}` : `Pagar ${formatCurrency(remaining)}`}
+                      </button>
+                    )}
+                    {inst.status === 'paid' && (
+                      <div className="flex items-center gap-2 text-xs text-success font-medium px-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                        Cobrado {inst.paid_at ? formatDate(inst.paid_at) : ''}
+                      </div>
+                    )}
+                    {inst.status === 'partial' && (
+                      <div className="flex items-center gap-2 text-xs text-blue-600 font-medium px-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                        Pagado {formatCurrency(inst.paid_amount!)} de {formatCurrency(inst.amount)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </Card>
 
       <Card>
-        <h3 className="text-base font-semibold text-foreground mb-4">Últimos pagos ({payments.length})</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-foreground">Pagos ({payments.length})</h3>
+          {payments.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const total = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0)
+                const msg = `📊 *RESUMEN DE PAGOS*\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nTotal pagado: ${formatCurrency(total)}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+                const phone = loan.client?.whatsapp || loan.client?.phone
+                if (phone) {
+                  navigator.clipboard.writeText(msg).then(() => {})
+                }
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Ver todos
+            </button>
+          )}
+        </div>
         {payments.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">Sin pagos registrados</p>
+          <div className="text-center py-8">
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-2xl">📭</div>
+            <p className="font-medium text-foreground">Sin pagos registrados</p>
+            <p className="text-sm text-muted-foreground mt-1">Los pagos aparecerán aquí cuando se registren</p>
+          </div>
         ) : (
           <div className="space-y-2">
-            {payments.slice(0, 5).map(p => (
-              <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div>
-                  <p className="font-medium text-foreground">{formatCurrency(p.amount)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {p.method}
-                    {p.type === 'capital_abono' && ' · Abono al capital'}
-                    {p.type === 'liquidation' && ' · Liquidación'}
-                    {p.type === 'installment' && ' · Interés'}
-                    {p.notes && ` · ${p.notes}`}
-                  </p>
+            {payments.slice(0, 5).map(p => {
+              const methodIcon = p.method === 'cash' ? '💰' : p.method === 'transfer' ? '🏦' : p.method === 'deposit' ? '📥' : '💳'
+              const typeLabel = p.type === 'capital_abono' ? 'Abono capital' : p.type === 'liquidation' ? 'Liquidación' : p.type === 'installment' ? 'Interés' : 'Cuota'
+              const typeBadgeColor = p.type === 'capital_abono' ? 'bg-purple-100 text-purple-700' :
+                p.type === 'liquidation' ? 'bg-green-100 text-green-700' :
+                p.type === 'installment' ? 'bg-blue-100 text-blue-700' :
+                'bg-muted text-muted-foreground'
+              return (
+                <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:bg-muted/50 transition-all">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${
+                    p.method === 'cash' ? 'bg-green-50' : p.method === 'transfer' ? 'bg-blue-50' : p.method === 'deposit' ? 'bg-amber-50' : 'bg-gray-50'
+                  }`}>
+                    {methodIcon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-sm text-foreground">{formatCurrency(p.amount)}</p>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${typeBadgeColor}`}>{typeLabel}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {p.method === 'cash' ? 'Efectivo' : p.method === 'transfer' ? 'Transferencia' : p.method === 'deposit' ? 'Depósito' : 'Otro'}
+                      {p.notes && ` · ${p.notes}`}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-xs text-muted-foreground">{formatDate(p.payment_date)}</p>
+                    <div className="flex gap-1 mt-1 justify-end">
+                      {p.status === 'paid' && (
+                        <>
+                          <button onClick={() => {
+                            const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(p.amount)}\nFecha: ${formatDate(p.payment_date)}\nMétodo: ${p.method}${p.notes ? `\nNota: ${p.notes}` : ''}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+                            const phone = loan.client?.whatsapp || loan.client?.phone
+                            if (phone) {
+                              window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
+                            } else {
+                              navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
+                            }
+                          }} className="w-7 h-7 rounded-md hover:bg-muted flex items-center justify-center text-sm transition-colors" title="WhatsApp">💬</button>
+                          <button onClick={() => handleReversePayment(p.id)} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
+                            <Undo className="h-3.5 w-3.5 text-destructive" />
+                          </button>
+                        </>
+                      )}
+                      {p.status !== 'paid' && (
+                        <Badge variant="cancelled">Reversado</Badge>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{formatDate(p.payment_date)}</span>
-                  {p.status === 'paid' && (
-                    <button onClick={() => {
-                      const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(p.amount)}\nFecha: ${formatDate(p.payment_date)}\nMétodo: ${p.method}${p.notes ? `\nNota: ${p.notes}` : ''}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
-                      const phone = loan.client?.whatsapp || loan.client?.phone
-                      if (phone) {
-                        window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
-                      } else {
-                        navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
-                      }
-                    }} className="text-primary hover:text-primary/80" title="Enviar recibo por WhatsApp">
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                  )}
-                  {p.status === 'paid' ? (
-                    <button onClick={() => handleReversePayment(p.id)} className="text-destructive hover:text-destructive">
-                      <Undo className="h-4 w-4" />
-                    </button>
-                  ) : (
-                    <Badge variant="cancelled">Reversado</Badge>
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
+            {payments.length > 5 && (
+              <button
+                type="button"
+                onClick={() => {/* could expand */}}
+                className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2 transition-colors"
+              >
+                Ver {payments.length - 5} pagos más →
+              </button>
+            )}
           </div>
         )}
       </Card>
 
 <Modal open={showPayment} onClose={() => setShowPayment(false)} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
         <form onSubmit={handlePayInstallment} className="space-y-4">
-          {paymentError && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
-          )}
-          {!isOpenEnded && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{isInterestOnly ? 'Cuota de interés a pagar' : 'Cuota a pagar'}</label>
-              <select
-                value={paymentInstallmentId}
-                onChange={e => {
-                  const id = e.target.value
-                  setPaymentInstallmentId(id)
-                  const inst = installments.find(i => i.id === id)
-                  if (inst) {
-                    const graceDays = settings?.grace_days || 0
-                    const lateDays = calculateLateDays(inst.due_date, graceDays)
-                    const remaining = inst.amount - (inst.paid_amount || 0)
-                    const totalLate = lateDays > 0
-                      ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate || 0.5)
-                      : 0
-                    const paidLate = inst.paid_late_amount || 0
-                    const remainingLate = Math.max(0, totalLate - paidLate)
-                    setPaymentAmount(String(remaining + (includeMora && remainingLate > 0 ? remainingLate : 0)))
-                    setSelectedPaymentInstallment(inst)
-                    setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount: remainingLate } : null)
-                  }
-                }}
-                className="block w-full rounded-lg border border-border px-3 py-2 text-sm"
-                required
-              >
-                <option value="">Seleccionar cuota...</option>
-                {installments.filter(i => i.status !== 'paid').map(inst => {
-                  const remaining = inst.amount - (inst.paid_amount || 0)
-                  const isPartial = (inst.paid_amount || 0) > 0
-                  return (
-                    <option key={inst.id} value={inst.id}>
-                      #{inst.number} - {formatCurrency(remaining)}{isPartial ? ` (Pagado ${formatCurrency(inst.paid_amount!)})` : ''} - Vence: {formatDate(inst.due_date)}
-                    </option>
-                  )
-                })}
-              </select>
+        {paymentError && (
+          <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg animate-in fade-in">{paymentError}</div>
+        )}
+
+        {!isOpenEnded && (
+          <div className="space-y-1 mb-4">
+            <label className="block text-sm font-medium text-muted-foreground mb-2">{isInterestOnly ? 'Cuota de interés a pagar' : 'Seleccionar cuota'}</label>
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              {installments.filter(i => i.status !== 'paid').map(inst => {
+                const remaining = inst.amount - (inst.paid_amount || 0)
+                const isPartial = (inst.paid_amount || 0) > 0
+                const graceDays = settings?.grace_days || 0
+                const lateDays = calculateLateDays(inst.due_date, graceDays)
+                const now = new Date()
+                const isLate = now > new Date(inst.due_date)
+                const isSelected = paymentInstallmentId === inst.id
+                let numBg = 'bg-amber-50 text-amber-700'
+                let badgeLabel = 'Pendiente'
+                let badgeVariant = 'badge-pendiente'
+                if (isPartial) { numBg = 'bg-blue-50 text-blue-700'; badgeLabel = 'Parcial'; badgeVariant = 'badge-parcial' }
+                if (isLate && !isPartial) { numBg = 'bg-red-50 text-red-700'; badgeLabel = 'Atrasado'; badgeVariant = 'badge-atrasado' }
+                return (
+                  <label
+                    key={inst.id}
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/40 hover:bg-muted'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="installment"
+                      value={inst.id}
+                      checked={isSelected}
+                      onChange={() => {
+                        setPaymentInstallmentId(inst.id)
+                        const totalLate = lateDays > 0
+                          ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate || 0.5)
+                          : 0
+                        const paidLate = inst.paid_late_amount || 0
+                        const remainingLate = Math.max(0, totalLate - paidLate)
+                        setPaymentAmount(String(remaining + (includeMora && remainingLate > 0 ? remainingLate : 0)))
+                        setSelectedPaymentInstallment(inst)
+                        setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount: remainingLate } : null)
+                      }}
+                      className="accent-primary h-4 w-4 flex-shrink-0"
+                    />
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${numBg}`}>
+                      {inst.number}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm text-foreground">
+                        {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
+                        {isPartial && <span className="text-xs text-muted-foreground font-normal ml-1">restantes</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Vence: {formatDate(inst.due_date)}
+                        {isPartial && <> · Pagado {formatCurrency(inst.paid_amount!)}</>}
+                      </div>
+                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${
+                      badgeLabel === 'Atrasado' ? 'bg-red-100 text-red-700' :
+                      badgeLabel === 'Parcial' ? 'bg-blue-100 text-blue-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {badgeLabel}
+                    </span>
+                  </label>
+                )
+              })}
             </div>
-          )}
-          {isOpenEnded && (
+            {installments.filter(i => i.status !== 'paid').length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Todas las cuotas están pagadas</p>
+            )}
+          </div>
+        )}
+
+        {isOpenEnded && (
+          <div className="bg-muted rounded-lg p-3 mb-4">
             <p className="text-sm text-muted-foreground">
-              Interés del período: <strong>{formatCurrency(loan.installment_amount)}</strong>
-              {nextDueDate && <> · Vence: <strong>{nextDueDate}</strong></>}
+              Interés del período: <strong className="text-foreground">{formatCurrency(loan.installment_amount)}</strong>
+              {nextDueDate && <> · Vence: <strong className="text-foreground">{nextDueDate}</strong></>}
             </p>
-          )}
-          <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
-          {selectedInstallmentMora && selectedPaymentInstallment && (
-            <>
-              <label className="flex items-center gap-2 text-sm">
+          </div>
+        )}
+
+        <div className="space-y-1 mb-4">
+          <label className="block text-sm font-medium text-muted-foreground">Monto</label>
+          <div className="flex gap-2">
+            <input
+              type="number" step="0.01" value={paymentAmount}
+              onChange={e => setPaymentAmount(e.target.value)}
+              className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11"
+              required
+            />
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button type="button" onClick={() => {
+              if (selectedPaymentInstallment) {
+                const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
+                const mora = includeMora ? (selectedInstallmentMora?.lateAmount || 0) : 0
+                setPaymentAmount(String(remaining + mora))
+              }
+            }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
+            <button type="button" onClick={() => {
+              const val = parseFloat(paymentAmount) || 0
+              setPaymentAmount(String(Math.round(val / 2 * 100) / 100))
+            }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Mitad</button>
+          </div>
+        </div>
+
+        {selectedInstallmentMora && selectedPaymentInstallment && (() => {
+          const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
+          const moraAmount = selectedInstallmentMora.lateAmount
+          return (
+            <div className={`mb-4 transition-all duration-200 ${includeMora ? 'opacity-100' : 'opacity-70'}`}>
+              <label className="flex items-center gap-2 text-sm p-3 rounded-lg border border-border cursor-pointer hover:bg-muted transition-colors">
                 <input
                   type="checkbox"
                   checked={includeMora}
                   onChange={e => {
                     const checked = e.target.checked
                     setIncludeMora(checked)
-                    const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
-                    const moraAmount = selectedInstallmentMora.lateAmount
                     setPaymentAmount(String(checked ? remaining + moraAmount : remaining))
                   }}
-                  className="rounded border-border"
+                  className="rounded border-border h-4 w-4"
                 />
-                <span>Incluir mora: <strong>{formatCurrency(selectedInstallmentMora.lateAmount)}</strong> ({selectedInstallmentMora.lateDays} días)</span>
+                <span>Incluir mora: <strong>{formatCurrency(moraAmount)}</strong> ({selectedInstallmentMora.lateDays} días)</span>
               </label>
-              <p className="text-sm text-right font-semibold">
-                {(() => {
-                  const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
-                  const moraAmount = includeMora ? (selectedInstallmentMora?.lateAmount || 0) : 0
-                  return <>Subtotal: {formatCurrency(remaining)}{includeMora && <> + Mora: {formatCurrency(moraAmount)}</>} = <span className="text-foreground">{formatCurrency(remaining + moraAmount)}</span></>
-                })()}
-              </p>
-            </>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
-              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
-                <option value="cash">Efectivo</option>
-                <option value="transfer">Transferencia</option>
-                <option value="deposit">Depósito</option>
-                <option value="other">Otro</option>
-              </select>
+
+              {includeMora && (
+                <div className="mt-2 p-3 rounded-lg bg-muted border border-border animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal cuota</span>
+                    <span className="font-medium">{formatCurrency(remaining)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-destructive">Mora ({selectedInstallmentMora.lateDays}d)</span>
+                    <span className="font-medium text-destructive">+ {formatCurrency(moraAmount)}</span>
+                  </div>
+                  <div className="border-t border-border mt-2 pt-2 flex justify-between text-sm font-semibold">
+                    <span className="text-foreground">Total</span>
+                    <span className="text-foreground">{formatCurrency(remaining + moraAmount)}</span>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="min-w-0">
-              <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
-            </div>
+          )
+        })()}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="min-w-0">
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
+            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+              className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11">
+              <option value="cash">Efectivo</option>
+              <option value="transfer">Transferencia</option>
+              <option value="deposit">Depósito</option>
+              <option value="other">Otro</option>
+            </select>
           </div>
+          <div className="min-w-0">
+            <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+          </div>
+        </div>
+
+        <div className="mb-4">
           <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" type="button" onClick={() => setShowPayment(false)}>Cancelar</Button>
-            <Button type="submit" loading={loading}>Pagar</Button>
-          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" type="button" onClick={() => setShowPayment(false)}>Cancelar</Button>
+          <Button type="submit" loading={loading}>Pagar</Button>
+        </div>
         </form>
       </Modal>
 
       <Modal open={showCapitalAbono} onClose={() => setShowCapitalAbono(false)} title="Abonar al capital">
         <form onSubmit={handleCapitalAbono} className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Capital pendiente: <strong>{formatCurrency(calcCapitalRemaining())}</strong>
-          </p>
-          <Input label="Monto a abonar" type="number" step="0.01" min="0.01" max={calcCapitalRemaining()}
-            value={capitalAbonoAmount} onChange={e => setCapitalAbonoAmount(e.target.value)} required />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="min-w-0">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Método</label>
-              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
-                <option value="cash">Efectivo</option>
-                <option value="transfer">Transferencia</option>
-                <option value="deposit">Depósito</option>
-                <option value="other">Otro</option>
-              </select>
-            </div>
-            <div className="min-w-0">
-              <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" type="button" onClick={() => setShowCapitalAbono(false)}>Cancelar</Button>
-            <Button type="submit" loading={loading}>Abonar</Button>
-          </div>
+          {(() => {
+            const capRemaining = calcCapitalRemaining()
+            const abono = parseFloat(capitalAbonoAmount) || 0
+            const nuevoCapital = Math.max(0, capRemaining - abono)
+            return (
+              <>
+                <div className="bg-primary/5 rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Capital actual</span>
+                    <span className="font-semibold">{formatCurrency(capRemaining)}</span>
+                  </div>
+                  {abono > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Abono</span>
+                      <span className="font-semibold text-success">- {formatCurrency(abono)}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-primary/10 pt-2 flex justify-between text-sm font-bold">
+                    <span>Capital restante</span>
+                    <span>{formatCurrency(nuevoCapital)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-1">
+                    Las cuotas pendientes se reducirán proporcionalmente
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1.5">Monto a abonar</label>
+                  <div className="flex gap-2">
+                    <input type="number" step="0.01" min="0.01" max={capRemaining}
+                      value={capitalAbonoAmount}
+                      onChange={e => setCapitalAbonoAmount(e.target.value)}
+                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11"
+                      required />
+                    <span className="text-xs text-muted-foreground self-center flex-shrink-0">máx {formatCurrency(capRemaining)}</span>
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    {[25, 50, 75, 100].map(pct => (
+                      <button key={pct} type="button" onClick={() => {
+                        setCapitalAbonoAmount(String(Math.round(capRemaining * pct / 100 * 100) / 100))
+                      }} className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                        Math.abs(abono - capRemaining * pct / 100) < 0.01
+                          ? 'border-primary bg-primary/5 text-primary'
+                          : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                      }`}>
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="min-w-0">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
+                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11">
+                      <option value="cash">Efectivo</option>
+                      <option value="transfer">Transferencia</option>
+                      <option value="deposit">Depósito</option>
+                      <option value="other">Otro</option>
+                    </select>
+                  </div>
+                  <div className="min-w-0">
+                    <Input label="Fecha" type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" type="button" onClick={() => setShowCapitalAbono(false)}>Cancelar</Button>
+                  <Button type="submit" loading={loading}>
+                    {abono > 0 ? `Abonar ${formatCurrency(abono)}` : 'Abonar'}
+                  </Button>
+                </div>
+              </>
+            )
+          })()}
         </form>
       </Modal>
 
