@@ -8,7 +8,6 @@ import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
 import Input from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
-import { Avatar } from '@/components/ui/Avatar'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
@@ -357,7 +356,7 @@ export default function CollectionsContent({
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
                 filter === tab.key
                   ? 'bg-primary text-white'
                   : 'bg-muted text-muted-foreground hover:bg-border'
@@ -373,73 +372,111 @@ export default function CollectionsContent({
         <Card>
           <h3 className="text-base font-semibold text-foreground mb-4">Últimos cobros realizados</h3>
           {payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Sin pagos registrados</p>
+            <div className="text-center py-10">
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-2xl">📭</div>
+              <p className="font-medium text-foreground">Sin cobros registrados</p>
+              <p className="text-sm text-muted-foreground mt-1">Los cobros aparecerán aquí cuando se registren</p>
+            </div>
           ) : (
             <div className="space-y-2">
-              {payments.map(p => (
-                <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={p.loan?.client?.name || '?'} size="sm" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{p.loan?.client?.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.method} · {formatDate(p.payment_date)}</p>
+              {payments.map(p => {
+                const methodIcon = p.method === 'cash' ? '💰' : p.method === 'transfer' ? '🏦' : p.method === 'deposit' ? '📥' : '💳'
+                const typeLabel = p.type === 'capital_abono' ? 'Abono' : p.type === 'liquidation' ? 'Liquidación' : p.type === 'installment' ? 'Interés' : 'Cuota'
+                const typeColor = p.type === 'capital_abono' ? 'bg-purple-100 text-purple-700' : p.type === 'liquidation' ? 'bg-green-100 text-green-700' : p.type === 'installment' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+                return (
+                  <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 transition-all">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${
+                      p.method === 'cash' ? 'bg-green-50' : p.method === 'transfer' ? 'bg-blue-50' : p.method === 'deposit' ? 'bg-amber-50' : 'bg-gray-50'
+                    }`}>
+                      {methodIcon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground">{p.loan?.client?.name}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${typeColor}`}>{typeLabel}</span>
+                        {p.method === 'cash' ? 'Efectivo' : p.method === 'transfer' ? 'Transferencia' : p.method === 'deposit' ? 'Depósito' : 'Otro'}
+                        {p.notes && ` · ${p.notes}`}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-semibold text-success">{formatCurrency(p.amount)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(p.payment_date)}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-success">{formatCurrency(p.amount)}</p>
-                    {p.notes && <p className="text-xs text-muted-foreground">{p.notes}</p>}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Card>
       ) : filteredList.length === 0 ? (
-        <Card><p className="text-sm text-muted-foreground text-center py-8">No hay cuotas pendientes</p></Card>
+        <Card>
+          <div className="text-center py-10">
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-2xl">
+              {filter === 'today' ? '📅' : filter === 'overdue' ? '⚠️' : '📆'}
+            </div>
+            <p className="font-medium text-foreground">
+              {filter === 'today' ? 'No hay cobros para hoy' : filter === 'overdue' ? 'No hay cuotas vencidas' : 'No hay cuotas próximas'}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {filter === 'today' ? 'Los cobros del día aparecerán aquí' : filter === 'overdue' ? 'Todo está al día' : 'No hay cuotas programadas'}
+            </p>
+          </div>
+        </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredList.map((inst: Installment | SyntheticInstallment) => {
             const client = inst.loan?.client
             const isOpen = ('isOpenEnded' in inst && inst.isOpenEnded)
             const remainingLate = Math.max(0, (inst.late_amount || 0) - ((inst as Installment).paid_late_amount || 0))
+            const remaining = inst.amount - (inst.paid_amount || 0)
+            const isPartial = (inst.paid_amount ?? 0) > 0 && inst.status !== 'paid'
+            const borderColor = filter === 'overdue' ? 'border-l-red-500' : filter === 'upcoming' ? 'border-l-amber-400' : 'border-l-blue-500'
+            const avatarColor = filter === 'overdue' ? 'bg-red-500' : filter === 'upcoming' ? 'bg-amber-500' : 'bg-blue-500'
+            const clientInitial = client?.name?.charAt(0)?.toUpperCase() || '?'
             return (
-              <Card key={inst.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar name={client?.name || '?'} size="sm" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-foreground">{client?.name || 'Eliminado'}</p>
-                      <Badge variant={
-                        filter === 'overdue'
-                          ? inst.late_days > 60 ? 'late_61_90'
-                            : inst.late_days > 30 ? 'late_31_60'
-                            : inst.late_days > 0 ? 'late_1_30'
-                            : 'late'
-                          : 'active'
-                      }>
-                        {filter === 'today' ? 'Hoy' : filter === 'overdue' ? `Vence ${inst.late_days > 0 ? `hace ${inst.late_days}d` : ''}` : formatDate(inst.due_date)}
-                      </Badge>
-                      {(inst.paid_amount ?? 0) > 0 && inst.status !== 'paid' && (
-                        <Badge variant="active">Parcial</Badge>
-                      )}
+              <div key={inst.id} className={`bg-card rounded-xl border border-border border-l-4 ${borderColor} p-4 hover:shadow-sm transition-shadow`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 ${avatarColor}`}>
+                      {clientInitial}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {isOpen ? 'Interés' : `Cuota #${inst.number}`} · {inst.loan?.loan_id || inst.loan_id}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm text-foreground truncate">{client?.name || 'Eliminado'}</p>
+                        {filter === 'overdue' && (
+                          <Badge variant={inst.late_days > 60 ? 'late_61_90' : inst.late_days > 30 ? 'late_31_60' : 'late_1_30'}>
+                            {inst.late_days}d atrasado
+                          </Badge>
+                        )}
+                        {filter === 'today' && (
+                          <Badge variant="active">Hoy</Badge>
+                        )}
+                        {filter === 'upcoming' && (
+                          <Badge variant="active">{formatDate(inst.due_date)}</Badge>
+                        )}
+                        {isPartial && (
+                          <Badge variant="active">Parcial</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {isOpen ? 'Interés' : `Cuota #${inst.number}`} · {inst.loan?.loan_id || inst.loan_id}
+                        {isPartial && <span className="text-blue-600 font-medium ml-1">({formatCurrency(inst.paid_amount!)} pagado)</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-foreground">
+                      {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
                     </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="font-bold text-foreground">{formatCurrency(inst.amount)}</p>
                     {remainingLate > 0 && (
-                      <p className="text-xs text-destructive">+{formatCurrency(remainingLate)} mora</p>
+                      <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
                     )}
+                    <Button size="sm" onClick={() => openPayment(inst)} className="mt-1.5 min-h-9">
+                      <DollarSign className="h-4 w-4 mr-1" /> Cobrar
+                    </Button>
                   </div>
-                  <Button size="sm" onClick={() => openPayment(inst)}>
-                    <DollarSign className="h-4 w-4 mr-1" /> Cobrar
-                  </Button>
                 </div>
-              </Card>
+              </div>
             )
           })}
         </div>
@@ -457,63 +494,65 @@ export default function CollectionsContent({
             const moraAmount = includeMora && mora ? mora.lateAmount : 0
             return (
               <>
-                <div className="bg-primary-light rounded-lg p-3 text-sm text-primary">
-                  <p><strong>Cliente:</strong> {inst.loan?.client?.name}</p>
+                <div className="bg-primary/5 rounded-xl p-4 text-sm space-y-1.5">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm text-white flex-shrink-0 ${
+                      filter === 'overdue' ? 'bg-red-500' : filter === 'upcoming' ? 'bg-amber-500' : 'bg-blue-500'
+                    }`}>
+                      {inst.loan?.client?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{inst.loan?.client?.name}</p>
+                      <p className="text-xs text-muted-foreground">{inst.loan?.loan_id}</p>
+                    </div>
+                  </div>
                   {('isOpenEnded' in inst && inst.isOpenEnded) ? (
-                    <p><strong>Interés del período</strong> — {formatCurrency(inst.amount)}</p>
+                    <p><span className="text-muted-foreground">Interés del período:</span> <strong>{formatCurrency(inst.amount)}</strong></p>
                   ) : (
-                    <p><strong>Cuota #{(inst as Installment).number}</strong> — {formatCurrency(inst.amount)}</p>
+                    <p><span className="text-muted-foreground">Cuota #{(inst as Installment).number}:</span> <strong>{formatCurrency(inst.amount)}</strong></p>
                   )}
-                  <p><strong>Vence:</strong> {formatDate(inst.due_date)}</p>
+                  <p><span className="text-muted-foreground">Vence:</span> <strong>{formatDate(inst.due_date)}</strong></p>
                   {(inst.paid_amount ?? 0) > 0 && (
-                    <p className="text-warning font-medium"><strong>Pagado antes:</strong> {formatCurrency(inst.paid_amount!)}</p>
+                    <p className="text-blue-600"><span className="text-muted-foreground">Pagado antes:</span> <strong>{formatCurrency(inst.paid_amount!)}</strong></p>
                   )}
-                  {remaining > 0 && <p><strong>Restante:</strong> {formatCurrency(remaining)}</p>}
+                  <p><span className="text-muted-foreground">Restante:</span> <strong>{formatCurrency(remaining)}</strong></p>
                   {mora && (
-                    <p className="text-destructive font-medium">
-                      <strong>Mora:</strong> {formatCurrency(mora.lateAmount)} ({mora.lateDays} días)
-                    </p>
+                    <p className="text-destructive"><span className="text-muted-foreground">Mora:</span> <strong>{formatCurrency(mora.lateAmount)}</strong> ({mora.lateDays} días)</p>
                   )}
                 </div>
-                <Input label="Monto" type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} required />
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1.5">Monto</label>
+                  <div className="flex gap-2">
+                    <input type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
+                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11" required />
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button type="button" onClick={() => setPaymentAmount(String(remaining + (includeMora && mora ? mora.lateAmount : 0)))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
+                    <button type="button" onClick={() => { const v = parseFloat(paymentAmount) || 0; setPaymentAmount(String(Math.round(v / 2 * 100) / 100)) }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Mitad</button>
+                  </div>
+                </div>
                 {mora && (
-                  <>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={includeMora}
-                        onChange={e => {
-                          const checked = e.target.checked
-                          setIncludeMora(checked)
-                          setPaymentAmount(String(checked ? remaining + (mora?.lateAmount ?? 0) : remaining))
-                        }}
-                        className="rounded border-border"
-                      />
-                      <span>Incluir mora: <strong>{formatCurrency(mora.lateAmount)}</strong></span>
+                  <div className={`transition-all duration-200 ${includeMora ? 'opacity-100' : 'opacity-70'}`}>
+                    <label className="flex items-center gap-2 text-sm p-3 rounded-lg border border-border cursor-pointer hover:bg-muted transition-colors">
+                      <input type="checkbox" checked={includeMora}
+                        onChange={e => { const c = e.target.checked; setIncludeMora(c); setPaymentAmount(String(c ? remaining + (mora?.lateAmount ?? 0) : remaining)) }}
+                        className="rounded border-border h-4 w-4" />
+                      <span>Incluir mora: <strong>{formatCurrency(mora.lateAmount)}</strong> ({mora.lateDays} días)</span>
                     </label>
-                    <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Subtotal cuota</span>
-                        <span className="font-medium">{formatCurrency(remaining)}</span>
+                    {includeMora && (
+                      <div className="mt-2 p-3 rounded-lg bg-muted border border-border animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal cuota</span><span className="font-medium">{formatCurrency(remaining)}</span></div>
+                        <div className="flex justify-between text-sm mt-1"><span className="text-destructive">Mora ({mora.lateDays}d)</span><span className="font-medium text-destructive">+ {formatCurrency(mora.lateAmount)}</span></div>
+                        <div className="border-t border-border mt-2 pt-2 flex justify-between text-sm font-semibold"><span>Total</span><span>{formatCurrency(remaining + mora.lateAmount)}</span></div>
                       </div>
-                      {includeMora && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Mora ({mora.lateDays}d)</span>
-                          <span className="font-medium text-destructive">{formatCurrency(mora.lateAmount)}</span>
-                        </div>
-                      )}
-                      <div className="border-t pt-1 flex justify-between font-semibold">
-                        <span>Total</span>
-                        <span>{formatCurrency(includeMora ? remaining + mora.lateAmount : remaining)}</span>
-                      </div>
-                    </div>
-                  </>
+                    )}
+                  </div>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
                     <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm">
+                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11">
                       <option value="cash">Efectivo</option>
                       <option value="transfer">Transferencia</option>
                       <option value="deposit">Depósito</option>
@@ -527,7 +566,7 @@ export default function CollectionsContent({
                 <Input label="Notas" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="Referencia del pago" />
                 <div className="flex justify-end gap-2">
                   <Button variant="secondary" type="button" onClick={() => { setShowPayment(false); setSelectedInstallment(null); setInstallmentMora(null) }}>Cancelar</Button>
-                  <Button type="submit" loading={loading}>Registrar cobro</Button>
+                  <Button type="submit" loading={loading}>Cobrar</Button>
                 </div>
               </>
             )
