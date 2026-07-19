@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 interface Option {
   key: string
@@ -18,7 +18,17 @@ interface Props {
 }
 
 export default function ActionSheet({ open, onClose, options, selected, onSelect, title }: Props) {
+  const [mounted, setMounted] = useState(open)
+  const [visible, setVisible] = useState(open)
+
   useEffect(() => {
+    if (open) {
+      setMounted(true)
+      requestAnimationFrame(() => setVisible(true))
+    } else {
+      setVisible(false)
+      setTimeout(() => setMounted(false), 300)
+    }
     if (open) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
     return () => { document.body.style.overflow = '' }
@@ -32,14 +42,17 @@ export default function ActionSheet({ open, onClose, options, selected, onSelect
     return () => window.removeEventListener('keydown', handleKey)
   }, [open, onClose])
 
-  if (!open) return null
+  if (!mounted) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/40 transition-opacity duration-200" style={{ opacity: open ? 1 : 0 }} />
+      <div className="fixed inset-0 bg-black/40 transition-opacity duration-200" style={{ opacity: visible ? 1 : 0 }} />
       <div
         className="relative w-full max-w-lg bg-card rounded-t-2xl shadow-2xl pb-safe-bottom"
-        style={{ transform: open ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 300ms cubic-bezier(0.32,0.72,0,1)' }}
+        style={{
+          transform: visible ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
+        }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-center pt-3 pb-1">
