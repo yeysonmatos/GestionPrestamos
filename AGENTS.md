@@ -107,3 +107,23 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 - [x] **M-6**: Pago open-ended en Cobros no actualizaba loan — ahora actualiza `paid_amount` y llama `update_client_stats`
 - [x] **M-8**: Balance threshold `< 0.01` cambiado a `< 0.005` para mejor precisión
 - [x] **L-3**: Montos negativos pasaban validación (`!amount`) — cambiado a `amount <= 0`
+
+## Hoy — 19 Jul 2026
+
+### UI/UX & Branding
+- [x] **Nueva paleta azul**: Primary `#2563EB`, Primary-hover `#3B82F6`, Primary-light `#60A5FA`, Accent `#8B5CF6`, Success `#22C55E`, Warning `#F59E0B`, Destructive `#EF4444`
+- [x] **Sidebar navy gradient** (`#081528` → `#0F2A55`) con GP Logo.png + indicador activo morado + avatar usuario
+- [x] **PWA icons actualizados**: `icon.svg` / `apple-icon.svg` con logo "GP" blanco sobre gradient azul→morado
+- [x] **Sidebar fondo blanco** (reemplaza navy): `bg-white border-r border-border`, nav items con `bg-primary/10` activo, texto `text-muted-foreground`/`text-foreground`
+- [x] **Icon cards fondo blanco** en Dashboard, Reports, Collections, StatCard: `bg-white border border-border` + icono `text-primary|text-success|text-destructive|text-emerald-600|text-purple-600`
+- [x] **GP Logo.png unificado**: Sidebar (desktop+mobile), Login page, PWA manifest (512×512 maskable), favicon, apple-touch-icon, offline.html
+- [x] **GP Login.png** para login page (imagen distinta a sidebar)
+- [x] **Títulos**: "Mis Préstamos" → "Gestor de Prestamos" en Login y Sidebar; eliminada tagline "Control profesional"
+- [x] **Filtros Loans unificados**: Mobile usa ActionSheet bottom sheet (igual que Clients) para filtro principal estado; Tipo y Frecuencia en sus propios ActionSheets; eliminado dropdown desktop
+
+### LoanDetail & State
+- [x] **LoanDetail restaurado con estado local**: `useState` para `loan`, `installments`, `payments` → mutaciones reactivas (pagar, abonar, liquidar, reversar) sin router.refresh()
+- [x] `Progress` import corregido a named export
+
+### Pendiente
+- Nada por ahora
