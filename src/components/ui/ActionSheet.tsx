@@ -19,14 +19,11 @@ interface Props {
 
 export default function ActionSheet({ open, onClose, options, selected, onSelect, title }: Props) {
   const [mounted, setMounted] = useState(open)
-  const [visible, setVisible] = useState(open)
 
   useEffect(() => {
     if (open) {
       setMounted(true)
-      requestAnimationFrame(() => setVisible(true))
     } else {
-      setVisible(false)
       setTimeout(() => setMounted(false), 300)
     }
     if (open) document.body.style.overflow = 'hidden'
@@ -46,13 +43,9 @@ export default function ActionSheet({ open, onClose, options, selected, onSelect
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
-      <div className="fixed inset-0 bg-black/40 transition-opacity duration-200" style={{ opacity: visible ? 1 : 0 }} />
+      <div className={`fixed inset-0 bg-black/40 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`} />
       <div
-        className="relative w-full max-w-lg bg-card rounded-t-2xl shadow-2xl pb-safe-bottom"
-        style={{
-          transform: visible ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
-        }}
+        className={`relative w-full max-w-lg bg-card rounded-t-2xl shadow-2xl pb-safe-bottom animate-in slide-in-from-bottom duration-300 ease-out ${!open ? 'animate-out slide-out-to-bottom duration-200' : ''}`}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-center pt-3 pb-1">
