@@ -36,7 +36,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/GP Login.png" alt="GP" className="w-16 h-16 rounded-xl mx-auto object-cover" />
-          <h1 className="text-2xl font-bold text-gray-900 mt-3">Mis Préstamos</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mt-3">Gestor de Prestamos</h1>
           <p className="text-gray-500 mt-1">Controla tus préstamos personales</p>
         </div>
 

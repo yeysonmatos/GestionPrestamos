@@ -50,10 +50,7 @@ export default function Sidebar() {
       <div className="p-5 border-b border-border">
         <Link href="/dashboard" className="flex items-center gap-3">
           <img src="/GP Logo.png" alt="GP" className="w-9 h-9 rounded-xl shrink-0 object-cover" />
-          <div className="min-w-0">
-            <span className="font-semibold text-foreground text-lg tracking-tight block leading-tight">Mis Préstamos</span>
-            <span className="text-[11px] text-muted-foreground tracking-wide">Control profesional</span>
-          </div>
+          <span className="font-semibold text-foreground text-lg tracking-tight">Gestor de Prestamos</span>
         </Link>
       </div>
 
@@ -114,7 +111,7 @@ export default function Sidebar() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-border px-4 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2">
           <img src="/GP Logo.png" alt="GP" className="w-8 h-8 rounded-lg shrink-0 object-cover" />
-          <span className="font-semibold text-foreground">Mis Préstamos</span>
+          <span className="font-semibold text-foreground">Gestor de Prestamos</span>
         </Link>
         <button onClick={() => setMobileOpen(!mobileOpen)} className="min-h-11 min-w-11 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
           {mobileOpen ? <X className="h-6 w-6" /> : <List className="h-6 w-6" />}
