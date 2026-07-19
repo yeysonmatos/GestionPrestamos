@@ -27,7 +27,7 @@ export default function StatCard({ label, value, icon: IconCmp, trend, className
           )}
         </div>
         {IconCmp && (
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
             <IconCmp className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
         )}

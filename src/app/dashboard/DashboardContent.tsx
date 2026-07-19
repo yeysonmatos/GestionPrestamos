@@ -86,7 +86,7 @@ export default function DashboardContent({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary-light flex items-center justify-center shrink-0">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
             <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
           </div>
           <div className="min-w-0">
@@ -95,7 +95,7 @@ export default function DashboardContent({
           </div>
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
             <Warning className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
           <div className="min-w-0">
@@ -104,7 +104,7 @@ export default function DashboardContent({
           </div>
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
             <Calendar className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
           </div>
           <div className="min-w-0">
@@ -113,7 +113,7 @@ export default function DashboardContent({
           </div>
         </Card>
         <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
             <Warning className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
           </div>
           <div className="min-w-0">
