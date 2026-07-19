@@ -428,7 +428,7 @@ export default function CollectionsContent({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-primary-light flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-white border border-border flex items-center justify-center">
             <CalendarCheck className="h-5 w-5 text-primary" />
           </div>
           <div>
@@ -437,7 +437,7 @@ export default function CollectionsContent({
           </div>
         </Card>
         <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-red-100 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-white border border-border flex items-center justify-center">
             <Warning className="h-5 w-5 text-destructive" />
           </div>
           <div>
@@ -446,7 +446,7 @@ export default function CollectionsContent({
           </div>
         </Card>
         <Card className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-white border border-border flex items-center justify-center">
             <Calendar className="h-5 w-5 text-emerald-600" />
           </div>
           <div>
@@ -557,13 +557,13 @@ export default function CollectionsContent({
             const remaining = inst.amount - (inst.paid_amount || 0)
             const isPartial = (inst.paid_amount ?? 0) > 0 && inst.status !== 'paid'
             const borderColor = filter === 'overdue' ? 'border-l-red-500' : filter === 'upcoming' ? 'border-l-amber-400' : 'border-l-blue-500'
-            const avatarColor = filter === 'overdue' ? 'bg-red-500' : filter === 'upcoming' ? 'bg-amber-500' : 'bg-blue-500'
+            const avatarColor = 'bg-primary'
             const clientInitial = client?.name?.charAt(0)?.toUpperCase() || '?'
             return (
               <div key={inst.id} className={`bg-card rounded-xl border border-border border-l-4 ${borderColor} p-4 hover:shadow-sm transition-shadow`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 ${avatarColor}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 bg-primary`}>
                       {clientInitial}
                     </div>
                     <div className="min-w-0">
@@ -622,9 +622,7 @@ export default function CollectionsContent({
               <>
                 <div className="bg-primary/5 rounded-xl p-4 text-sm space-y-1.5">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm text-white flex-shrink-0 ${
-                      filter === 'overdue' ? 'bg-red-500' : filter === 'upcoming' ? 'bg-amber-500' : 'bg-blue-500'
-                    }`}>
+                    <div className="w-9 h-9 rounded-lg bg-white border border-border flex items-center justify-center font-bold text-sm text-primary flex-shrink-0">
                       {inst.loan?.client?.name?.charAt(0)?.toUpperCase() || '?'}
                     </div>
                     <div>
@@ -721,7 +719,7 @@ export default function CollectionsContent({
                     setQpAmount(String(g.loans[0].remaining_amount))
                   }}
                     className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left">
-                    <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center font-bold text-xs text-white flex-shrink-0">
+<div className="w-9 h-9 rounded-lg bg-white border border-border flex items-center justify-center font-bold text-xs text-primary flex-shrink-0">
                       {g.client.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
