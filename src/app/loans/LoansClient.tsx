@@ -50,8 +50,6 @@ export default function LoansClient({ loans: initialLoans }: Props) {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [freqFilter, setFreqFilter] = useState<string>('all')
   const [showFilterSheet, setShowFilterSheet] = useState(false)
-  const [showTypeSheet, setShowTypeSheet] = useState(false)
-  const [showFreqSheet, setShowFreqSheet] = useState(false)
   const [view, setView] = useState<ViewMode>('cards')
   const [loans] = useState(initialLoans)
 
@@ -98,6 +96,20 @@ export default function LoansClient({ loans: initialLoans }: Props) {
     { key: 'late', label: 'Atrasados', count: lateCount },
     { key: 'paid', label: 'Pagados', count: paidCount },
     { key: 'cancelled', label: 'Cancelados', count: cancelledCount },
+  ]
+
+  const typeOptions = [
+    { key: 'all', label: 'Todos' },
+    { key: 'french', label: 'Francesa' },
+    { key: 'interest_only', label: 'Interés' },
+  ]
+
+  const freqOptions = [
+    { key: 'all', label: 'Todas' },
+    { key: 'daily', label: 'Diario' },
+    { key: 'weekly', label: 'Semanal' },
+    { key: 'biweekly', label: 'Quincenal' },
+    { key: 'monthly', label: 'Mensual' },
   ]
 
   function openPayment(loan: Loan) {
@@ -163,39 +175,70 @@ export default function LoansClient({ loans: initialLoans }: Props) {
             ))}
           </div>
           
-          <div className="flex gap-2 ml-4 hidden sm:block">
-            <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} type="button" className="gap-1 px-2 py-2 text-xs font-medium min-h-[44px]">
-              <SquaresFour className="h-3.5 w-3.5" /> {typeFilter === 'all' ? 'Tipo' : typeFilter === 'french' ? 'Fra' : 'Int'}
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} type="button" className="gap-1 px-2 py-2 text-xs font-medium min-h-[44px]">
-              <Calendar className="h-3.5 w-3.5" /> {freqFilter === 'all' ? 'Fre' : freqFilter === 'daily' ? 'Dia' : freqFilter === 'weekly' ? 'Sem' : freqFilter === 'biweekly' ? 'Qui' : 'Mes'}
-            </Button>
+          <div className="flex gap-2 ml-4">
+            {/* Tipo - segmented pills */}
+            <div className="flex gap-1 bg-muted rounded-lg p-1">
+              {typeOptions.map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setTypeFilter(opt.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    typeFilter === opt.key
+                      ? 'bg-white text-primary shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-white/50'
+                  }`}
+              >
+                {opt.key === 'all' ? 'Todos' : opt.key === 'french' ? 'Francesa' : 'Interés'}
+              </button>
+            ))}
+            </div>
+            
+            {/* Frecuencia - native select */}
+            <select
+              value={freqFilter}
+              onChange={e => setFreqFilter(e.target.value)}
+              className="min-w-[140px] px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {freqOptions.map(opt => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.key === 'all' ? 'Todas' : opt.key === 'daily' ? 'Diario' : opt.key === 'weekly' ? 'Semanal' : opt.key === 'biweekly' ? 'Quincenal' : 'Mensual'}
+                </option>
+              ))}
+            </select>
           </div>
           
-          <ActionSheet open={showTypeSheet} onClose={() => setShowTypeSheet(false)}
-            options={[{ key: 'all', label: 'Todos' }, { key: 'french', label: 'Francesa' }, { key: 'interest_only', label: 'Interés' }]}
-            selected={typeFilter} onSelect={setTypeFilter} title="Tipo de amortización" />
-          <ActionSheet open={showFreqSheet} onClose={() => setShowFreqSheet(false)}
-            options={[{ key: 'all', label: 'Todas' }, { key: 'daily', label: 'Diario' }, { key: 'weekly', label: 'Semanal' }, { key: 'biweekly', label: 'Quincenal' }, { key: 'monthly', label: 'Mensual' }]}
-            selected={freqFilter} onSelect={setFreqFilter} title="Frecuencia" />
+          <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
+            <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
+              <SquaresFour className="h-4 w-4" />
+            </button>
+            <button onClick={() => setView('table')} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla">
+              <Table className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         
-        <div className="sm:hidden flex gap-1.5">
-          <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} type="button" className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-[44px] touch-manipulation">
-            <SquaresFour className="h-3.5 w-3.5" /> {typeFilter === 'all' ? 'Tipo' : typeFilter === 'french' ? 'Fra' : 'Int'}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} type="button" className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-[44px] touch-manipulation">
-            <Calendar className="h-3.5 w-3.5" /> {freqFilter === 'all' ? 'Fre' : freqFilter === 'daily' ? 'Dia' : freqFilter === 'weekly' ? 'Sem' : freqFilter === 'biweekly' ? 'Qui' : 'Mes'}
-          </Button>
-        </div>
-        
-        <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
-          <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
-            <SquaresFour className="h-4 w-4" />
-          </button>
-          <button onClick={() => setView('table')} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla">
-            <Table className="h-4 w-4" />
-          </button>
+        <div className="sm:hidden flex items-center gap-2">
+          {/* Tipo - native select */}
+          <select
+            value={typeFilter}
+            onChange={e => setTypeFilter(e.target.value)}
+            className="flex-1 px-3 py-2 text-sm font-medium rounded-lg border border-border bg-card text-foreground min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {typeOptions.map(opt => (
+              <option key={opt.key} value={opt.key}>{opt.key === 'all' ? 'Todos' : opt.key === 'french' ? 'Francesa' : 'Interés'}</option>
+            ))}
+          </select>
+          
+          {/* Frecuencia - native select */}
+          <select
+            value={freqFilter}
+            onChange={e => setFreqFilter(e.target.value)}
+            className="flex-1 px-3 py-2 text-sm font-medium rounded-lg border border-border bg-card text-foreground min-h-[44px] focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {freqOptions.map(opt => (
+              <option key={opt.key} value={opt.key}>{opt.key === 'all' ? 'Todas' : opt.key === 'daily' ? 'Diario' : opt.key === 'weekly' ? 'Semanal' : opt.key === 'biweekly' ? 'Quincenal' : 'Mensual'}</option>
+            ))}
+          </select>
         </div>
       </div>
 
