@@ -163,12 +163,12 @@ export default function LoansClient({ loans: initialLoans }: Props) {
             ))}
           </div>
           
-          <div className="flex gap-2 ml-4">
-            <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} className="gap-1">
-              <SquaresFour className="h-4 w-4" /> Tipo: {typeFilter === 'all' ? 'Todos' : typeFilter === 'french' ? 'Francesa' : 'Interés'}
+          <div className="flex gap-2 ml-4 hidden sm:block">
+            <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} className="gap-1 px-2 py-2 text-xs font-medium">
+              <SquaresFour className="h-3.5 w-3.5" /> {typeFilter === 'all' ? 'Tipo' : typeFilter === 'french' ? 'Fra' : 'Int'}
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} className="gap-1">
-              <Calendar className="h-4 w-4" /> Frec: {freqFilter === 'all' ? 'Todas' : freqFilter === 'daily' ? 'Diario' : freqFilter === 'weekly' ? 'Semanal' : freqFilter === 'biweekly' ? 'Quincenal' : 'Mensual'}
+            <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} className="gap-1 px-2 py-2 text-xs font-medium">
+              <Calendar className="h-3.5 w-3.5" /> {freqFilter === 'all' ? 'Fre' : freqFilter === 'daily' ? 'Dia' : freqFilter === 'weekly' ? 'Sem' : freqFilter === 'biweekly' ? 'Qui' : 'Mes'}
             </Button>
           </div>
           
@@ -181,11 +181,11 @@ export default function LoansClient({ loans: initialLoans }: Props) {
         </div>
         
         <div className="sm:hidden flex gap-1.5">
-          <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} className="flex-1 gap-1 px-2.5 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
-            <SquaresFour className="h-3.5 w-3.5" /> Tipo: {typeFilter === 'all' ? 'Todos' : typeFilter === 'french' ? 'Francesa' : 'Interés'}
+          <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
+            <SquaresFour className="h-3.5 w-3.5" /> {typeFilter === 'all' ? 'Tipo' : typeFilter === 'french' ? 'Fra' : 'Int'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} className="flex-1 gap-1 px-2.5 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
-            <Calendar className="h-3.5 w-3.5" /> Frec: {freqFilter === 'all' ? 'Todas' : freqFilter === 'daily' ? 'Diario' : freqFilter === 'weekly' ? 'Semanal' : freqFilter === 'biweekly' ? 'Quincenal' : 'Mensual'}
+          <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
+            <Calendar className="h-3.5 w-3.5" /> {freqFilter === 'all' ? 'Fre' : freqFilter === 'daily' ? 'Dia' : freqFilter === 'weekly' ? 'Sem' : freqFilter === 'biweekly' ? 'Qui' : 'Mes'}
           </Button>
         </div>
         
