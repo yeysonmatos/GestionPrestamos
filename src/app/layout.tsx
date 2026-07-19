@@ -25,7 +25,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Préstamos" />
-        <link rel="apple-touch-icon" href="/apple-icon.svg" />
+        <link rel="apple-touch-icon" href="/GP Logo.png" />
+        <link rel="icon" href="/GP Logo.png" sizes="any" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen antialiased">

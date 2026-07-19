@@ -49,9 +49,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-5 border-b border-white/10">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#2563EB] shadow-lg shadow-[#8B5CF6]/25 flex items-center justify-center shrink-0">
-            <Handshake className="h-5 w-5 text-white" weight="fill" />
-          </div>
+          <img src="/GP Logo.png" alt="GP" className="w-9 h-9 rounded-xl shrink-0 object-cover" />
           <div className="min-w-0">
             <span className="font-semibold text-white text-lg tracking-tight block leading-tight">Mis Préstamos</span>
             <span className="text-[11px] text-blue-300/70 tracking-wide">Control profesional</span>
@@ -115,9 +113,7 @@ export default function Sidebar() {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[#081528] border-b border-white/10 px-4 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#8B5CF6] to-[#2563EB] flex items-center justify-center">
-            <Handshake className="h-4 w-4 text-white" weight="fill" />
-          </div>
+          <img src="/GP Logo.png" alt="GP" className="w-8 h-8 rounded-lg shrink-0 object-cover" />
           <span className="font-semibold text-white">Mis Préstamos</span>
         </Link>
         <button onClick={() => setMobileOpen(!mobileOpen)} className="min-h-11 min-w-11 flex items-center justify-center text-blue-300/70 hover:text-white transition-colors">
