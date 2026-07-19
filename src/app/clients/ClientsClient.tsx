@@ -9,17 +9,28 @@ import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import Modal from '@/components/ui/Modal'
 import Input, { Select } from '@/components/ui/Input'
-import { Avatar } from '@/components/ui/Avatar'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, getTrustLevelColor, getStatusLabel } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import Link from 'next/link'
-import { Plus, Users } from 'lucide-react'
+import { Plus, Phone, FileText } from 'lucide-react'
 import type { Client, Loan } from '@/types'
 
 interface Props {
   clients: Client[]
   loans: Loan[]
+}
+
+const statusColorMap: Record<string, string> = {
+  active: 'bg-blue-500',
+  inactive: 'bg-gray-400',
+  default: 'bg-gray-300',
+}
+
+const avatarColorMap: Record<string, string> = {
+  active: 'bg-blue-500',
+  inactive: 'bg-gray-400',
+  default: 'bg-gray-400',
 }
 
 export default function ClientsClient({ clients: initialClients, loans }: Props) {
@@ -36,12 +47,21 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
   const [error, setError] = useState('')
   const supabase = createClient()
 
+  const loanCounts = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const l of loans) {
+      map[l.client_id] = (map[l.client_id] || 0) + 1
+    }
+    return map
+  }, [loans])
+
   const filtered = useMemo(() => {
     return clients.filter(c => {
+      const q = search.toLowerCase()
       const matchesSearch = !search || 
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.phone?.includes(search) ||
-        c.document?.includes(search)
+        c.name.toLowerCase().includes(q) ||
+        c.phone?.includes(q) ||
+        c.document?.includes(q)
       const matchesFilter = filter === 'all' || c.status === filter
       return matchesSearch && matchesFilter
     })
@@ -142,45 +162,67 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="No hay clientes"
-          description="Agrega tu primer cliente para empezar."
-          action={<Button onClick={() => setShowModal(true)}><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button>}
+          title={search ? 'Sin resultados' : 'No hay clientes'}
+          description={search ? 'Intenta con otros términos de búsqueda' : 'Agrega tu primer cliente para empezar.'}
+          icon={<span className="text-2xl">{search ? '🔍' : '👤'}</span>}
+          action={!search ? <Button onClick={() => setShowModal(true)}><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button> : undefined}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(client => (
-            <Link key={client.id} href={`/clients/${client.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <div className="flex items-start gap-3">
-                  <Avatar name={client.name} size="md" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-foreground truncate">{client.name}</h3>
-                      <Badge variant={client.status === 'active' ? 'active' : 'cancelled'}>
-                        {getStatusLabel(client.status)}
-                      </Badge>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map(client => {
+            const statusColor = statusColorMap[client.status] || statusColorMap.default
+            const avatarColor = avatarColorMap[client.status] || avatarColorMap.default
+            const initials = client.name.split(' ').map(s => s.charAt(0)).join('').toUpperCase().slice(0, 2) || '?'
+            const activeLoans = loanCounts[client.id] || 0
+
+            return (
+              <Link key={client.id} href={`/clients/${client.id}`}>
+                <Card className="relative overflow-hidden hover:shadow-md transition-shadow cursor-pointer pl-0">
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 ${statusColor}`} />
+                  <div className="flex items-start gap-3 py-3 pl-4 pr-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 ${avatarColor}`}>
+                      {initials}
                     </div>
-                    {client.phone && <p className="text-xs text-muted-foreground mt-0.5">{client.phone}</p>}
-                    {client.document && <p className="text-xs text-muted-foreground">{client.document}</p>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-sm text-foreground truncate">{client.name}</h3>
+                        <Badge variant={client.status === 'active' ? 'active' : 'cancelled'}>
+                          {getStatusLabel(client.status)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                        {client.phone && (
+                          <span className="flex items-center gap-1 text-primary">
+                            <Phone className="h-3 w-3" /> {client.phone}
+                          </span>
+                        )}
+                        {client.document && (
+                          <span className="flex items-center gap-1">
+                            <FileText className="h-3 w-3" /> {client.document}
+                          </span>
+                        )}
+                        <span>{activeLoans} préstamo{activeLoans !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getTrustLevelColor(client.trust_level)}`}>
-                    {getStatusLabel(client.trust_level)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{client.active_loans} préstamos</span>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Progress value={client.trust_score} variant={client.trust_level === 'high' ? 'green' : client.trust_level === 'medium' ? 'yellow' : 'red'} className="flex-1" />
-                  <span className="text-xs text-muted-foreground">{client.trust_score}%</span>
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground flex justify-between">
-                  <span>Prestado: {formatCurrency(client.total_borrowed)}</span>
-                  <span>Saldo: {formatCurrency(client.balance)}</span>
-                </div>
-              </Card>
-            </Link>
-          ))}
+                  <div className="flex items-center gap-3 px-4 pb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <Progress value={client.trust_score} variant={client.trust_level === 'high' ? 'green' : client.trust_level === 'medium' ? 'yellow' : 'red'} className="flex-1 h-1.5" />
+                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${getTrustLevelColor(client.trust_level)}`}>
+                          {getStatusLabel(client.trust_level)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground flex-shrink-0">
+                      <div>Prestado: <span className="font-medium text-foreground">{formatCurrency(client.total_borrowed)}</span></div>
+                      <div>Saldo: <span className="font-medium text-foreground">{formatCurrency(client.balance)}</span></div>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
       )}
 

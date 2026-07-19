@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Sin conexión — Mis Préstamos</title>
+  <meta name="theme-color" content="#7C3AED" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%);
+      color: white;
+      padding: 24px;
+    }
+    .container {
+      text-align: center;
+      max-width: 360px;
+    }
+    .icon {
+      width: 96px;
+      height: 96px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 48px;
+      font-weight: 700;
+      color: #FBBF24;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    p { font-size: 15px; opacity: 0.8; line-height: 1.5; margin-bottom: 32px; }
+    button {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 12px 32px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.2s;
+    }
+    button:active { background: rgba(255,255,255,0.3); }
+    .status { margin-top: 24px; font-size: 13px; opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">M</div>
+    <h1>Sin conexión</h1>
+    <p>Revisa tu conexión a internet e intenta de nuevo. Algunas funciones pueden no estar disponibles sin conexión.</p>
+    <button onclick="window.location.reload()">Reintentar</button>
+    <div class="status">Mis Préstamos &mdash; offline</div>
+  </div>
+</body>
+</html>

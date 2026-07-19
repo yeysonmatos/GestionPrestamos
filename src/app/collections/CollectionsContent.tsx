@@ -14,7 +14,7 @@ import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
 import { processInstallmentPayment, updateLoanAfterPayment } from '@/lib/payments'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarCheck, AlertTriangle, Calendar, DollarSign,
+  CalendarCheck, AlertTriangle, Calendar, DollarSign, Plus,
 } from 'lucide-react'
 import type { Installment, Payment, Client, Setting } from '@/types'
 
@@ -60,6 +60,17 @@ function getNextDueDate(loan: OpenEndedLoan): string {
   return d.toISOString().split('T')[0]
 }
 
+interface ActiveLoanBrief {
+  id: string
+  loan_id: string
+  amount: number
+  remaining_amount: number
+  installment_amount: number
+  amortization_type: string
+  open_ended: boolean
+  client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null
+}
+
 interface Props {
   todayInstallments: Installment[]
   overdueInstallments: Installment[]
@@ -67,10 +78,11 @@ interface Props {
   recentPayments: Payment[]
   openEndedLoans: OpenEndedLoan[]
   settings: Setting | null
+  activeLoans: ActiveLoanBrief[]
 }
 
 export default function CollectionsContent({
-  todayInstallments: initialToday, overdueInstallments: initialOverdue, upcomingInstallments: initialUpcoming, recentPayments: initialPayments, openEndedLoans, settings,
+  todayInstallments: initialToday, overdueInstallments: initialOverdue, upcomingInstallments: initialUpcoming, recentPayments: initialPayments, openEndedLoans, settings, activeLoans,
 }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -78,6 +90,18 @@ export default function CollectionsContent({
   const [search, setSearch] = useState('')
   const [showPayment, setShowPayment] = useState(false)
   const [selectedInstallment, setSelectedInstallment] = useState<Installment | SyntheticInstallment | null>(null)
+  const [showQuickPayment, setShowQuickPayment] = useState(false)
+  const [clientSearch, setClientSearch] = useState('')
+  const [selectedClientLoan, setSelectedClientLoan] = useState<string | null>(null)
+  const [qpAmount, setQpAmount] = useState('')
+  const [qpMethod, setQpMethod] = useState('cash')
+  const [qpDate, setQpDate] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
+  const [qpNotes, setQpNotes] = useState('')
+  const [qpLoading, setQpLoading] = useState(false)
+  const [qpError, setQpError] = useState('')
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentNotes, setPaymentNotes] = useState('')
@@ -282,6 +306,91 @@ export default function CollectionsContent({
   const overdueTotal = useMemo(() => enrichedOverdue.reduce((s, i) => s + Number(i.amount), 0), [enrichedOverdue])
   const upcomingTotal = useMemo(() => allUpcoming.reduce((s, i) => s + Number(i.amount), 0), [allUpcoming])
 
+  const groupedByClient = useMemo(() => {
+    const map = new Map<string, { client: NonNullable<ActiveLoanBrief['client']>; loans: ActiveLoanBrief[] }>()
+    for (const loan of activeLoans) {
+      if (!loan.client) continue
+      const existing = map.get(loan.client.id)
+      if (existing) {
+        existing.loans.push(loan)
+      } else {
+        map.set(loan.client.id, { client: loan.client, loans: [loan] })
+      }
+    }
+    return Array.from(map.values())
+  }, [activeLoans])
+
+  const filteredClients = useMemo(() => {
+    if (!clientSearch) return groupedByClient
+    const q = clientSearch.toLowerCase()
+    return groupedByClient.filter(g =>
+      g.client.name.toLowerCase().includes(q) ||
+      g.client.phone?.includes(q)
+    )
+  }, [groupedByClient, clientSearch])
+
+  const selectedLoan = useMemo(() => {
+    if (!selectedClientLoan) return null
+    return activeLoans.find(l => l.id === selectedClientLoan) || null
+  }, [selectedClientLoan, activeLoans])
+
+  async function handleQuickPayment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!selectedClientLoan || !userId) return
+    const loan = activeLoans.find(l => l.id === selectedClientLoan)
+    if (!loan || !loan.client) return
+
+    setQpLoading(true)
+    setQpError('')
+
+    const amount = parseFloat(qpAmount)
+    if (isNaN(amount) || amount <= 0) { setQpError('Monto inválido'); setQpLoading(false); return }
+
+    const { data: payment, error } = await supabase
+      .from('payments')
+      .insert({
+        loan_id: loan.id,
+        client_id: loan.client.id,
+        user_id: userId,
+        amount,
+        capital_amount: 0,
+        interest_amount: amount,
+        payment_date: qpDate,
+        method: qpMethod,
+        notes: qpNotes || null,
+        type: 'capital_abono',
+      })
+      .select()
+      .single()
+
+    if (error) { setQpError('Error al registrar pago: ' + error.message); setQpLoading(false); return }
+
+    const { data: loanData } = await supabase
+      .from('loans')
+      .select('paid_amount, remaining_amount')
+      .eq('id', loan.id)
+      .single()
+
+    if (loanData) {
+      const newPaid = Number(loanData.paid_amount) + amount
+      const newRemaining = Math.max(0, Number(loanData.remaining_amount) - amount)
+      await supabase.from('loans').update({
+        paid_amount: newPaid,
+        remaining_amount: newRemaining,
+      }).eq('id', loan.id)
+      await supabase.rpc('update_client_stats', { p_client_id: loan.client.id })
+    }
+
+    setPayments(prev => [payment, ...prev])
+    setShowQuickPayment(false)
+    setSelectedClientLoan(null)
+    setQpAmount('')
+    setQpNotes('')
+    setClientSearch('')
+    router.refresh()
+    setQpLoading(false)
+  }
+
   function openPayment(inst: Installment | SyntheticInstallment) {
     setSelectedInstallment(inst)
     const lateDays = calculateLateDays(inst.due_date, graceDays)
@@ -312,6 +421,7 @@ export default function CollectionsContent({
       <PageHeader
         title="Cobros"
         description="Gestiona los pagos y cobros diarios"
+        action={<Button onClick={() => setShowQuickPayment(true)}><Plus className="h-4 w-4 mr-1" /> Registrar cobro</Button>}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -571,6 +681,104 @@ export default function CollectionsContent({
               </>
             )
           })()}
+        </form>
+      </Modal>
+
+      <Modal open={showQuickPayment} onClose={() => setShowQuickPayment(false)} title="Registrar cobro rápido" className="max-w-lg">
+        <form onSubmit={handleQuickPayment} className="space-y-4">
+          {qpError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{qpError}</div>
+          )}
+
+          {!selectedClientLoan ? (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-2">Seleccionar cliente</label>
+              <input type="text" value={clientSearch} onChange={e => setClientSearch(e.target.value)}
+                placeholder="Buscar por nombre o teléfono..."
+                className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11 mb-3" autoFocus />
+              <div className="max-h-60 overflow-y-auto space-y-1">
+                {filteredClients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No se encontraron clientes con préstamos activos</p>
+                ) : filteredClients.map(g => (
+                  <button type="button" key={g.client.id} onClick={() => {
+                    setSelectedClientLoan(g.loans[0].id)
+                    setQpAmount(String(g.loans[0].remaining_amount))
+                  }}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left">
+                    <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center font-bold text-xs text-white flex-shrink-0">
+                      {g.client.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-foreground truncate">{g.client.name}</p>
+                      <p className="text-xs text-muted-foreground">{g.loans.length} préstamo{g.loans.length !== 1 ? 's' : ''} · {g.client.phone || 'Sin teléfono'}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{g.loans[0].loan_id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="bg-primary/5 rounded-xl p-4 text-sm space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center font-bold text-xs text-white flex-shrink-0">
+                    {selectedLoan?.client?.name?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{selectedLoan?.client?.name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedLoan?.loan_id}</p>
+                  </div>
+                  <button type="button" onClick={() => setSelectedClientLoan(null)}
+                    className="ml-auto text-xs text-primary hover:underline">
+                    Cambiar cliente
+                  </button>
+                </div>
+                <p><span className="text-muted-foreground">Monto original:</span> <strong>{formatCurrency(selectedLoan?.amount || 0)}</strong></p>
+                <p><span className="text-muted-foreground">Saldo restante:</span> <strong>{formatCurrency(selectedLoan?.remaining_amount || 0)}</strong></p>
+                {selectedLoan?.open_ended && (
+                  <p><span className="text-muted-foreground">Cuota período:</span> <strong>{formatCurrency(selectedLoan?.installment_amount || 0)}</strong></p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-1.5">Monto</label>
+                <input type="number" step="0.01" value={qpAmount} onChange={e => setQpAmount(e.target.value)}
+                  className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11" required autoFocus />
+                <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={() => setQpAmount(String(Math.round((selectedLoan?.remaining_amount || 0) * 0.25 * 100) / 100))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">25%</button>
+                  <button type="button" onClick={() => setQpAmount(String(Math.round((selectedLoan?.remaining_amount || 0) * 0.5 * 100) / 100))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">50%</button>
+                  <button type="button" onClick={() => setQpAmount(String(Math.round((selectedLoan?.remaining_amount || 0) * 0.75 * 100) / 100))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">75%</button>
+                  <button type="button" onClick={() => setQpAmount(String(selectedLoan?.remaining_amount || 0))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">100%</button>
+                  {selectedLoan?.open_ended && (
+                    <button type="button" onClick={() => setQpAmount(String(selectedLoan?.installment_amount || 0))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">Cuota</button>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
+                  <select value={qpMethod} onChange={e => setQpMethod(e.target.value)}
+                    className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11">
+                    <option value="cash">Efectivo</option>
+                    <option value="transfer">Transferencia</option>
+                    <option value="deposit">Depósito</option>
+                    <option value="other">Otro</option>
+                  </select>
+                </div>
+                <div className="min-w-0">
+                  <Input label="Fecha" type="date" value={qpDate} onChange={e => setQpDate(e.target.value)} required />
+                </div>
+              </div>
+
+              <Input label="Notas" value={qpNotes} onChange={e => setQpNotes(e.target.value)} placeholder="Referencia del pago" />
+
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" type="button" onClick={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }}>Cancelar</Button>
+                <Button type="submit" loading={qpLoading}>Registrar pago</Button>
+              </div>
+            </>
+          )}
         </form>
       </Modal>
     </div>
