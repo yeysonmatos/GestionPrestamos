@@ -164,10 +164,10 @@ export default function LoansClient({ loans: initialLoans }: Props) {
           </div>
           
           <div className="flex gap-2 ml-4 hidden sm:block">
-            <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} className="gap-1 px-2 py-2 text-xs font-medium">
+            <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} type="button" className="gap-1 px-2 py-2 text-xs font-medium min-h-[44px]">
               <SquaresFour className="h-3.5 w-3.5" /> {typeFilter === 'all' ? 'Tipo' : typeFilter === 'french' ? 'Fra' : 'Int'}
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} className="gap-1 px-2 py-2 text-xs font-medium">
+            <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} type="button" className="gap-1 px-2 py-2 text-xs font-medium min-h-[44px]">
               <Calendar className="h-3.5 w-3.5" /> {freqFilter === 'all' ? 'Fre' : freqFilter === 'daily' ? 'Dia' : freqFilter === 'weekly' ? 'Sem' : freqFilter === 'biweekly' ? 'Qui' : 'Mes'}
             </Button>
           </div>
@@ -181,10 +181,10 @@ export default function LoansClient({ loans: initialLoans }: Props) {
         </div>
         
         <div className="sm:hidden flex gap-1.5">
-          <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
+          <Button variant="secondary" size="sm" onClick={() => setShowTypeSheet(true)} type="button" className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-[44px] touch-manipulation">
             <SquaresFour className="h-3.5 w-3.5" /> {typeFilter === 'all' ? 'Tipo' : typeFilter === 'french' ? 'Fra' : 'Int'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-11">
+          <Button variant="secondary" size="sm" onClick={() => setShowFreqSheet(true)} type="button" className="flex-1 gap-1 px-2 py-2 text-xs font-medium rounded-lg bg-muted text-muted-foreground min-h-[44px] touch-manipulation">
             <Calendar className="h-3.5 w-3.5" /> {freqFilter === 'all' ? 'Fre' : freqFilter === 'daily' ? 'Dia' : freqFilter === 'weekly' ? 'Sem' : freqFilter === 'biweekly' ? 'Qui' : 'Mes'}
           </Button>
         </div>
