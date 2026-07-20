@@ -4,15 +4,13 @@ import { useState, useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
-import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
 import EmptyState from '@/components/ui/EmptyState'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, formatDate, getStatusLabel } from '@/lib/utils'
 import Link from 'next/link'
-import { Plus, Phone, Calendar, SquaresFour, Table, Funnel, ArrowsClockwise } from '@phosphor-icons/react'
+import { Plus, Phone, Calendar, SquaresFour, Table, ArrowsClockwise } from '@phosphor-icons/react'
 import { useRouter } from 'next/navigation'
-import { calculateLateDays } from '@/lib/calculations'
 import type { Loan } from '@/types'
 import { LoanFilters } from '@/components/loans/LoanFilters'
 
@@ -46,7 +44,6 @@ const avatarColors: Record<string, string> = {
 
 export default function LoansClientUnified({ loans: initialLoans }: Props) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [loans] = useState(initialLoans)
 
@@ -177,9 +174,6 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
     return d > new Date() ? formatDate(d.toISOString()) : null
   }
 
-  const hasActiveFilters = filters.status !== 'all' || filters.type !== 'all' || filters.frequency !== 'all' ||
-    filters.dateRange.from || filters.dateRange.to || filters.amountRange.min || filters.amountRange.max
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -197,27 +191,7 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
         }
       />
 
-      {/* Search + Filter Toggle */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <SearchInput value={filters.search} onChange={filterActions.setSearch} placeholder="Buscar por cliente, ID o teléfono..." className="flex-1" />
-        
-        <button onClick={() => filterActions.setShowFilters(!filters.showFilters)}
-          className="w-full sm:w-auto flex items-center gap-2 rounded-xl border border-border px-3 py-2.5 text-sm bg-card min-h-11">
-          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-            <line x1="2" y1="3" x2="14" y2="3" />
-            <line x1="2" y1="8" x2="14" y2="8" />
-            <line x1="2" y1="13" x2="14" y2="13" />
-          </svg>
-          <span className="font-medium">Filtros</span>
-          {(filters.status !== 'all' || filters.type !== 'all' || filters.frequency !== 'all' ||
-            filters.dateRange.from || filters.dateRange.to || filters.amountRange.min || filters.amountRange.max) && (
-            <span className="text-xs text-primary font-medium px-2 py-0.5 bg-primary/10 rounded-full">
-              {(filters.status !== 'all' ? 1 : 0) + (filters.type !== 'all' ? 1 : 0) + (filters.frequency !== 'all' ? 1 : 0) + 
-               (filters.dateRange.from || filters.dateRange.to ? 1 : 0) + (filters.amountRange.min || filters.amountRange.max ? 1 : 0)}
-            </span>
-          )}
-        </button>
-
+      <div className="flex justify-end">
         <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
           <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
             <SquaresFour className="h-4 w-4" />
@@ -228,7 +202,6 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
         </div>
       </div>
 
-      {/* LoanFilters Component - New Filter UI */}
       <LoanFilters
         state={filters}
         actions={{
