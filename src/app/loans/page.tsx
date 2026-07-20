@@ -1,6 +1,6 @@
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
-import LoansClient from './LoansClient'
+import LoansClientUnified from './LoansClientUnified'
 
 export default async function LoansPage() {
   const supabase = await createServerSideClient()
@@ -12,7 +12,7 @@ export default async function LoansPage() {
 
   return (
     <MainLayout>
-      <LoansClient loans={loans || []} />
+      <LoansClientUnified loans={loans || []} />
     </MainLayout>
   )
 }
