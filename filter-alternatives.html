@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alternativas de Filtros - Gestor de Préstamos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+    .phone-frame { width: 375px; border: 8px solid #1e1e2e; border-radius: 36px; background: #fff; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+    .safe-area-top { height: 44px; }
+    .safe-area-bottom { height: 34px; }
+    .pill { transition: all 0.15s ease; }
+    .pill.active { background: #2563EB; color: white; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+    .pill:not(.active):hover { background: #f1f5f9; }
+    .select-custom { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748B'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2.5rem; appearance: none; }
+    .bottom-sheet { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+    .bottom-sheet.open { transform: translateY(0); }
+    .overlay { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+    .overlay.open { opacity: 1; pointer-events: auto; }
+    .tab-btn { transition: all 0.15s; }
+    .tab-btn.active { background: #2563EB; color: white; }
+    .filter-chip { transition: all 0.15s; }
+    .filter-chip.active { background: #2563EB; color: white; }
+    @media (max-width: 375px) { .desktop-only { display: none !important; } .mobile-only { display: flex !important; } }
+    @media (min-width: 376px) { .mobile-only { display: none !important; } }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-8">
+  <div class="max-w-4xl mx-auto space-y-12">
+    
+    <!-- HEADER -->
+    <header class="text-center">
+      <h1 class="text-3xl font-bold text-slate-900">Alternativas de Filtros - Préstamos</h1>
+      <p class="text-slate-500 mt-2">iPhone 12 Mini (375px) - Comparación visual</p>
+    </header>
+
+    <!-- LEGEND -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+      <div class="bg-white p-4 rounded-xl border border-slate-200"><span class="font-medium text-slate-700">A</span> <span class="text-slate-500">Segmented Pills</span></div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200"><span class="font-medium text-slate-700">B</span> <span class="text-slate-500">Native Select</span></div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200"><span class="font-medium text-slate-700">C</span> <span class="text-slate-500">Bottom Sheet (ActionSheet)</span></div>
+      <div class="bg-white p-4 rounded-xl border border-slate-200"><span class="font-medium text-slate-700">D</span> <span class="text-slate-500">Filter Bar Sticky</span></div>
+    </div>
+
+    <!-- DEMO 1: CURRENT IMPLEMENTATION (Segmented + Select) -->
+    <section>
+      <h2 class="text-xl font-semibold text-slate-900 mb-4">✅ Implementación Actual: Segmented (Tipo) + Native Select (Frecuencia)</h2>
+      <div class="flex justify-center">
+        <div class="phone-frame overflow-hidden relative">
+          <div class="safe-area-top bg-slate-900"></div>
+          <div class="p-4 space-y-4 bg-white">
+            <!-- Search -->
+            <div class="relative">
+              <input type="text" placeholder="Buscar por cliente, ID o teléfono..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+
+            <!-- Filter Row -->
+            <div class="flex flex-col sm:flex-row gap-3">
+              <!-- Estado - ActionSheet Button -->
+              <button class="w-full sm:w-auto flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white min-h-[44px]" id="estadoBtn">
+                <span class="font-medium">Atrasados</span>
+                <span class="flex items-center gap-2">
+                  <span class="text-xs text-slate-500">(3)</span>
+                  <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </span>
+              </button>
+
+              <div class="hidden sm:flex items-center gap-2 flex-1">
+                <!-- Estado Tabs -->
+                <div class="flex gap-1">
+                  <button class="tab-btn active px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap">Todos <span class="text-xs opacity-70">(12)</span></button>
+                  <button class="tab-btn px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap bg-slate-100 text-slate-600">Activos <span class="text-xs opacity-70">(5)</span></button>
+                  <button class="tab-btn px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap bg-slate-100 text-slate-600">Atrasados <span class="text-xs opacity-70">(3)</span></button>
+                  <button class="tab-btn px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap bg-slate-100 text-slate-600">Pagados <span class="text-xs opacity-70">(4)</span></button>
+                  <button class="tab-btn px-3 py-2 text-sm font-medium rounded-lg whitespace-nowrap bg-slate-100 text-slate-600">Cancelados <span class="text-xs opacity-70">(0)</span></button>
+                </div>
+
+                <div class="flex gap-2 ml-4">
+                  <!-- A: Segmented Pills - Tipo -->
+                  <div class="flex gap-1 bg-slate-100 rounded-lg p-1" role="group" aria-label="Tipo de amortización">
+                    <button class="pill active px-3 py-1.5 text-xs font-medium rounded-md">Todos</button>
+                    <button class="pill px-3 py-1.5 text-xs font-medium rounded-md text-slate-500">Francesa</button>
+                    <button class="pill px-3 py-1.5 text-xs font-medium rounded-md text-slate-500">Interés</button>
+                  </div>
+
+                  <!-- B: Native Select - Frecuencia -->
+                  <select class="select-custom min-w-[140px] px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="all">Todas</option>
+                    <option value="daily">Diario</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="biweekly">Quincenal</option>
+                    <option value="monthly" selected>Mensual</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Mobile: Native Selects -->
+              <div class="sm:hidden flex items-center gap-2">
+                <select class="flex-1 px-3 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-900 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500" style="appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748B'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2.5rem;">
+                  <option value="all">Todos</option>
+                  <option value="french">Francesa</option>
+                  <option value="interest_only">Interés</option>
+                </select>
+                <select class="flex-1 px-3 py-2 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-900 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500" style="appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748B'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2.5rem;">
+                  <option value="all">Todas</option>
+                  <option value="daily">Diario</option>
+                  <option value="weekly">Semanal</option>
+                  <option value="biweekly">Quincenal</option>
+                  <option value="monthly" selected>Mensual</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- View Toggle -->
+            <div class="flex border border-slate-200 rounded-lg overflow-hidden">
+              <button class="p-2 transition-colors bg-blue-50 text-blue-600" title="Tarjetas"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg></button>
+              <button class="p-2 transition-colors text-slate-400 hover:bg-slate-100" title="Tabla"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M3 18h18M3 6h18"></path></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="safe-area-bottom bg-slate-900"></div>
+      </div>
+    </div>
+    </section>
+
+    <!-- DEMO 2: ALTERNATIVA A - Segmented Pills Only -->
+    <section>
+      <h2 class="text-xl font-semibold text-slate-900 mb-4">A. Solo Segmented Pills (Todos los filtros)</h2>
+      <div class="flex justify-center">
+        <div class="phone-frame overflow-hidden relative">
+          <div class="safe-area-top bg-slate-900"></div>
+          <div class="p-4 space-y-4 bg-white">
+            <div class="relative"><input type="text" placeholder="Buscar..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+            
+            <div class="space-y-3">
+              <div>
+                <label class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5 block px-1">Estado</label>
+                <div class="flex gap-1 overflow-x-auto pb-2 px-1 -mx-1">
+                  <button class="pill active px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap">Todos (12)</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Activos (5)</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Atrasados (3)</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Pagados (4)</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Cancelados (0)</button>
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5 block px-1">Tipo</label>
+                <div class="flex gap-1 bg-slate-100 rounded-lg p-1">
+                  <button class="pill active px-3 py-1.5 text-xs font-medium rounded-md">Todos</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-md text-slate-500">Francesa</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-md text-slate-500">Interés</button>
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5 block px-1">Frecuencia</label>
+                <div class="flex gap-1 overflow-x-auto pb-2 px-1 -mx-1">
+                  <button class="pill active px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap">Todas</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Diario</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Semanal</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Quincenal</button>
+                  <button class="pill px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap text-slate-500">Mensual</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEMO 3: ALTERNATIVA B - Native Selects (Mobile Optimized) -->
+    <section>
+      <h2 class="text-xl font-semibold text-slate-900 mb-4">B. Native Selects (iOS Picker Wheel)</h2>
+      <div class="flex justify-center">
+        <div class="phone-frame overflow-hidden relative">
+          <div class="safe-area-top bg-slate-900"></div>
+          <div class="p-4 space-y-4 bg-white">
+            <div class="relative"><input type="text" placeholder="Buscar..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <select class="px-3 py-2.5 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-900 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500" style="appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748B'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2.5rem;">
+                <option value="all">Estado: Todos</option>
+                <option value="active">Activos</option>
+                <option value="late">Atrasados</option>
+                <option value="paid">Pagados</option>
+                <option value="cancelled">Cancelados</option>
+              </select>
+              <select class="px-3 py-2.5 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-900 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500" style="appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748B'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2.5rem;">
+                <option value="all">Tipo: Todos</option>
+                <option value="french">Francesa</option>
+                <option value="interest_only">Interés</option>
+              </select>
+              <select class="px-3 py-2.5 text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-900 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500" style="appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748B'%3E%3Cpath d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E"); background-position: right 0.5rem center; background-repeat: no-repeat; padding-right: 2.5rem;">
+                <option value="all">Frecuencia: Todas</option>
+                <option value="daily">Diario</option>
+                <option value="weekly">Semanal</option>
+                <option value="biweekly">Quincenal</option>
+                <option value="monthly">Mensual</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEMO 4: ALTERNATIVA C - Bottom Sheet (ActionSheet) Unificado -->
+    <section>
+      <h2 class="text-xl font-semibold text-slate-900 mb-4">C. Bottom Sheet Unificado (Un solo modal)</h2>
+      <div class="flex justify-center relative">
+        <div class="phone-frame overflow-hidden relative">
+          <div class="safe-area-top bg-slate-900"></div>
+          <div class="p-4 space-y-4 bg-white relative">
+            <div class="relative"><input type="text" placeholder="Buscar..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+            
+            <div class="flex flex-col sm:flex-row gap-3">
+              <button class="w-full sm:w-auto flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white min-h-[44px]" id="filterBtn">
+                <span class="font-medium">Atrasados <span class="text-slate-500">(3)</span></span>
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+              </button>
+              <button class="hidden sm:flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 min-h-[44px]" id="typeBtn">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2v10z"></path></svg>
+                <span>Francesa</span>
+              </button>
+              <button class="hidden sm:flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 min-h-[44px]" id="freqBtn">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <span>Mensual</span>
+              </button>
+            </div>
+            
+            <div class="sm:hidden flex gap-2">
+              <button class="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-slate-100 text-slate-600 min-h-[44px]" id="mobileFilterBtn">Filtros (3)</button>
+            </div>
+          </div>
+
+          <!-- Bottom Sheet Overlay (hidden by default) -->
+          <div id="sheetOverlay" class="overlay fixed inset-0 bg-black/40 z-40"></div>
+          <div id="bottomSheet" class="bottom-sheet fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl z-50 pb-safe-bottom max-h-[85vh]">
+            <div class="flex items-center justify-center pt-3 pb-1"><div class="w-10 h-1 rounded-full bg-slate-300"></div></div>
+            <div class="px-6 pb-2"><p class="text-sm font-semibold text-slate-900">Filtros</p></div>
+            <div class="max-h-72 overflow-y-auto px-2 pb-4">
+              <div class="space-y-4 px-4">
+                <div>
+                  <p class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Estado</p>
+                  <div class="space-y-2">
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-slate-50 hover:bg-slate-100 cursor-pointer"><span>Todos</span><span class="text-slate-400">(12)</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span class="text-blue-600">Activos</span><span class="text-slate-400">(5)</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span class="text-red-600">Atrasados</span><span class="text-slate-400">(3)</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Pagados</span><span class="text-slate-400">(4)</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Cancelados</span><span class="text-slate-400">(0)</span></label>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Tipo de amortización</p>
+                  <div class="space-y-2">
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-slate-50 hover:bg-slate-100 cursor-pointer"><span>Todos</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Francesa</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Interés</span></label>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Frecuencia</p>
+                  <div class="space-y-2">
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-slate-50 hover:bg-slate-100 cursor-pointer"><span>Todas</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Diario</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Semanal</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span>Quincenal</span></label>
+                    <label class="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-white hover:bg-slate-50 cursor-pointer border border-slate-200"><span class="text-blue-600">Mensual</span></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="px-4 pb-4"><button class="w-full py-3 text-sm font-semibold text-slate-500 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors">Cancelar</button></div>
+          </div>
+        </div>
+
+        <!-- Trigger buttons outside frame for demo -->
+        <div class="mt-4 flex gap-2 justify-center">
+          <button onclick="openSheet('filter')" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Abrir Estado</button>
+          <button onclick="openSheet('type')" class="px-4 py-2 bg-slate-600 text-white rounded-lg text-sm hover:bg-slate-700">Abrir Tipo</button>
+          <button onclick="openSheet('freq')" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">Abrir Frecuencia</button>
+          <button onclick="closeSheet()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">Cerrar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- DEMO 5: ALTERNATIVA D - Filter Bar Sticky -->
+    <section>
+      <h2 class="text-xl font-semibold text-slate-900 mb-4">D. Filter Bar Sticky (Estilo Google Sheets)</h2>
+      <div class="flex justify-center">
+        <div class="phone-frame overflow-hidden relative">
+          <div class="safe-area-top bg-slate-900"></div>
+          <div class="bg-white">
+            <!-- Sticky Filter Bar -->
+            <div class="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-slate-200 px-3 py-2">
+              <div class="flex gap-2 overflow-x-auto pb-2 px-2 -mx-2">
+                <div class="filter-chip active flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap bg-blue-600 text-white" data-filter="status">
+                  <span>Estado</span>
+                  <span class="bg-blue-200 text-blue-700 px-1.5 py-0.5 rounded-full text-[10px]">3</span>
+                </div>
+                <div class="filter-chip flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap bg-slate-100 text-slate-600" data-filter="type">
+                  <span>Tipo</span>
+                  <span class="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full text-[10px]">Fra</span>
+                </div>
+                <div class="filter-chip flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap bg-slate-100 text-slate-600" data-filter="freq">
+                  <span>Frec</span>
+                  <span class="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full text-[10px]">Mes</span>
+                </div>
+                <button class="filter-chip flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap bg-slate-100 text-slate-600" data-filter="clear">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  <span>Limpiar</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="p-4 space-y-4">
+              <div class="relative"><input type="text" placeholder="Buscar..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+              <div class="space-y-2">
+                <div class="bg-white border border-slate-200 rounded-xl p-4">
+                  <p class="font-semibold text-slate-900">Préstamo #PR-001</p>
+                  <p class="text-sm text-slate-500">Cliente: Juan Pérez • Mensual • Francesa</p>
+                  <div class="flex items-center gap-2 mt-2">
+                    <span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">Atrasado 15d</span>
+                    <span class="text-sm font-semibold text-slate-900 ml-auto">$12,500</span>
+                  </div>
+                </div>
+                <div class="bg-white border border-slate-200 rounded-xl p-4">
+                  <p class="font-semibold text-slate-900">Préstamo #PR-002</p>
+                  <p class="text-sm text-slate-500">Cliente: María García • Quincenal • Interés</p>
+                  <div class="flex items-center gap-2 mt-2">
+                    <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Al día</span>
+                    <span class="text-sm font-semibold text-slate-900 ml-auto">$8,200</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="safe-area-bottom bg-slate-900"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPARISON TABLE -->
+    <section>
+      <h2 class="text-xl font-semibold text-slate-900 mb-4">Comparación Rápida</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="p-3 text-left font-medium text-slate-700 border-b border-slate-200">Criterio</th>
+              <th class="p-3 text-left font-medium text-slate-700 border-b border-slate-200">A: Segmented Pills</th>
+              <th class="p-3 text-left font-medium text-slate-700 border-b border-slate-200">B: Native Select</th>
+              <th class="p-3 text-left font-medium text-slate-700 border-b border-slate-200">C: Bottom Sheet</th>
+              <th class="p-3 text-left font-medium text-slate-700 border-b border-slate-200">D: Sticky Bar</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Visibilidad</td><td class="p-3">Siempre visible</td><td class="p-3">Oculto hasta tap</td><td class="p-3">Oculto hasta tap</td><td class="p-3">Siempre visible (sticky)</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Tap count</td><td class="p-3">1 tap</td><td class="p-3">1 tap + picker</td><td class="p-3">1 tap + sheet</td><td class="p-3">1 tap</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">iOS nativo</td><td class="p-3">No</td><td class="p-3 text-green-600">✅ Picker wheel</td><td class="p-3">No</td><td class="p-3">No</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Espacio 375px</td><td class="p-3">~33% c/u (3 opts)</td><td class="p-3">Compacto</td><td class="p-3">Full width</td><td class="p-3">Scroll horizontal</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Multi-select</td><td class="p-3">❌</td><td class="p-3">❌</td><td class="p-3 text-green-600">✅ Fácil</td><td class="p-3">❌</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Accesibilidad</td><td class="p-3">Buena</td><td class="p-3 text-green-600">Nativa</td><td class="p-3">Buena</td><td class="p-3">Buena</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Complejidad</td><td class="p-3">Baja</td><td class="p-3 text-green-600">Mínima</td><td class="p-3">Media</td><td class="p-3">Media</td></tr>
+            <tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">Mejor para</td><td class="p-3">2-4 opciones fijas</td><td class="p-3">5+ opciones, móvil</td><td class="p-3">Filtros complejos, multi-select</td><td class="p-3">Muchos filtros, densidad alta</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- RECOMMENDATION -->
+    <section class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+      <h3 class="text-lg font-semibold text-blue-900 mb-3">🎯 Recomendación Final</h3>
+      <div class="grid md:grid-cols-3 gap-4 text-sm">
+        <div class="bg-white p-4 rounded-lg border border-blue-200">
+          <p class="font-semibold text-blue-900 mb-1">Estado (5 opciones)</p>
+          <p class="text-blue-800">→ <strong>Bottom Sheet (ActionSheet)</strong> — ya implementado, funciona bien</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg border border-blue-200">
+          <p class="font-semibold text-blue-900 mb-1">Tipo (3 opciones)</p>
+          <p class="text-blue-800">→ <strong>Segmented Pills</strong> — siempre visible, 1 tap, scan instantáneo</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg border border-blue-200">
+          <p class="font-semibold text-blue-900 mb-1">Frecuencia (5 opciones)</p>
+          <p class="text-blue-800">→ <strong>Native <select></strong> — iOS picker wheel nativo, accesible, compacto</p>
+        </div>
+      </div>
+      <div class="mt-4 p-4 bg-white rounded-lg border border-blue-200">
+        <p class="text-sm text-blue-800"><strong>Implementado:</strong> Lo tienes en <code class="bg-blue-100 px-1.5 py-0.5 rounded text-blue-900">LoansClient.tsx</code> — Desktop: pills + select | Mobile: 2 selects nativos (iOS picker wheel).</p>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // Tab buttons interaction
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active', 'bg-blue-600', 'text-white'));
+        btn.classList.add('active', 'bg-blue-600', 'text-white');
+        btn.classList.remove('bg-slate-100', 'text-slate-600');
+      });
+    });
+
+    // Pill buttons interaction
+    document.querySelectorAll('.pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const group = btn.closest('[role="group"], .flex.gap-1, .bg-slate-100');
+        if (group) {
+          group.querySelectorAll('.pill').forEach(b => {
+            b.classList.remove('active', 'bg-blue-600', 'text-white', 'shadow-sm');
+            b.classList.add('text-slate-500');
+          });
+        }
+        btn.classList.add('active', 'bg-blue-600', 'text-white', 'shadow-sm');
+        btn.classList.remove('text-slate-500');
+      });
+    });
+
+    // Filter chips
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        if (chip.dataset.filter === 'clear') {
+          document.querySelectorAll('.filter-chip').forEach(c => {
+            c.classList.remove('active', 'bg-blue-600', 'text-white');
+            c.classList.add('bg-slate-100', 'text-slate-600');
+          });
+          chip.classList.add('active', 'bg-blue-600', 'text-white');
+          chip.classList.remove('bg-slate-100', 'text-slate-600');
+          setTimeout(() => {
+            chip.classList.remove('active', 'bg-blue-600', 'text-white');
+            chip.classList.add('bg-slate-100', 'text-slate-600');
+          }, 300);
+        } else {
+          chip.classList.toggle('active');
+          chip.classList.toggle('bg-blue-600');
+          chip.classList.toggle('text-white');
+          chip.classList.toggle('bg-slate-100');
+          chip.classList.toggle('text-slate-600');
+        }
+      });
+    });
+
+    // Bottom Sheet demo
+    const sheet = document.getElementById('bottomSheet');
+    const overlay = document.getElementById('sheetOverlay');
+    let currentSheet = null;
+
+    function openSheet(type) {
+      currentSheet = type;
+      sheet.classList.add('open');
+      overlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeSheet() {
+      sheet.classList.remove('open');
+      overlay.classList.remove('open');
+      document.body.style.overflow = '';
+      currentSheet = null;
+    }
+
+    overlay.addEventListener('click', closeSheet);
+
+    // Keyboard
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSheet();
+    });
+  </script>
+</body>
+</html>
