@@ -146,3 +146,9 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 
 ### Vercel Deploy
 - [x] **Proyecto Vercel desconectado de GitHub**: `vercel.com/yeysonmatos/loan-tracker` muestra "No Production Deployment" — requiere conectar repositorio manualmente
+
+### Collections Responsive
+- [x] **Cards apiladas verticalmente en móvil**: Cambiado `flex items-center justify-between` → `flex-col sm:flex-row` para que nombre/badges queden arriba y monto/botón abajo en mobile
+- [x] **flex-wrap en badges**: `flex items-center gap-2` → `flex-wrap` para que badges como "15d atrasado" + "Parcial" no desborden
+- [x] **Cobrar button full-width en móvil**: `w-full sm:w-auto` en el botón "Cobrar" para que ocupe todo el ancho disponible en mobile
+- [x] **max-w truncate en nombre**: `max-w-[160px] sm:max-w-none` para evitar que nombres largos desborden en móvil

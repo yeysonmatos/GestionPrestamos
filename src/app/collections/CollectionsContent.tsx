@@ -561,14 +561,14 @@ export default function CollectionsContent({
             const clientInitial = client?.name?.charAt(0)?.toUpperCase() || '?'
             return (
               <div key={inst.id} className={`bg-card rounded-xl border border-border border-l-4 ${borderColor} p-4 hover:shadow-sm transition-shadow`}>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 bg-primary`}>
                       {clientInitial}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm text-foreground truncate">{client?.name || 'Eliminado'}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-sm text-foreground truncate max-w-[160px] sm:max-w-none">{client?.name || 'Eliminado'}</p>
                         {filter === 'overdue' && (
                           <Badge variant={inst.late_days > 60 ? 'late_61_90' : inst.late_days > 30 ? 'late_31_60' : 'late_1_30'}>
                             {inst.late_days}d atrasado
@@ -590,14 +590,16 @@ export default function CollectionsContent({
                       </p>
                     </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-foreground">
-                      {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
-                    </p>
-                    {remainingLate > 0 && (
-                      <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
-                    )}
-                    <Button size="sm" onClick={() => openPayment(inst)} className="mt-1.5 min-h-9">
+                  <div className="text-left sm:text-right flex-shrink-0 flex sm:block items-center gap-3 sm:gap-0">
+                    <div className="sm:text-right">
+                      <p className="font-bold text-foreground">
+                        {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
+                      </p>
+                      {remainingLate > 0 && (
+                        <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
+                      )}
+                    </div>
+                    <Button size="sm" onClick={() => openPayment(inst)} className="mt-0 sm:mt-1.5 min-h-9 w-full sm:w-auto">
                       <CurrencyDollar className="h-4 w-4 mr-1" /> Cobrar
                     </Button>
                   </div>
