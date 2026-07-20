@@ -191,17 +191,6 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
         }
       />
 
-      <div className="flex justify-end">
-        <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
-          <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
-            <SquaresFour className="h-4 w-4" />
-          </button>
-          <button onClick={() => setView('table')} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla">
-            <Table className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
       <LoanFilters
         state={filters}
         actions={{
@@ -221,6 +210,16 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
           clearAmountRange: filterActions.clearAmountRange,
         }}
         counts={counts}
+        viewToggle={
+          <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
+            <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
+              <SquaresFour className="h-4 w-4" />
+            </button>
+            <button onClick={() => setView('table')} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla">
+              <Table className="h-4 w-4" />
+            </button>
+          </div>
+        }
       />
 
       {filtered.length === 0 ? (

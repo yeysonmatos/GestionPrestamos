@@ -132,6 +132,7 @@ export function LoanFilters({
   state,
   actions,
   counts = {},
+  viewToggle,
 }: {
   state: LoanFiltersState
   actions: LoanFiltersActions
@@ -140,6 +141,7 @@ export function LoanFilters({
     type?: Record<string, number>
     frequency?: Record<string, number>
   }
+  viewToggle?: React.ReactNode
 }) {
   const [isMobile, setIsMobile] = useState(false)
 
@@ -249,6 +251,7 @@ export function LoanFilters({
           <span>Filtros</span>
           {activeCount > 0 && <span className={styles.filterBadge}>{activeCount}</span>}
         </button>
+        {viewToggle}
       </div>
 
       {/* Desktop: inline panel */}
