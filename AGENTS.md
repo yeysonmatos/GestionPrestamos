@@ -127,3 +127,22 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 
 ### Pendiente
 - Nada por ahora
+
+## Hoy — 20 Jul 2026
+
+### LoanFilters (componente nuevo)
+- [x] **LoanFilters component**: Filtros estilo MiFinanzApp — chips horizontales (Estado/Tipo/Frecuencia/Cliente), colores por categoría, badge con count, panel colapsable, resumen filtros activos removibles, date range, amount range
+- [x] **UnifiedFilterSheet**: Bottom sheet unificado con secciones configurables, single/multi-select, contadores, limpiar por sección y global, botón "Aplicar (N)"
+- [x] **tailwindcss-animate** + **framer-motion** instalados; ActionSheet reescrito con AnimatePresence + spring slide-up
+- [x] **CSS module**: `LoanFilters.module.css` creado con transiciones, animaciones, chips, active filters summary
+
+### Unificación / Fixes
+- [x] **LoansClientUnified.tsx**: Nueva versión del listado que usa `LoanFilters` en lugar de filtros viejos; búsqueda + filtros en un solo componente
+- [x] **Eliminada barra duplicada**: LoansClientUnified tenía su propio `<SearchInput>` — ahora solo LoanFilters maneja búsqueda
+- [x] **CSS variables corregidas**: `LoanFilters.module.css` usaba `var(--primary)` pero Tailwind v4 define `var(--color-primary)` — reemplazadas 50 referencias a nombres correctos
+- [x] **Bottom sheet en móvil**: Panel de filtros usa `AnimatePresence` + `motion.div` con slide-up desde abajo en mobile (<640px); inline en desktop
+- [x] **View toggle movido**: El toggle cards/table ahora se renderiza dentro de LoanFilters (prop `viewToggle`), a la derecha del botón "Filtros"
+- [x] **Importaciones limpias**: Eliminados `SearchInput`, `Funnel`, `calculateLateDays`, `search` state, `hasActiveFilters` no usados en LoansClientUnified
+
+### Vercel Deploy
+- [x] **Proyecto Vercel desconectado de GitHub**: `vercel.com/yeysonmatos/loan-tracker` muestra "No Production Deployment" — requiere conectar repositorio manualmente
