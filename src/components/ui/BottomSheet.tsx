@@ -66,7 +66,7 @@ export default function BottomSheet({ open, onClose, title, children, className 
       <div
         ref={sheetRef}
         style={{ transform: `translateY(${translateY}px)` }}
-        className={`fixed bottom-0 left-0 right-0 bg-card rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${closing ? 'translate-y-full' : ''} ${className || ''}`}
+        className={`fixed bottom-0 left-0 right-0 sm:left-1/2 sm:-translate-x-1/2 sm:right-auto sm:w-full sm:max-w-lg bg-card rounded-t-2xl shadow-2xl max-h-[85vh] flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${closing ? 'translate-y-full' : ''} ${className || ''}`}
         onClick={e => e.stopPropagation()}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -85,7 +85,7 @@ export default function BottomSheet({ open, onClose, title, children, className 
             </button>
           </div>
         )}
-        <div className={`overflow-y-auto px-5 pb-6 ${className || ''}`}>
+        <div className="overflow-y-auto px-5 pb-6">
           {children}
         </div>
       </div>

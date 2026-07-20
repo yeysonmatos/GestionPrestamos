@@ -561,14 +561,14 @@ export default function CollectionsContent({
             const clientInitial = client?.name?.charAt(0)?.toUpperCase() || '?'
             return (
               <div key={inst.id} className={`bg-card rounded-xl border border-border border-l-4 ${borderColor} p-4 hover:shadow-sm transition-shadow`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 bg-primary`}>
                       {clientInitial}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-sm text-foreground truncate max-w-[160px] sm:max-w-none">{client?.name || 'Eliminado'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm text-foreground truncate">{client?.name || 'Eliminado'}</p>
                         {filter === 'overdue' && (
                           <Badge variant={inst.late_days > 60 ? 'late_61_90' : inst.late_days > 30 ? 'late_31_60' : 'late_1_30'}>
                             {inst.late_days}d atrasado
@@ -590,16 +590,14 @@ export default function CollectionsContent({
                       </p>
                     </div>
                   </div>
-                  <div className="text-left sm:text-right flex-shrink-0 flex sm:block items-center gap-3 sm:gap-0">
-                    <div className="sm:text-right">
-                      <p className="font-bold text-foreground">
-                        {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
-                      </p>
-                      {remainingLate > 0 && (
-                        <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
-                      )}
-                    </div>
-                    <Button size="sm" onClick={() => openPayment(inst)} className="mt-0 sm:mt-1.5 min-h-9 w-full sm:w-auto">
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-foreground">
+                      {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
+                    </p>
+                    {remainingLate > 0 && (
+                      <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
+                    )}
+                    <Button size="sm" onClick={() => openPayment(inst)} className="mt-1.5 min-h-9">
                       <CurrencyDollar className="h-4 w-4 mr-1" /> Cobrar
                     </Button>
                   </div>
@@ -652,7 +650,7 @@ export default function CollectionsContent({
                     <input type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
                       className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11" required />
                   </div>
-                  <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                     <button type="button" onClick={() => setPaymentAmount(String(remaining + (includeMora && mora ? mora.lateAmount : 0)))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
                     <button type="button" onClick={() => { const v = parseFloat(paymentAmount) || 0; setPaymentAmount(String(Math.round(v / 2 * 100) / 100)) }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Mitad</button>
                   </div>
@@ -700,7 +698,7 @@ export default function CollectionsContent({
         </form>
       </BottomSheet>
 
-      <BottomSheet open={showQuickPayment} onClose={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }} title="Registrar cobro rápido" className="max-w-md sm:max-w-lg">
+      <BottomSheet open={showQuickPayment} onClose={() => { setShowQuickPayment(false); setSelectedClientLoan(null); setQpAmount(''); setQpNotes(''); setClientSearch('') }} title="Registrar cobro rápido">
         <form onSubmit={handleQuickPayment} className="space-y-4">
           {qpError && (
             <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{qpError}</div>
@@ -728,7 +726,7 @@ export default function CollectionsContent({
                       <p className="font-medium text-sm text-foreground truncate">{g.client.name}</p>
                       <p className="text-xs text-muted-foreground">{g.loans.length} préstamo{g.loans.length !== 1 ? 's' : ''} · {g.client.phone || 'Sin teléfono'}</p>
                     </div>
-                    <span className="text-xs text-muted-foreground">{g.loans[0].loan_id}</span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">{g.loans[0].loan_id}</span>
                   </button>
                 ))}
               </div>
