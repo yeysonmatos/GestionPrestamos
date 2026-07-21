@@ -24,7 +24,7 @@ export default function NavHeader() {
     <header className="bg-card border-b border-border sticky top-0 z-40">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="font-bold text-foreground text-lg">
-          Mis Préstamos
+          Gestor de Prestamos
         </Link>
 
         <nav className="flex items-center gap-1">

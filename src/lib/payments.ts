@@ -219,24 +219,42 @@ export async function updateLoanAfterPayment(
   if (isOpenEnded) {
     const { data: payments } = await supabase
       .from('payments')
-      .select('amount')
+      .select('capital_amount, amount')
       .eq('loan_id', loanId)
       .eq('status', 'paid')
 
-    paidAmount = payments?.reduce((s, p) => s + Number(p.amount), 0) || 0
+    paidAmount = payments?.reduce((s, p) => s + Number(p.capital_amount), 0) || 0
     fullyPaidCount = 0
   } else {
     fullyPaidCount = updatedInstallments.filter(i => i.status === 'paid').length
-    paidAmount = updatedInstallments.reduce((s, i) => s + Number(i.paid_amount || 0), 0)
+    const installmentsPaid = updatedInstallments.reduce((s, i) => s + Number(i.paid_amount || 0), 0)
+    const { data: extraPayments } = await supabase
+      .from('payments')
+      .select('amount, capital_amount')
+      .eq('loan_id', loanId)
+      .eq('status', 'paid')
+      .in('type', ['capital_abono', 'liquidation'])
+    const extraPaid = extraPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
+    const extraCapital = extraPayments?.reduce((s, p) => s + Number(p.capital_amount), 0) || 0
+
+    paidAmount = installmentsPaid + extraPaid
   }
 
   const progress = !isOpenEnded && updatedInstallments.length > 0
     ? Math.round((fullyPaidCount / updatedInstallments.length) * 100)
     : 0
 
-  const remaining = isOpenEnded
-    ? Math.max(0, Number(loan.amount) - paidAmount)
-    : Math.max(0, Number(loan.total_amount) - paidAmount)
+  const { data: allPayments } = await supabase
+    .from('payments')
+    .select('capital_amount')
+    .eq('loan_id', loanId)
+    .eq('status', 'paid')
+
+  const totalCapitalPaid = allPayments?.reduce((s, p) => s + Number(p.capital_amount), 0) || 0
+
+  const remaining = (isOpenEnded || isInterestOnly)
+    ? Math.max(0, Number(loan.amount) - totalCapitalPaid)
+    : Math.max(0, Number(loan.total_amount || loan.amount) - paidAmount)
 
   const updates: Record<string, string | number | boolean> = {
     paid_installments: fullyPaidCount,

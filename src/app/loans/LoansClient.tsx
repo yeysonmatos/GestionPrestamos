@@ -261,7 +261,7 @@ export default function LoansClient({ loans: initialLoans }: Props) {
             const totalInst = loan.installments || 0
             const progress = loan.open_ended
               ? Math.round(((Number(loan.amount) - Number(loan.remaining_amount)) / Number(loan.amount)) * 100)
-              : loan.progress || 0
+              : (loan.progress || (loan.installments > 0 ? Math.round((loan.paid_installments / loan.installments) * 100) : 0))
             const avatarColor = avatarColors[loan.status] || avatarColors.default
             const statusColor = statusColors[loan.status] || statusColors.default
             const clientInitial = loan.client?.name?.charAt(0)?.toUpperCase() || '?'

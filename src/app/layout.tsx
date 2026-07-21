@@ -5,7 +5,7 @@ import './globals.css'
 const PwaRegister = dynamic(() => import('@/components/PwaRegister'))
 
 export const metadata: Metadata = {
-  title: 'Mis Préstamos',
+  title: 'Gestor de Prestamos',
   description: 'Control de préstamos personales — profesional y confiable',
 }
 
@@ -25,8 +25,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Préstamos" />
-        <link rel="apple-touch-icon" href="/GP Logo.png" />
-        <link rel="icon" href="/GP Logo.png" sizes="any" />
+        <link rel="apple-touch-icon" href="/gp-icon.png" />
+        <link rel="icon" href="/gp-icon.png" sizes="any" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="min-h-screen antialiased">

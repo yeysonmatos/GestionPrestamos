@@ -213,6 +213,56 @@ function calcDueDate(startDate: string, frequency: string, installmentNumber: nu
   }
 }
 
+export function recalculateFrenchSchedule(
+  remainingCapital: number,
+  remainingInstallments: number,
+  periodicRate: number,
+  startDate: string,
+  frequency: string,
+  startFrom: number,
+): CalculateLoanResult {
+  if (remainingInstallments <= 0 || remainingCapital <= 0) {
+    return { total_amount: 0, total_interest: 0, installment_amount: 0, installments: [] }
+  }
+
+  let installmentAmount: number
+  if (periodicRate === 0) {
+    installmentAmount = remainingCapital / remainingInstallments
+  } else {
+    const factor = Math.pow(1 + periodicRate, remainingInstallments)
+    installmentAmount = (remainingCapital * periodicRate * factor) / (factor - 1)
+  }
+
+  const schedule: AmortizationRow[] = []
+  let balance = remainingCapital
+  let totalInterest = 0
+
+  for (let k = 1; k <= remainingInstallments; k++) {
+    const interest = balance * periodicRate
+    const capital = installmentAmount - interest
+    balance -= capital
+    if (Math.abs(balance) < 0.005) balance = 0
+
+    totalInterest += interest
+
+    schedule.push({
+      number: startFrom + k - 1,
+      amount: round(installmentAmount),
+      capital: round(capital),
+      interest: round(interest),
+      balance: round(balance),
+      due_date: format(calcDueDate(startDate, frequency, startFrom + k - 1), 'yyyy-MM-dd'),
+    })
+  }
+
+  return {
+    total_amount: round(remainingCapital + totalInterest),
+    total_interest: round(totalInterest),
+    installment_amount: round(installmentAmount),
+    installments: schedule,
+  }
+}
+
 export function calculateLateDays(dueDate: string, graceDays: number = 0): number {
   const due = parseISO(dueDate)
   const now = new Date()

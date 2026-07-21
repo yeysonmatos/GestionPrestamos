@@ -152,3 +152,32 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 - [x] **className duplicado eliminado**: BottomSheet ya no aplica `className` al contenedor interno de contenido
 - [x] **flex-shrink-0 en loan_id**: Cliente seleccionable en Quick Payment ahora tiene `flex-shrink-0` en el loan_id para evitar que se comprima
 - [x] **flex-wrap en botones de monto**: Los botones 25%/50%/75%/100%/Cuota ahora envuelven en móvil con `flex-wrap`
+
+## Hoy — 20 Jul 2026 (sesión 2)
+
+### Fixes de persistencia de datos (críticos)
+- [x] **Fix 1+8**: `handlePayInstallment` en LoanDetail.tsx ahora llama `updateLoanAfterPayment` y persiste `paid_amount`/`remaining_amount` en la tabla `loans` — evita que el pendiente vuelva al monto anterior al recargar
+- [x] **Fix 1b**: Corregido `capital_amount` en `handlePayInstallment` — ahora separa capital de interés (usando `payInterestAmount`/`payCapitalAmount`) igual que `processInstallmentPayment`
+- [x] **Fix 5**: `handleReversePayment` ahora resetea `status→'active'`, `progress`, `paid_installments` tras reversión; si es liquidación, recalcula todas las cuotas forzadas vía `recalculateInstallment`
+- [x] **Fix 5b**: Se agregó `updateLoanAfterPayment` en reversión para recalcular métricas del préstamo desde datos reales
+
+### Fixes de lógica de negocio
+- [x] **Fix 2**: `calcCapitalRemaining` corregido — filtro invertido cambiado de excluir `capital_abono`/`installment` a incluir todos los pagos con `capital_amount > 0`
+- [x] **Fix 3**: `handleCapitalAbono` ahora recalcula `installment_amount` en préstamos interest-only (nuevo interés = `newRemaining * periodicRate`), actualiza cuotas pendientes y persiste en DB
+- [x] **Fix updateLoanAfterPayment**: `paidAmount` ahora incluye pagos tipo `capital_abono` y `liquidation` para préstamos no open-ended — evita que `remaining_amount` se sobreescriba con valor incorrecto tras abonos a capital
+
+### Fixes de UI/UX
+- [x] **Fix 6**: Badge de fecha en colecciones movido de la línea del nombre al subtítulo, y `flex-wrap` agregado para evitar truncamiento de nombres
+- [x] **Fix 7**: Etiqueta "(C+I)" eliminada → ahora solo "Cuota" en NewLoanForm.tsx
+- [x] **Progress bar**: `progressValue` en LoanDetail ahora calcula desde `installments.filter(status='paid')` si `loan.progress` es 0; mismo fix en LoansClientUnified y LoansClient
+
+### Fixes de Dashboard/Reports
+- [x] **Dashboard**: Capital recuperado ahora usa `totalCapital - pendingCapital` (con `remaining_amount` de loans activos) en vez de payments de 30 días
+- [x] **Dashboard**: `overdueTotal` ahora descuenta `paid_amount` de cuotas parciales
+- [x] **Dashboard**: Payments query extendido a 6 meses para gráfica mensual
+- [x] **Reports**: `period` state ahora filtra loans/payments por fecha seleccionada
+- [x] **Reports**: Monthly chart ya no salta meses sin payments (crea entrada si no existe)
+
+### Pendiente
+- [x] Bug 4: Fallback mejorado en historial cobros (muestra loan_id si client name es null)
+- [x] **Bug 10: Sistema de Recibos post-pago**: Componente `PaymentReceipt` con formato imprimible (@media print), integrado en modal de éxito de LoanDetail y CollectionsContent. Incluye datos del negocio, cliente, préstamo, desglose (capital/interés/mora), balance anterior/nuevo. Botones PDF (print), WhatsApp, Compartir.

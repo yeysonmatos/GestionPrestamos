@@ -24,18 +24,25 @@ interface Props {
 export default function ReportsContent({ loans, payments, clients }: Props) {
   const [period, setPeriod] = useState<'all' | 'month' | 'quarter' | 'year'>('all')
 
-  const stats = useMemo(() => {
-    const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'late')
-    const paidLoans = loans.filter(l => l.status === 'paid')
-    const lateLoans = loans.filter(l => l.status === 'late')
+  const now = new Date()
+  const periodStart = period === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    : period === 'quarter' ? new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().split('T')[0]
+    : period === 'year' ? new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0]
+    : '2000-01-01'
 
-    const totalCapital = activeLoans.reduce((s, l) => s + Number(l.amount), 0)
-    const recoveredCapital = payments
-      .filter(p => p.status === 'paid')
-      .reduce((s, p) => s + Number(p.capital_amount), 0)
-    const pendingCapital = Math.max(0, totalCapital - recoveredCapital)
-    const generatedInterest = loans.reduce((s, l) => s + Number(l.total_interest), 0)
-    const collectedInterest = payments.reduce((s, p) => s + Number(p.interest_amount), 0)
+  const stats = useMemo(() => {
+    const filteredLoans = period === 'all' ? loans : loans.filter(l => l.created_at && l.created_at >= periodStart)
+    const filteredPayments = period === 'all' ? payments : payments.filter(p => p.payment_date >= periodStart)
+
+    const activeLoans = filteredLoans.filter(l => l.status === 'active' || l.status === 'late')
+    const paidLoans = filteredLoans.filter(l => l.status === 'paid')
+    const lateLoans = filteredLoans.filter(l => l.status === 'late')
+
+    const totalCapital = filteredLoans.reduce((s, l) => s + Number(l.amount), 0)
+    const pendingCapital = activeLoans.reduce((s, l) => s + Number(l.remaining_amount), 0)
+    const recoveredCapital = Math.max(0, totalCapital - pendingCapital)
+    const generatedInterest = filteredLoans.reduce((s, l) => s + Number(l.total_interest), 0)
+    const collectedInterest = filteredPayments.reduce((s, p) => s + Number(p.interest_amount), 0)
     const activeClients = clients.filter(c => c.status === 'active').length
     const lateClientIds = new Set(lateLoans.map(l => l.client_id))
 
@@ -52,7 +59,7 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
       activeClients, lateClients: lateClientIds.size,
       portfolioHealth,
     }
-  }, [loans, payments, clients])
+  }, [loans, payments, clients, period, periodStart])
 
   const statusData = useMemo(() => {
     return [
@@ -71,9 +78,9 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
       monthMap[month].income += Number(p.amount)
     })
 
-    loans.forEach(l => {
-      const month = l.created_at?.slice(0, 7)
-      if (!month || !monthMap[month]) return
+    loans.filter(l => l.created_at).forEach(l => {
+      const month = l.created_at!.slice(0, 7)
+      if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
       monthMap[month].loans += Number(l.amount)
     })
 

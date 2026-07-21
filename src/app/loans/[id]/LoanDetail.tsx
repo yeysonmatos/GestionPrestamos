@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-client'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
-import { calculateLoan, calculateProportionalInterest } from '@/lib/calculations'
+import { calculateLoan, calculateProportionalInterest, recalculateFrenchSchedule } from '@/lib/calculations'
 import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
+import { updateLoanAfterPayment, recalculateInstallment } from '@/lib/payments'
+import PaymentReceipt from '@/components/loans/PaymentReceipt'
 import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -110,27 +112,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
   const calcCapitalRemaining = () => {
     const paidCapital = payments
-      .filter(p => p.status === 'paid' && p.type !== 'installment' && p.type !== 'capital_abono')
+      .filter(p => p.status === 'paid' && Number(p.capital_amount) > 0)
       .reduce((s, p) => s + Number(p.capital_amount), 0)
     return Math.max(0, Number(loan.amount) - paidCapital)
   }
 
-  const recalculateInstallment = async (supabaseClient: any, installmentId: string) => {
-    const { data: inst } = await supabaseClient.from('installments').select('*').eq('id', installmentId).single()
-    if (!inst) return {}
-    const lateDays = calculateLateDays(inst.due_date, settings?.grace_days || 0)
-    const totalPaidOnInstallment = inst.paid_amount || 0
-    const remaining = inst.amount - totalPaidOnInstallment
-    const isNowFullyPaid = remaining <= 0.005
-    const newStatus = isNowFullyPaid ? 'paid' : totalPaidOnInstallment > 0 ? 'partial' : (lateDays > 0 ? 'late' : 'pending')
-    const paidLateAmount = inst.paid_late_amount || 0
-    const totalLateAmount = lateDays > 0 ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate || 0.5) : 0
-    const remainingLate = Math.max(0, totalLateAmount - paidLateAmount)
-    const updates: any = { status: newStatus, paid_amount: totalPaidOnInstallment, late_amount: remainingLate, late_days: lateDays }
-    if (isNowFullyPaid) updates.paid_at = new Date().toISOString().split('T')[0]
-    await supabaseClient.from('installments').update(updates).eq('id', installmentId)
-    return { status: newStatus, paid_amount: totalPaidOnInstallment, late_amount: remainingLate, late_days: lateDays, paid_at: updates.paid_at }
-  }
 
   const handlePayInstallment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,6 +141,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       const paidToLate = Math.max(0, amount - paidToInstallment)
       const newPaidInstallment = (inst.paid_amount || 0) + paidToInstallment
       const newPaidLate = paidLateAmount + paidToLate
+      const payInterestAmount = Math.min(paidToInstallment, inst.interest)
+      const payCapitalAmount = Math.max(0, paidToInstallment - payInterestAmount)
 
       const isNowFullyPaid = newPaidInstallment >= inst.amount - 0.005
 
@@ -166,8 +154,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           installment_id: inst.id,
           user_id: userId,
           amount,
-          capital_amount: paidToInstallment,
-          interest_amount: inst.interest,
+          capital_amount: payCapitalAmount,
+          interest_amount: payInterestAmount,
           late_amount: paidToLate,
           payment_date: paymentDate,
           method: paymentMethod,
@@ -183,18 +171,22 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         status: isNowFullyPaid ? 'paid' : newPaidInstallment > 0 ? 'partial' : (lateDays > 0 ? 'late' : 'pending'),
         paid_amount: newPaidInstallment,
         paid_late_amount: newPaidLate,
-        late_amount: remainingLateAmount,
+        late_amount: totalLateAmount,
         late_days: lateDays,
         paid_at: isNowFullyPaid ? paymentDate : null,
       }).eq('id', inst.id)
 
-      await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
+      const newPaidAmount = Number(loan.paid_amount) + amount
+      const newRemaining = Math.max(0, Number(loan.remaining_amount) - payCapitalAmount)
+      await supabase.from('loans').update({ paid_amount: newPaidAmount, remaining_amount: newRemaining }).eq('id', loan.id)
+
+      const loanUpdates = await updateLoanAfterPayment(supabase as any, loan.id, loan.client_id)
 
       setInstallments(prev => prev.map(i => i.id === inst.id
         ? { ...i, status: isNowFullyPaid ? 'paid' : newPaidInstallment > 0 ? 'partial' : (lateDays > 0 ? 'late' : 'pending'), paid_amount: newPaidInstallment, paid_late_amount: newPaidLate, late_amount: remainingLateAmount, late_days: lateDays, paid_at: isNowFullyPaid ? paymentDate : null }
         : i))
       setPayments(prev => [payment, ...prev])
-      setLoan(prev => ({ ...prev, paid_amount: prev.paid_amount + amount, remaining_amount: Math.max(0, prev.remaining_amount - amount) }))
+      setLoan(prev => ({ ...prev, paid_amount: newPaidAmount, remaining_amount: newRemaining, progress: loanUpdates.progress ?? prev.progress, paid_installments: loanUpdates.paid_installments ?? prev.paid_installments, status: loanUpdates.status ?? prev.status }))
 
       setSuccessPayment(payment)
       setShowPayment(false)
@@ -218,6 +210,14 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     if (isNaN(amount) || amount <= 0) return
 
     setLoading(true)
+
+    const { data: existingCapitalPayments } = await supabase
+      .from('payments')
+      .select('capital_amount')
+      .eq('loan_id', loan.id)
+      .eq('status', 'paid')
+    const existingCapitalPaid = existingCapitalPayments?.reduce((s, p) => s + Number(p.capital_amount), 0) || 0
+
     const { data: payment, error } = await supabase
       .from('payments')
       .insert({
@@ -238,12 +238,88 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     if (error) { setLoading(false); return }
 
     const newPaid = Number(loan.paid_amount) + amount
-    const newRemaining = Math.max(0, Number(loan.remaining_amount) - amount)
-    await supabase.from('loans').update({ paid_amount: newPaid, remaining_amount: newRemaining }).eq('id', loan.id)
-    await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
+    const newContractualRemaining = Math.max(0, Number(loan.remaining_amount) - amount)
+    const loanUpdates: Record<string, string | number | boolean | null> = { paid_amount: newPaid, remaining_amount: newContractualRemaining }
+
+    if (loan.amortization_type === 'interest_only' && loan.installment_amount && newContractualRemaining > 0) {
+      const periodicRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+      const capitalRemainingForInterest = Math.max(0, Number(loan.amount) - existingCapitalPaid - amount)
+      const newInstallmentAmount = capitalRemainingForInterest * periodicRate
+      loanUpdates.installment_amount = newInstallmentAmount
+      const pendingInsts = installments.filter(i => i.status === 'pending')
+      const lastPendingNum = Math.max(...pendingInsts.map(i => i.number))
+      for (const inst of pendingInsts) {
+        const isLast = inst.number === lastPendingNum
+        await supabase.from('installments').update({
+          amount: newInstallmentAmount,
+          interest: newInstallmentAmount,
+          capital: isLast ? capitalRemainingForInterest : 0,
+          balance: isLast ? 0 : capitalRemainingForInterest,
+        }).eq('id', inst.id)
+      }
+      setInstallments(prev => prev.map(i =>
+        i.status === 'pending' ? {
+          ...i,
+          amount: newInstallmentAmount,
+          interest: newInstallmentAmount,
+          capital: i.number === lastPendingNum ? capitalRemainingForInterest : 0,
+          balance: i.number === lastPendingNum ? 0 : capitalRemainingForInterest,
+        } : i
+      ))
+    }
+
+    if (loan.amortization_type === 'french' && newContractualRemaining > 0) {
+      const paidInstallmentsCount = installments.filter(i => i.status === 'paid').length
+      const capitalRemaining = Math.max(0, Number(loan.amount) - existingCapitalPaid - amount)
+      const remainingCount = loan.installments - paidInstallmentsCount
+      if (remainingCount > 0) {
+        const monthlyRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+        const DAYS_IN_PERIOD: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
+        const days = DAYS_IN_PERIOD[loan.frequency] || 30
+        const periodicRate = monthlyRate / 30 * days
+        const startAt = paidInstallmentsCount + 1
+
+        const recalculated = recalculateFrenchSchedule(capitalRemaining, remainingCount, periodicRate, loan.first_payment_date, loan.frequency, startAt)
+
+        for (const row of recalculated.installments) {
+          await supabase.from('installments').update({
+            amount: row.amount,
+            capital: row.capital,
+            interest: row.interest,
+            balance: row.balance,
+          }).eq('loan_id', loan.id).eq('number', row.number)
+        }
+
+        const oldPaidTotal = installments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0)
+        const newTotalAmount = recalculated.total_amount + oldPaidTotal
+        const oldPaidInterest = installments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.interest || 0), 0)
+        const newTotalInterest = recalculated.total_interest + oldPaidInterest
+
+        loanUpdates.installment_amount = recalculated.installment_amount
+        loanUpdates.total_amount = newTotalAmount
+        loanUpdates.total_interest = newTotalInterest
+      }
+    }
+
+    await supabase.from('loans').update(loanUpdates).eq('id', loan.id)
+    const loanResult = await updateLoanAfterPayment(supabase as any, loan.id, loan.client_id)
 
     setPayments(prev => [payment, ...prev])
-    setLoan(prev => ({ ...prev, paid_amount: newPaid, remaining_amount: newRemaining }))
+    setLoan(prev => ({
+      ...prev,
+      paid_amount: newPaid,
+      remaining_amount: newContractualRemaining,
+      installment_amount: (loanUpdates.installment_amount as number) ?? prev.installment_amount,
+      total_amount: (loanUpdates.total_amount as number) ?? prev.total_amount,
+      total_interest: (loanUpdates.total_interest as number) ?? prev.total_interest,
+      progress: loanResult.progress ?? prev.progress,
+      paid_installments: loanResult.paid_installments ?? prev.paid_installments,
+      status: loanResult.status ?? prev.status,
+    }))
+
+    const refreshedInsts = await supabase.from('installments').select('*').eq('loan_id', loan.id).order('number')
+    if (refreshedInsts.data) setInstallments(refreshedInsts.data as Installment[])
+
     setShowCapitalAbono(false)
     setCapitalAbonoAmount('')
     setLoading(false)
@@ -313,26 +389,106 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
     setLoading(true)
 
+    let reversalLoanUpdates: Record<string, number> = {}
+
     await supabase.from('payments').update({ status: 'reversed', reversal_reason: reason }).eq('id', paymentId)
 
-    const newPaid = Number(loan.paid_amount) - Number(payment.amount)
-    const newRemaining = Math.max(0, Number(loan.remaining_amount) + Number(payment.amount))
+    const newPaid = Math.max(0, Number(loan.paid_amount) - Number(payment.amount))
+    const paidCapital = Number(payment.capital_amount || 0)
+    const newRemaining = Math.max(0, Number(loan.remaining_amount) + paidCapital)
     await supabase.from('loans').update({ paid_amount: newPaid, remaining_amount: newRemaining }).eq('id', loan.id)
 
     if (payment.installment_id) {
       const updated = await recalculateInstallment(supabase as any, payment.installment_id)
       setInstallments(prev => prev.map(i => i.id === payment.installment_id ? { ...i, ...updated } as Installment : i))
+    } else if (payment.type === 'liquidation') {
+      for (const inst of installments) {
+        const updated = await recalculateInstallment(supabase as any, inst.id)
+        setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, ...updated } as Installment : i))
+      }
+    } else if (payment.type === 'capital_abono' && newRemaining > 0) {
+      const paidCount = installments.filter(i => i.status === 'paid').length
+      const remainingCount = loan.installments - paidCount
+      const paidCapitalViaInstallments = installments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.capital), 0)
+      const totalPaidAbonoCapital = payments
+        .filter(p => p.type === 'capital_abono' && p.status === 'paid')
+        .reduce((s, p) => s + Number(p.capital_amount), 0)
+      const reversalCapitalRemaining = Math.max(0, Number(loan.amount) - paidCapitalViaInstallments - totalPaidAbonoCapital + Number(payment.capital_amount))
+      if (loan.amortization_type === 'french' && remainingCount > 0) {
+        const monthlyRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+        const DAYS_IN_PERIOD: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
+        const days = DAYS_IN_PERIOD[loan.frequency] || 30
+        const periodicRate = monthlyRate / 30 * days
+        const recalculated = recalculateFrenchSchedule(reversalCapitalRemaining, remainingCount, periodicRate, loan.first_payment_date, loan.frequency, paidCount + 1)
+        for (const row of recalculated.installments) {
+          await supabase.from('installments').update({
+            amount: row.amount, capital: row.capital, interest: row.interest, balance: row.balance,
+          }).eq('loan_id', loan.id).eq('number', row.number)
+        }
+        setInstallments(prev => prev.map(i => {
+          const r = recalculated.installments.find(r => r.number === i.number)
+          return r ? { ...i, amount: r.amount, capital: r.capital, interest: r.interest, balance: r.balance } : i
+        }))
+        const oldPaidTotal = installments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0)
+        const newTotalAmount = recalculated.total_amount + oldPaidTotal
+        const oldPaidInterest = installments.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.interest || 0), 0)
+        const newTotalInterest = recalculated.total_interest + oldPaidInterest
+        await supabase.from('loans').update({
+          installment_amount: recalculated.installment_amount,
+          total_amount: newTotalAmount,
+          total_interest: newTotalInterest,
+        }).eq('id', loan.id)
+        reversalLoanUpdates.installment_amount = recalculated.installment_amount
+        reversalLoanUpdates.total_amount = newTotalAmount
+        reversalLoanUpdates.total_interest = newTotalInterest
+      }
+      if (loan.amortization_type === 'interest_only') {
+        const periodicRate = loan.interest_type === 'percentage' ? loan.interest_rate / 100 : 0
+        const newInstallmentAmount = newRemaining * periodicRate
+        const pendingInsts = installments.filter(i => i.status === 'pending')
+        const lastPendingNum = Math.max(...pendingInsts.map(i => i.number))
+        const originalBalance = Math.max(0, newRemaining)
+        for (const inst of pendingInsts) {
+          const isLast = inst.number === lastPendingNum
+          await supabase.from('installments').update({
+            amount: newInstallmentAmount,
+            interest: newInstallmentAmount,
+            capital: isLast ? originalBalance : 0,
+            balance: isLast ? 0 : originalBalance,
+          }).eq('id', inst.id)
+        }
+        await supabase.from('loans').update({ installment_amount: newInstallmentAmount }).eq('id', loan.id)
+        setInstallments(prev => prev.map(i =>
+          i.status === 'pending' ? {
+            ...i,
+            amount: newInstallmentAmount,
+            interest: newInstallmentAmount,
+            capital: i.number === lastPendingNum ? originalBalance : 0,
+            balance: i.number === lastPendingNum ? 0 : originalBalance,
+          } : i
+        ))
+      }
+    }
+
+    const loanUpdates = await updateLoanAfterPayment(supabase as any, loan.id, loan.client_id)
+    if (payment.type === 'capital_abono') {
+      await supabase.from('loans').update({ remaining_amount: newRemaining, paid_amount: newPaid, status: 'active' }).eq('id', loan.id)
+      loanUpdates.remaining_amount = newRemaining
+      loanUpdates.paid_amount = newPaid
+      loanUpdates.status = 'active'
+    } else if (loanUpdates.progress !== undefined && loanUpdates.progress < 100) {
+      await supabase.from('loans').update({ status: 'active' }).eq('id', loan.id)
+      loanUpdates.status = 'active'
     }
 
     setPayments(prev => prev.map(p => p.id === paymentId ? { ...p, status: 'reversed', reversal_reason: reason } : p))
-    setLoan(prev => ({ ...prev, paid_amount: newPaid, remaining_amount: newRemaining }))
-    await supabase.rpc('update_client_stats', { p_client_id: loan.client_id })
+    setLoan(prev => ({ ...prev, paid_amount: newPaid, remaining_amount: newRemaining, progress: loanUpdates.progress ?? prev.progress, paid_installments: loanUpdates.paid_installments ?? prev.paid_installments, status: loanUpdates.status ?? prev.status, installment_amount: reversalLoanUpdates.installment_amount ?? prev.installment_amount, total_amount: reversalLoanUpdates.total_amount ?? prev.total_amount, total_interest: reversalLoanUpdates.total_interest ?? prev.total_interest }))
     setLoading(false)
   }
 
   const progressValue = isOpenEnded
     ? Math.round(((Number(loan.amount) - Number(loan.remaining_amount)) / Number(loan.amount)) * 100)
-    : loan.progress
+    : (loan.progress > 0 ? loan.progress : (installments.length > 0 ? Math.round((installments.filter(i => i.status === 'paid').length / installments.length) * 100) : 0))
 
   const lastPayment = payments.filter(p => p.status === 'paid').sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]
   const nextDueDate = isOpenEnded
@@ -572,7 +728,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                         }}
                         className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
                       >
-                        {isInterestOnly ? `Pagar ${formatCurrency(inst.interest)}` : `Pagar ${formatCurrency(remaining)}`}
+                        {`Pagar ${formatCurrency(remaining)}`}
                       </button>
                     )}
                     {inst.status === 'paid' && (
@@ -603,7 +759,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               type="button"
               onClick={() => {
                 const total = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0)
-                const msg = `📊 *RESUMEN DE PAGOS*\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nTotal pagado: ${formatCurrency(total)}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+                const msg = `📊 *RESUMEN DE PAGOS*\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nTotal pagado: ${formatCurrency(total)}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
                 const phone = loan.client?.whatsapp || loan.client?.phone
                 if (phone) {
                   navigator.clipboard.writeText(msg).then(() => {})
@@ -647,7 +803,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                       {p.status === 'paid' && (
                         <>
                           <button onClick={() => {
-                            const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(p.amount)}\nFecha: ${formatDate(p.payment_date)}\nMétodo: ${p.method}${p.notes ? `\nNota: ${p.notes}` : ''}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+                            const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(p.amount)}\nFecha: ${formatDate(p.payment_date)}\nMétodo: ${p.method}${p.notes ? `\nNota: ${p.notes}` : ''}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
                             const phone = loan.client?.whatsapp || loan.client?.phone
                             if (phone) {
                               window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -1075,19 +1231,25 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <Check className="h-8 w-8 text-green-600" />
           </div>
           <p className="text-xl font-semibold text-foreground">Pago registrado correctamente</p>
-          <div className="bg-muted rounded-lg p-4 text-left space-y-1.5 text-sm">
-            <p className="flex justify-between"><span className="text-muted-foreground">Monto:</span> <strong>{formatCurrency(successPayment?.amount || 0)}</strong></p>
-            <p className="flex justify-between"><span className="text-muted-foreground">Fecha:</span> <strong>{formatDate(successPayment?.payment_date || paymentDate)}</strong></p>
-            <p className="flex justify-between"><span className="text-muted-foreground">Método:</span> <strong>{paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'}</strong></p>
-            <p className="flex justify-between"><span className="text-muted-foreground">Pendiente:</span> <strong>{formatCurrency(loan.remaining_amount)}</strong></p>
-          </div>
+
+          {successPayment && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <PaymentReceipt
+                payment={successPayment}
+                loan={loan}
+                settings={settings}
+                previousBalance={Number(loan.remaining_amount) + Number(successPayment.amount)}
+              />
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2">
             <Button variant="secondary" className="flex-1" onClick={() => window.print()}>
               <FileArrowDown className="h-4 w-4 mr-1" /> PDF
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               const actualDate = successPayment?.payment_date || paymentDate
-              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -1099,7 +1261,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               const actualDate = successPayment?.payment_date || paymentDate
-              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Mis Préstamos'}`
+              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nMonto: ${formatCurrency(successPayment?.amount || 0)}\nFecha: ${formatDate(actualDate)}\nMétodo: ${paymentMethod}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
             }}>
               <ShareNetwork className="h-4 w-4 mr-1" /> Compartir

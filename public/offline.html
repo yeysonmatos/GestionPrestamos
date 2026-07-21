@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Sin conexión — Mis Préstamos</title>
+  <title>Sin conexión — Gestor de Prestamos</title>
   <meta name="theme-color" content="#081528" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -21,20 +21,24 @@
       text-align: center;
       max-width: 360px;
     }
-    .icon {
+    .icon img {
       width: 96px;
       height: 96px;
-      background: rgba(255,255,255,0.15);
       border-radius: 28px;
+      object-fit: cover;
+    }
+    .icon {
+      margin: 0 auto 24px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 24px;
-      font-size: 48px;
-      font-weight: 700;
-      color: #60A5FA;
     }
-    h1 { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: white;
+    }
     p { font-size: 15px; opacity: 0.8; line-height: 1.5; margin-bottom: 32px; }
     button {
       background: rgba(255,255,255,0.2);
@@ -54,11 +58,11 @@
 </head>
 <body>
   <div class="container">
-    <div class="icon">M</div>
+    <div class="icon"><img src="/gp-icon.png" alt="GP" /></div>
     <h1>Sin conexión</h1>
     <p>Revisa tu conexión a internet e intenta de nuevo. Algunas funciones pueden no estar disponibles sin conexión.</p>
     <button onclick="window.location.reload()">Reintentar</button>
-    <div class="status">Mis Préstamos &mdash; offline</div>
+    <div class="status">Gestor de Prestamos &mdash; offline</div>
   </div>
 </body>
 </html>

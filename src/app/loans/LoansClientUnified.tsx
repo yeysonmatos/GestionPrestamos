@@ -241,7 +241,7 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
             const totalInst = loan.installments || 0
             const progress = loan.open_ended
               ? Math.round(((Number(loan.amount) - Number(loan.remaining_amount)) / Number(loan.amount)) * 100)
-              : loan.progress || 0
+              : (loan.progress || (loan.installments > 0 ? Math.round((loan.paid_installments / loan.installments) * 100) : 0))
             const avatarColor = ['bg-blue-500', 'bg-green-600', 'bg-red-500', 'bg-gray-400'][['active','paid','late','cancelled'].indexOf(loan.status)] || 'bg-gray-400'
             const statusColor = ['bg-blue-500', 'bg-green-500', 'bg-red-500', 'bg-gray-400'][['active','paid','late','cancelled'].indexOf(loan.status)] || 'bg-gray-300'
             const clientInitial = loan.client?.name?.charAt(0)?.toUpperCase() || '?'

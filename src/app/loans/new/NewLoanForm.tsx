@@ -239,7 +239,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
                         <th className="text-left py-1.5 px-2 font-medium text-muted-foreground">#</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Capital</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Interés</th>
-                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cuota (C+I)</th>
+                        <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Cuota</th>
                         <th className="text-right py-1.5 px-2 font-medium text-muted-foreground">Fecha pago</th>
                       </tr>
                     </thead>

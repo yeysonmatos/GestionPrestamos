@@ -18,42 +18,39 @@ import type { Loan, Payment, Client, Installment } from '@/types'
 
 interface Props {
   loans: Loan[]
-  payments: Payment[]
+  chartPayments: { amount: number; payment_date: string }[]
   clients: Client[]
-  todayPayments: Payment[]
+  todayPayments: { amount: number }[]
   overdueInstallments: Installment[]
   upcomingInstallments: Installment[]
 }
 
 export default function DashboardContent({
-  loans, payments, clients, todayPayments, overdueInstallments, upcomingInstallments,
+  loans, chartPayments, clients, todayPayments, overdueInstallments, upcomingInstallments,
 }: Props) {
   const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'late')
   const lateLoans = loans.filter(l => l.status === 'late')
 
-  const totalCapital = activeLoans.reduce((s, l) => s + Number(l.amount), 0)
-  const recoveredCapital = payments
-    .filter(p => p.status === 'paid')
-    .reduce((s, p) => s + Number(p.capital_amount), 0)
-  const pendingCapital = Math.max(0, totalCapital - recoveredCapital)
+  const totalCapital = loans.reduce((s, l) => s + Number(l.amount), 0)
+  const pendingCapital = activeLoans.reduce((s, l) => s + Number(l.remaining_amount), 0)
+  const recoveredCapital = Math.max(0, totalCapital - pendingCapital)
   const generatedInterest = loans.reduce((s, l) => s + Number(l.total_interest), 0)
   const todayTotal = todayPayments.reduce((s, p) => s + Number(p.amount), 0)
-  const overdueTotal = overdueInstallments.reduce((s, i) => s + Number(i.amount), 0)
+  const overdueTotal = overdueInstallments.reduce((s, i) => s + (Number(i.amount) - Number(i.paid_amount || 0)), 0)
   const activeClients = clients.filter(c => c.status === 'active').length
   const lateClientIds = new Set(lateLoans.map(l => l.client_id))
 
   const monthlyData = useMemo(() => {
     const monthMap: Record<string, { income: number; loans: number }> = {}
 
-    payments.forEach(p => {
+    chartPayments.forEach(p => {
       const month = p.payment_date.slice(0, 7)
       if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
       monthMap[month].income += Number(p.amount)
     })
 
-    loans.forEach(l => {
-      const month = l.created_at?.slice(0, 7)
-      if (!month) return
+    loans.filter(l => l.created_at).forEach(l => {
+      const month = l.created_at!.slice(0, 7)
       if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
       monthMap[month].loans += Number(l.amount)
     })
@@ -66,7 +63,7 @@ export default function DashboardContent({
         income: data.income,
         loans: data.loans,
       }))
-  }, [payments, loans])
+  }, [chartPayments, loans])
 
   return (
     <div className="space-y-6">

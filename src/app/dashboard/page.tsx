@@ -13,15 +13,16 @@ export default async function DashboardPage() {
     .order('created_at', { ascending: false })
 
   const today = new Date().toISOString().split('T')[0]
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
 
-  const { data: payments } = await supabase
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+  const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0]
+
+  const { data: chartPayments } = await supabase
     .from('payments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('amount, payment_date')
     .eq('status', 'paid')
-    .gte('payment_date', thirtyDaysAgoStr)
+    .gte('payment_date', sixMonthsAgoStr)
     .order('payment_date', { ascending: false })
 
   const { data: clients } = await supabase
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
 
   const { data: todayPayments } = await supabase
     .from('payments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('amount, payment_date')
     .eq('payment_date', today)
     .eq('status', 'paid')
 
@@ -40,23 +41,20 @@ export default async function DashboardPage() {
     .in('status', ['pending', 'partial'])
     .lt('due_date', today)
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().split('T')[0]
-
   const { data: upcomingInstallments } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
     .in('status', ['pending', 'partial'])
     .gte('due_date', today)
-    .lte('due_date', tomorrowStr)
+    .lte('due_date', today)
     .order('due_date', { ascending: true })
+    .limit(10)
 
   return (
     <MainLayout>
       <DashboardContent
         loans={loans || []}
-        payments={payments || []}
+        chartPayments={chartPayments || []}
         clients={clients || []}
         todayPayments={todayPayments || []}
         overdueInstallments={overdueInstallments || []}

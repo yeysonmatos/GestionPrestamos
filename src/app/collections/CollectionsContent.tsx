@@ -12,9 +12,11 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
 import { processInstallmentPayment, updateLoanAfterPayment } from '@/lib/payments'
+import PaymentReceipt from '@/components/loans/PaymentReceipt'
 import { useRouter } from 'next/navigation'
 import {
   CalendarCheck, Warning, Calendar, CurrencyDollar, Plus, CaretDown, ArrowsClockwise,
+  Check, ChatCircle, FileArrowDown, ShareNetwork,
 } from '@phosphor-icons/react'
 import ActionSheet from '@/components/ui/ActionSheet'
 import type { Installment, Payment, Client, Setting } from '@/types'
@@ -120,6 +122,9 @@ export default function CollectionsContent({
   const [overdueInstallments, setOverdueInstallments] = useState(initialOverdue)
   const [upcomingInstallments, setUpcomingInstallments] = useState(initialUpcoming)
   const [payments, setPayments] = useState(initialPayments)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successPayment, setSuccessPayment] = useState<Payment | null>(null)
+  const [successLoanInfo, setSuccessLoanInfo] = useState<{ loan_id: string; clientName: string; amount: number; remaining_amount: number; amortization_type: string; frequency: string; open_ended: boolean } | null>(null)
 
   const lateInterestRate = settings?.late_interest_rate || 0.5
   const graceDays = settings?.grace_days || 0
@@ -210,6 +215,7 @@ export default function CollectionsContent({
           payment_date: paymentDate,
           method: paymentMethod,
           notes: paymentNotes || null,
+          type: 'installment',
         })
         .select()
         .single()
@@ -217,23 +223,21 @@ export default function CollectionsContent({
       if (error) { setPaymentError('Error al registrar pago: ' + error.message); setLoading(false); return }
 
       if (payment) {
-        const { data: loanData } = await supabase
-          .from('loans')
-          .select('paid_amount, remaining_amount')
-          .eq('id', inst.loan_id)
-          .single()
-
-        if (loanData) {
-          const newPaid = Number(loanData.paid_amount) + amount
-          const newRemaining = Math.max(0, Number(loanData.remaining_amount))
-          await supabase.from('loans').update({
-            paid_amount: newPaid,
-            remaining_amount: newRemaining,
-          }).eq('id', inst.loan_id)
-          await supabase.rpc('update_client_stats', { p_client_id: inst.client_id })
-        }
+        await updateLoanAfterPayment(supabase as any, inst.loan_id, inst.client_id)
 
         setPayments(prev => [payment, ...prev])
+        setSuccessPayment(payment)
+        const openEndedLoan = inst.openEndedLoan || await supabase.from('loans').select('*, client:client_id(*)').eq('id', inst.loan_id).single().then(r => r.data)
+        setSuccessLoanInfo({
+          loan_id: inst.loan?.loan_id || inst.loan_id,
+          clientName: inst.loan?.client?.name || openEndedLoan?.client?.name || '—',
+          amount: Number(inst.amount),
+          remaining_amount: openEndedLoan?.remaining_amount ?? 0,
+          amortization_type: 'interest_only' as const,
+          frequency: 'monthly' as const,
+          open_ended: true,
+        })
+        setShowSuccess(true)
         setShowPayment(false)
         setSelectedInstallment(null)
         setPaymentAmount('')
@@ -291,7 +295,17 @@ export default function CollectionsContent({
       setOverdueInstallments(prev => prev.map(i => i.id === realInst.id ? updatedInstallment : i))
       setUpcomingInstallments(prev => prev.map(i => i.id === realInst.id ? updatedInstallment : i))
       setPayments(prev => [payment, ...prev])
-
+      setSuccessPayment(payment)
+      setSuccessLoanInfo({
+        loan_id: inst.loan?.loan_id || inst.loan_id,
+        clientName: inst.loan?.client?.name || (inst as any).openEndedLoan?.client?.name || '—',
+        amount: Number(inst.loan?.total_amount || inst.amount),
+        remaining_amount: inst.loan?.remaining_amount ?? 0,
+        amortization_type: inst.loan?.amortization_type || 'french',
+        frequency: 'monthly',
+        open_ended: false,
+      })
+      setShowSuccess(true)
       setShowPayment(false)
       setSelectedInstallment(null)
       setPaymentAmount('')
@@ -304,9 +318,9 @@ export default function CollectionsContent({
     setLoading(false)
   }, [selectedInstallment, userId, paymentAmount, includeMora, paymentDate, paymentMethod, paymentNotes, lateInterestRate, graceDays, supabase, router])
 
-  const todayTotal = useMemo(() => allToday.reduce((s, i) => s + Number(i.amount), 0), [allToday])
-  const overdueTotal = useMemo(() => enrichedOverdue.reduce((s, i) => s + Number(i.amount), 0), [enrichedOverdue])
-  const upcomingTotal = useMemo(() => allUpcoming.reduce((s, i) => s + Number(i.amount), 0), [allUpcoming])
+  const todayTotal = useMemo(() => allToday.reduce((s, i) => s + Number(i.amount) - Number('paid_amount' in i ? (i.paid_amount || 0) : 0), 0), [allToday])
+  const overdueTotal = useMemo(() => enrichedOverdue.reduce((s, i) => s + Number(i.amount) - Number('paid_amount' in i ? (i.paid_amount || 0) : 0), 0), [enrichedOverdue])
+  const upcomingTotal = useMemo(() => allUpcoming.reduce((s, i) => s + Number(i.amount) - Number('paid_amount' in i ? (i.paid_amount || 0) : 0), 0), [allUpcoming])
 
   const groupedByClient = useMemo(() => {
     const map = new Map<string, { client: NonNullable<ActiveLoanBrief['client']>; loans: ActiveLoanBrief[] }>()
@@ -518,7 +532,7 @@ export default function CollectionsContent({
                       {methodIcon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-foreground truncate">{p.loan?.client?.name || 'Eliminado'}</p>
+                      <p className="font-semibold text-sm text-foreground truncate">{p.loan?.client?.name || p.loan?.loan_id || 'Eliminado'}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1.5 truncate">
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${typeColor}`}>{typeLabel}</span>
                         <span className="truncate">{p.method === 'cash' ? 'Efectivo' : p.method === 'transfer' ? 'Transferencia' : p.method === 'deposit' ? 'Depósito' : 'Otro'}{p.notes ? ` · ${p.notes}` : ''}</span>
@@ -567,8 +581,8 @@ export default function CollectionsContent({
                       {clientInitial}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm text-foreground truncate">{client?.name || 'Eliminado'}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-semibold text-sm text-foreground">{client?.name || 'Eliminado'}</p>
                         {filter === 'overdue' && (
                           <Badge variant={inst.late_days > 60 ? 'late_61_90' : inst.late_days > 30 ? 'late_31_60' : 'late_1_30'}>
                             {inst.late_days}d atrasado
@@ -577,15 +591,13 @@ export default function CollectionsContent({
                         {filter === 'today' && (
                           <Badge variant="active">Hoy</Badge>
                         )}
-                        {filter === 'upcoming' && (
-                          <Badge variant="active">{formatDate(inst.due_date)}</Badge>
-                        )}
                         {isPartial && (
                           <Badge variant="active">Parcial</Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {isOpen ? 'Interés' : `Cuota #${inst.number}`} · {inst.loan?.loan_id || inst.loan_id}
+                        {filter === 'upcoming' && <span className="ml-1">· {formatDate(inst.due_date)}</span>}
                         {isPartial && <span className="text-blue-600 font-medium ml-1">({formatCurrency(inst.paid_amount!)} pagado)</span>}
                       </p>
                     </div>
@@ -794,6 +806,84 @@ export default function CollectionsContent({
             </>
           )}
         </form>
+      </BottomSheet>
+
+      <BottomSheet open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
+        <div className="text-center space-y-5 py-2">
+          <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+            <Check className="h-8 w-8 text-green-600" />
+          </div>
+          <p className="text-xl font-semibold text-foreground">Pago registrado correctamente</p>
+
+          {successPayment && successLoanInfo && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <PaymentReceipt
+                payment={successPayment}
+                loan={{
+                  id: '',
+                  loan_id: successLoanInfo.loan_id,
+                  user_id: '',
+                  client_id: '',
+                  client: { id: '', user_id: '', name: successLoanInfo.clientName, status: 'active', trust_level: 'medium', trust_score: 0 } as any,
+                  amount: successLoanInfo.amount,
+                  total_amount: successLoanInfo.amount,
+                  installment_amount: 0,
+                  remaining_amount: successLoanInfo.remaining_amount,
+                  amortization_type: successLoanInfo.amortization_type as any,
+                  open_ended: successLoanInfo.open_ended,
+                  frequency: successLoanInfo.frequency as any,
+                  paid_amount: 0,
+                  paid_installments: 0,
+                  installments: 0,
+                  progress: 0,
+                  interest_type: 'percentage',
+                  interest_rate: 0,
+                  total_interest: 0,
+                  start_date: '',
+                  first_payment_date: '',
+                  end_date: null,
+                  payment_day: null,
+                  status: 'active',
+                  late_days: 0,
+                  late_interest_rate: 0,
+                  guarantee: null,
+                  notes: null,
+                  paid_at: null,
+                  cancelled_at: null,
+                  created_at: '',
+                  updated_at: '',
+                }}
+                settings={settings}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="secondary" className="flex-1" onClick={() => window.print()}>
+              <FileArrowDown className="h-4 w-4 mr-1" /> PDF
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => {
+              if (!successPayment || !successLoanInfo) return
+              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${successLoanInfo.loan_id}\nCliente: ${successLoanInfo.clientName}\nMonto: ${formatCurrency(successPayment.amount)}\nFecha: ${formatDate(successPayment.payment_date)}\nMétodo: ${successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'}\nPendiente: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const phone = successPayment.loan?.client?.whatsapp || successPayment.loan?.client?.phone
+              if (phone) {
+                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
+              } else {
+                navigator.clipboard.writeText(msg)
+              }
+            }}>
+              <ChatCircle className="h-4 w-4 mr-1" /> WhatsApp
+            </Button>
+            <Button variant="secondary" className="flex-1" onClick={() => {
+              if (!successPayment || !successLoanInfo) return
+              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${successLoanInfo.loan_id}\nCliente: ${successLoanInfo.clientName}\nMonto: ${formatCurrency(successPayment.amount)}\nFecha: ${formatDate(successPayment.payment_date)}\nMétodo: ${successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'}\nPendiente: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              navigator.clipboard.writeText(msg)
+            }}>
+              <ShareNetwork className="h-4 w-4 mr-1" /> Compartir
+            </Button>
+          </div>
+          <Button className="w-full" onClick={() => setShowSuccess(false)}>Cerrar</Button>
+        </div>
       </BottomSheet>
     </div>
   )

@@ -185,7 +185,7 @@ export default function CalendarContent({ installments, payments, openEndedLoans
             const dayPaid = events.paidByDate[key] || []
             const isToday = isSameDay(day, new Date())
             const isCurrent = isSameMonth(day, currentDate)
-            const totalDue = dayDue.reduce((s, i) => s + Number(i.amount), 0)
+            const totalDue = dayDue.reduce((s, i) => s + Number(i.amount) - Number('paid_amount' in i ? (i.paid_amount || 0) : 0), 0)
             const totalPaid = dayPaid.reduce((s, p) => s + Number(p.amount), 0)
 
             return (
