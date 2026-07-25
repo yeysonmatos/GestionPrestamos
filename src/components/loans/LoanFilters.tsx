@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { X, Sliders } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import styles from './LoanFilters.module.css'
+import MoneyInput from '@/components/ui/MoneyInput'
 
 export interface LoanFiltersState {
   search: string
@@ -111,23 +112,6 @@ function DateField({ label, value, onChange, disabled }: { label: string; value:
   )
 }
 
-function AmountField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <label className={styles.amountField}>
-      <span className={styles.amountLabel}>{label}</span>
-      <input
-        type="number"
-        className={styles.amountInput}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        step="0.01"
-        min="0"
-      />
-    </label>
-  )
-}
-
 export function LoanFilters({
   state,
   actions,
@@ -204,9 +188,9 @@ export function LoanFilters({
       <div className={styles.filterSection}>
         <SectionHeader title="Rango de montos" hasActive={!!(state.amountRange.min || state.amountRange.max)} onClear={actions.clearAmountRange} />
         <div className={styles.amountRow}>
-          <AmountField label="Mín" value={state.amountRange.min} onChange={v => actions.setAmountRange({ ...state.amountRange, min: v })} placeholder="0" />
+          <MoneyInput value={state.amountRange.min} onChange={v => actions.setAmountRange({ ...state.amountRange, min: v })} placeholder="0" className={styles.amountField} />
           <span className={styles.amountArrow}>→</span>
-          <AmountField label="Máx" value={state.amountRange.max} onChange={v => actions.setAmountRange({ ...state.amountRange, max: v })} placeholder="∞" />
+          <MoneyInput value={state.amountRange.max} onChange={v => actions.setAmountRange({ ...state.amountRange, max: v })} placeholder="∞" className={styles.amountField} />
         </div>
       </div>
 

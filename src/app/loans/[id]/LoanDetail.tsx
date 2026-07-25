@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import MoneyInput from '@/components/ui/MoneyInput'
 import { Progress } from '@/components/ui/Progress'
 import BottomSheet from '@/components/ui/BottomSheet'
 import {
@@ -923,15 +924,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         )}
 
         <div className="space-y-1 mb-4">
-          <label className="block text-sm font-medium text-muted-foreground">Monto</label>
-          <div className="flex gap-2">
-            <input
-              type="number" step="0.01" value={paymentAmount}
-              onChange={e => setPaymentAmount(e.target.value)}
-              className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11"
-              required
-            />
-          </div>
+          <MoneyInput value={paymentAmount} onChange={setPaymentAmount} placeholder="Monto" required />
           <div className="flex gap-2 mt-2">
             <button type="button" onClick={() => {
               if (selectedPaymentInstallment) {
@@ -1035,11 +1028,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1.5">Monto a abonar</label>
                   <div className="flex gap-2">
-                    <input type="number" step="0.01" min="0.01" max={capRemaining}
-                      value={capitalAbonoAmount}
-                      onChange={e => setCapitalAbonoAmount(e.target.value)}
-                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11"
-                      required />
+                    <MoneyInput value={capitalAbonoAmount} onChange={setCapitalAbonoAmount} placeholder="Monto a abonar" required />
                     <span className="text-xs text-muted-foreground self-center flex-shrink-0">máx {formatCurrency(capRemaining)}</span>
                   </div>
                   <div className="flex gap-2 mt-2">

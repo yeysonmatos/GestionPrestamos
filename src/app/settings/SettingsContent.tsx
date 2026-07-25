@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
+import MoneyInput from '@/components/ui/MoneyInput'
 import PageHeader from '@/components/ui/PageHeader'
 import { createClient } from '@/lib/supabase-client'
 import { CURRENCIES, FREQUENCIES } from '@/types'
@@ -124,7 +125,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
                 options={CURRENCIES.map(c => ({ value: c.code, label: `${c.symbol} - ${c.name}` }))}
               />
               <Input label="Prefijo ID préstamo" value={form.loan_id_prefix} onChange={e => update('loan_id_prefix', e.target.value)} />
-              <Input label="Tasa de mora diaria (%)" type="number" step="0.01" value={form.late_interest_rate} onChange={e => update('late_interest_rate', e.target.value)} />
+              <MoneyInput label="Tasa de mora diaria (%)" value={form.late_interest_rate} onChange={e => update('late_interest_rate', e)} />
               <Input label="Días de gracia (sin mora)" type="number" min="0" value={form.grace_days} onChange={e => update('grace_days', e.target.value)} />
               <Input label="Notificar antes de (días)" type="number" value={form.notify_upcoming_days} onChange={e => update('notify_upcoming_days', e.target.value)} />
             </div>

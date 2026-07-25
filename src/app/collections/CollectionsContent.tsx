@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button'
 import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
 import Input from '@/components/ui/Input'
+import MoneyInput from '@/components/ui/MoneyInput'
 import BottomSheet from '@/components/ui/BottomSheet'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
@@ -563,10 +564,7 @@ export default function CollectionsContent({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-muted-foreground mb-1.5">Monto</label>
-                  <div className="flex gap-2">
-                    <input type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
-                      className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11" required />
-                  </div>
+                  <MoneyInput value={paymentAmount} onChange={setPaymentAmount} required />
                 <div className="flex gap-2 mt-2 flex-wrap">
                     <button type="button" onClick={() => setPaymentAmount(String(remaining + (includeMora && mora ? mora.lateAmount : 0)))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
                     <button type="button" onClick={() => { const v = parseFloat(paymentAmount) || 0; setPaymentAmount(String(Math.round(v / 2 * 100) / 100)) }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Mitad</button>

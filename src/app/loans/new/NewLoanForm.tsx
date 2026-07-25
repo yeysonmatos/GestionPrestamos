@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/Card'
 import Input, { Select } from '@/components/ui/Input'
+import MoneyInput from '@/components/ui/MoneyInput'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase-client'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -159,12 +160,12 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input label="Monto" type="number" step="0.01" min="0.01" value={form.amount} onChange={e => update('amount', e.target.value)} required />
+          <MoneyInput label="Monto" value={form.amount} onChange={e => update('amount', e)} required />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Select label="Tipo interés" value={form.interest_type} onChange={e => update('interest_type', e.target.value)}
               options={[{ value: 'percentage', label: 'Porcentaje %' }, { value: 'fixed', label: 'Monto fijo' }]}
             />
-            <Input label={form.interest_type === 'percentage' ? 'Tasa %' : 'Monto'} type="number" step="0.01" min="0" value={form.interest_rate} onChange={e => update('interest_rate', e.target.value)} required />
+            <MoneyInput label={form.interest_type === 'percentage' ? 'Tasa %' : 'Monto'} value={form.interest_rate} onChange={e => update('interest_rate', e)} required />
           </div>
         </div>
 
