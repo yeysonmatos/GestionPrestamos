@@ -46,8 +46,15 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
     const activeClients = clients.filter(c => c.status === 'active').length
     const lateClientIds = new Set(lateLoans.map(l => l.client_id))
 
-    const portfolioHealth = activeLoans.length > 0
-      ? Math.round(((activeLoans.length - lateLoans.length) / activeLoans.length) * 100)
+    const activeCapital = filteredLoans
+      .filter(l => l.status === 'active')
+      .reduce((s, l) => s + Number(l.remaining_amount), 0)
+    const lateCapital = filteredLoans
+      .filter(l => l.status === 'late')
+      .reduce((s, l) => s + Number(l.remaining_amount), 0)
+    const totalAtRisk = activeCapital + lateCapital
+    const portfolioHealth = totalAtRisk > 0
+      ? Math.round((activeCapital / totalAtRisk) * 100)
       : 100
 
     return {
