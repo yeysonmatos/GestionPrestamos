@@ -12,10 +12,9 @@ export async function createServerSideClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
+        setAll() {
+          // No-op: cookies solo se pueden modificar en Server Actions/Route Handlers
+          // Las mutaciones de auth ocurren en /api/auth/* (login, logout, refresh)
         },
       },
     }
