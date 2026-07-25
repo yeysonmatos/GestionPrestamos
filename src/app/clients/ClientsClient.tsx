@@ -14,9 +14,11 @@ import { formatCurrency, getTrustLevelColor, getStatusLabel } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { Plus, Phone, FileText, CaretDown, ArrowsClockwise } from '@phosphor-icons/react'
-import ActionSheet from '@/components/ui/ActionSheet'
 import type { Client, Loan } from '@/types'
+
+const ActionSheet = dynamic(() => import('@/components/ui/ActionSheet'), { ssr: false })
 
 interface Props {
   clients: Client[]

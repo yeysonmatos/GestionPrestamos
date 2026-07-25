@@ -1,19 +1,17 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import PageHeader from '@/components/ui/PageHeader'
 import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
-} from 'recharts'
-import {
   TrendUp, CurrencyDollar, Users, Handshake, Percent,
 } from '@phosphor-icons/react'
 import type { Loan, Payment, Client } from '@/types'
 
-const COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6']
+const ReportsBarChart = dynamic(() => import('./ReportsCharts').then(m => m.ReportsBarChart), { ssr: false })
+const ReportsPieChart = dynamic(() => import('./ReportsCharts').then(m => m.ReportsPieChart), { ssr: false })
 
 interface Props {
   loans: Loan[]
@@ -150,40 +148,14 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
         <Card>
           <h3 className="text-base font-semibold text-foreground mb-4">Ingresos vs Préstamos</h3>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                <Bar dataKey="income" name="Ingresos" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="loans" name="Préstamos" fill="#93C5FD" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ReportsBarChart data={monthlyData} />
           </div>
         </Card>
 
         <Card>
           <h3 className="text-base font-semibold text-foreground mb-4">Estado de préstamos</h3>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  dataKey="value"
-                  label={({ name, value }) => `${name} (${value})`}
-                >
-                  {statusData.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <ReportsPieChart data={statusData} />
           </div>
         </Card>
       </div>

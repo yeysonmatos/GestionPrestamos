@@ -10,9 +10,11 @@ import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, formatDate, getStatusLabel } from '@/lib/utils'
 import Link from 'next/link'
 import { Plus, Phone, Calendar, SquaresFour, Table, ArrowsClockwise } from '@phosphor-icons/react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import type { Loan } from '@/types'
-import { LoanFilters } from '@/components/loans/LoanFilters'
+
+const LoanFilters = dynamic(() => import('@/components/loans/LoanFilters').then(m => ({ default: m.LoanFilters })), { ssr: false })
 
 interface Props {
   loans: Loan[]

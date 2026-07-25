@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -18,8 +19,9 @@ import {
   CalendarCheck, Warning, Calendar, CurrencyDollar, CaretDown, ArrowsClockwise,
   Check, ChatCircle, FileArrowDown, ShareNetwork,
 } from '@phosphor-icons/react'
-import ActionSheet from '@/components/ui/ActionSheet'
 import type { Installment, Payment, Client, Setting } from '@/types'
+
+const ActionSheet = dynamic(() => import('@/components/ui/ActionSheet'), { ssr: false })
 
 interface OpenEndedLoan {
   id: string

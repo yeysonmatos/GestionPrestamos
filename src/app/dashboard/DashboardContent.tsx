@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import StatCard from '@/components/ui/StatCard'
@@ -8,13 +9,12 @@ import { Avatar } from '@/components/ui/Avatar'
 import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts'
-import {
   Wallet, PiggyBank, CurrencyDollar, TrendUp, Users, Warning,
   Calendar, ArrowRight,
 } from '@phosphor-icons/react'
 import type { Loan, Payment, Client, Installment } from '@/types'
+
+const DashboardBarChart = dynamic(() => import('./DashboardBarChart'), { ssr: false })
 
 interface Props {
   loans: Loan[]
@@ -124,16 +124,7 @@ export default function DashboardContent({
         <Card className="lg:col-span-2">
           <h3 className="text-base font-semibold text-foreground mb-4">Ingresos vs Préstamos</h3>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
-                <Bar dataKey="income" name="Ingresos" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="loans" name="Préstamos" fill="#93C5FD" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <DashboardBarChart data={monthlyData} />
           </div>
         </Card>
 

@@ -10,9 +10,11 @@ import EmptyState from '@/components/ui/EmptyState'
 import { Progress } from '@/components/ui/Progress'
 import { formatCurrency, formatDate, getStatusLabel } from '@/lib/utils'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Plus, Phone, Calendar, SquaresFour, Table, CaretDown, ArrowsClockwise } from '@phosphor-icons/react'
-import ActionSheet from '@/components/ui/ActionSheet'
 import { useRouter } from 'next/navigation'
+
+const ActionSheet = dynamic(() => import('@/components/ui/ActionSheet'), { ssr: false })
 import type { Loan } from '@/types'
 
 interface Props {
