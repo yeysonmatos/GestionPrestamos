@@ -2,6 +2,8 @@ import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import LoansClientUnified from './LoansClientUnified'
 
+export const dynamic = 'force-dynamic'
+
 export default async function LoansPage() {
   const supabase = await createServerSideClient()
 

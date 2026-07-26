@@ -2,6 +2,8 @@ import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import ClientsClient from './ClientsClient'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ClientsPage() {
   const supabase = await createServerSideClient()
 

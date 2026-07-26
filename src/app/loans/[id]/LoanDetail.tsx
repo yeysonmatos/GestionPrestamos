@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { calculateLoan, calculateProportionalInterest, recalculateFrenchSchedule } from '@/lib/calculations'
@@ -30,6 +31,7 @@ interface Props {
 
 export default function LoanDetail({ loan: initialLoan, installments: initialInstallments, payments: initialPayments, settings }: Props) {
   const supabase = createClient()
+  const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [loan, setLoan] = useState<Loan>(initialLoan)
   const [installments, setInstallments] = useState<Installment[]>(initialInstallments)
@@ -121,6 +123,49 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
   const handlePayInstallment = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (isOpenEnded) {
+      setLoading(true)
+      setPaymentError('')
+      const amount = parseFloat(paymentAmount)
+      if (isNaN(amount) || amount <= 0) { setPaymentError('Monto inválido'); setLoading(false); return }
+
+      const { data: payment, error } = await supabase
+        .from('payments')
+        .insert({
+          loan_id: loan.id,
+          client_id: loan.client_id,
+          user_id: userId,
+          amount,
+          capital_amount: 0,
+          interest_amount: amount,
+          payment_date: paymentDate,
+          method: paymentMethod,
+          notes: paymentNotes || null,
+          type: 'installment',
+        })
+        .select()
+        .single()
+
+      if (error) { setPaymentError('Error al registrar pago: ' + error.message); setLoading(false); return }
+
+      await updateLoanAfterPayment(supabase as any, loan.id, loan.client_id)
+
+      setPayments(prev => [payment, ...prev])
+      setSuccessPayment(payment)
+      setShowPayment(false)
+      setShowSuccess(true)
+      setPaymentInstallmentId('')
+      setPaymentAmount('')
+      setPaymentNotes('')
+      setIncludeMora(true)
+      setSelectedInstallmentMora(null)
+      setSelectedPaymentInstallment(null)
+      router.refresh()
+      setLoading(false)
+      return
+    }
+
     if (!paymentInstallmentId || !userId) return
     const inst = installments.find(i => i.id === paymentInstallmentId)
     if (!inst) return
@@ -198,6 +243,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       setIncludeMora(true)
       setSelectedInstallmentMora(null)
       setSelectedPaymentInstallment(null)
+      router.refresh()
     } catch (err) {
       setPaymentError(err instanceof Error ? err.message : 'Error al procesar el pago')
     }
@@ -323,6 +369,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
     setShowCapitalAbono(false)
     setCapitalAbonoAmount('')
+    router.refresh()
     setLoading(false)
   }
 
@@ -379,6 +426,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     setLoan(prev => ({ ...prev, status: 'paid', paid_amount: Number(loan.amount), remaining_amount: 0, progress: 100 }))
     setInstallments(prev => prev.map(i => i.status !== 'paid' ? { ...i, status: 'paid', paid_amount: i.amount, paid_at: paymentDate } : i))
     setShowLiquidation(false)
+    router.refresh()
     setLoading(false)
   }
 
@@ -484,6 +532,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
     setPayments(prev => prev.map(p => p.id === paymentId ? { ...p, status: 'reversed', reversal_reason: reason } : p))
     setLoan(prev => ({ ...prev, paid_amount: newPaid, remaining_amount: newRemaining, progress: loanUpdates.progress ?? prev.progress, paid_installments: loanUpdates.paid_installments ?? prev.paid_installments, status: loanUpdates.status ?? prev.status, installment_amount: reversalLoanUpdates.installment_amount ?? prev.installment_amount, total_amount: reversalLoanUpdates.total_amount ?? prev.total_amount, total_interest: reversalLoanUpdates.total_interest ?? prev.total_interest }))
+    router.refresh()
     setLoading(false)
   }
 
