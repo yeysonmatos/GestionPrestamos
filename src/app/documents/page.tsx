@@ -10,9 +10,14 @@ export default async function DocumentsPage() {
     .select('*, client:clients(id, name)')
     .order('created_at', { ascending: false })
 
+  const { data: clients } = await supabase
+    .from('clients')
+    .select('*')
+    .order('name')
+
   return (
     <MainLayout>
-      <DocumentsContent documents={documents || []} />
+      <DocumentsContent documents={documents || []} clients={clients || []} />
     </MainLayout>
   )
 }

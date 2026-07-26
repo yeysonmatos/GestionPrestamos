@@ -233,22 +233,38 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = 'public'
 AS $$
+DECLARE
+  v_late_loans INTEGER;
+  v_paid_loans INTEGER;
+  v_total_loans INTEGER;
+  v_score INTEGER;
 BEGIN
+  v_late_loans  := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status = 'late');
+  v_paid_loans  := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status = 'paid');
+  v_total_loans := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id);
+
+  v_score := 50;
+  IF v_late_loans = 0 THEN v_score := v_score + 25; END IF;
+  IF v_paid_loans > 0 THEN v_score := v_score + 15; END IF;
+  v_score := v_score - (v_late_loans * 10);
+  v_score := GREATEST(0, LEAST(100, v_score));
+
   UPDATE clients SET
-    total_loans     = (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id),
+    total_loans     = v_total_loans,
     active_loans    = (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status IN ('active','late')),
-    paid_loans      = (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status = 'paid'),
-    late_loans      = (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status = 'late'),
+    paid_loans      = v_paid_loans,
+    late_loans      = v_late_loans,
     total_borrowed  = (SELECT COALESCE(SUM(amount),0) FROM loans WHERE client_id = p_client_id),
     total_interest  = (SELECT COALESCE(SUM(total_interest),0) FROM loans WHERE client_id = p_client_id),
     last_payment_at = (SELECT MAX(created_at) FROM payments WHERE client_id = p_client_id AND status = 'paid'),
-    total_paid      = (
-      SELECT COALESCE(SUM(paid_amount),0) FROM loans WHERE client_id = p_client_id
-    ),
-    balance         = (
-      SELECT COALESCE(SUM(remaining_amount),0) FROM loans
-      WHERE client_id = p_client_id AND status IN ('active','late')
-    )
+    total_paid      = (SELECT COALESCE(SUM(paid_amount),0) FROM loans WHERE client_id = p_client_id),
+    balance         = (SELECT COALESCE(SUM(remaining_amount),0) FROM loans WHERE client_id = p_client_id AND status IN ('active','late')),
+    trust_score     = v_score,
+    trust_level     = CASE
+      WHEN v_score >= 75 THEN 'high'
+      WHEN v_score >= 40 THEN 'medium'
+      ELSE 'low'
+    END
   WHERE id = p_client_id;
 END;
 $$;

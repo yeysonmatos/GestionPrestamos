@@ -106,6 +106,7 @@ export default function CollectionsContent({
   const [loading, setLoading] = useState(false)
   const [paymentError, setPaymentError] = useState('')
   const [filter, setFilter] = useState<'today' | 'overdue' | 'upcoming' | 'history'>('today')
+  const [historyLimit, setHistoryLimit] = useState(20)
   const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [includeMora, setIncludeMora] = useState(true)
   const [installmentMora, setInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
@@ -184,6 +185,7 @@ export default function CollectionsContent({
 
   const handlePay = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     if (!selectedInstallment || !userId) return
     const inst = selectedInstallment
     const isOpenEndedType = 'isOpenEnded' in inst && inst.isOpenEnded
@@ -426,7 +428,7 @@ export default function CollectionsContent({
             </div>
           ) : (
             <div className="space-y-2">
-              {payments.map(p => {
+              {payments.slice(0, historyLimit).map(p => {
                 const methodIcon = p.method === 'cash' ? '💰' : p.method === 'transfer' ? '🏦' : p.method === 'deposit' ? '📥' : '💳'
                 const typeLabel = p.type === 'capital_abono' ? 'Abono' : p.type === 'liquidation' ? 'Liquidación' : p.type === 'installment' ? 'Interés' : 'Cuota'
                 const typeColor = p.type === 'capital_abono' ? 'bg-purple-100 text-purple-700' : p.type === 'liquidation' ? 'bg-green-100 text-green-700' : p.type === 'installment' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
@@ -447,10 +449,24 @@ export default function CollectionsContent({
                     <div className="text-right flex-shrink-0 ml-1">
                       <p className="font-semibold text-success text-sm">{formatCurrency(p.amount)}</p>
                       <p className="text-[11px] text-muted-foreground">{formatDate(p.payment_date)}</p>
+                      {p.status !== 'paid' && p.reversal_reason && (
+                        <span className="text-[9px] text-destructive/80 block mt-0.5 truncate max-w-[160px]" title={p.reversal_reason}>
+                          Reversado: {p.reversal_reason}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
               })}
+              {payments.length > historyLimit && (
+                <button
+                  type="button"
+                  onClick={() => setHistoryLimit(prev => prev + 20)}
+                  className="w-full py-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors border border-dashed border-border rounded-lg"
+                >
+                  Ver más ({payments.length - historyLimit} restantes)
+                </button>
+              )}
             </div>
           )}
         </Card>

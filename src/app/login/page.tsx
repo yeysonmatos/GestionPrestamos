@@ -8,7 +8,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<'login' | 'register' | 'reset'>('login')
   const [message, setMessage] = useState('')
   const supabase = createClient()
 
@@ -22,10 +22,16 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError(error.message)
       else window.location.href = '/dashboard'
-    } else {
+    } else if (mode === 'register') {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setError(error.message)
       else setMessage('Registro exitoso. Revisa tu correo para confirmar tu cuenta.')
+    } else if (mode === 'reset') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+      })
+      if (error) setError(error.message)
+      else setMessage('Revisa tu correo para restablecer tu contraseña.')
     }
 
     setLoading(false)
@@ -67,28 +73,36 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Mínimo 6 caracteres"
-            />
-          </div>
+          {mode !== 'reset' && (
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Contraseña
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+          )}
+
+          {mode === 'login' && (
+            <button type="button" onClick={() => setMode('reset')} className="text-sm text-blue-600 hover:underline self-start">
+              ¿Olvidaste tu contraseña?
+            </button>
+          )}
 
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : 'Crear cuenta'}
+            {loading ? 'Cargando...' : mode === 'login' ? 'Entrar' : mode === 'register' ? 'Crear cuenta' : 'Enviar enlace'}
           </button>
 
           <p className="text-sm text-center text-gray-500">
@@ -98,12 +112,16 @@ export default function LoginPage() {
                   Regístrate
                 </button>
               </>
-            ) : (
+            ) : mode === 'register' ? (
               <>¿Ya tienes cuenta?{' '}
                 <button type="button" onClick={() => setMode('login')} className="text-blue-600 hover:underline">
                   Inicia sesión
                 </button>
               </>
+            ) : (
+              <button type="button" onClick={() => setMode('login')} className="text-blue-600 hover:underline">
+                Volver a inicio de sesión
+              </button>
             )}
           </p>
         </form>

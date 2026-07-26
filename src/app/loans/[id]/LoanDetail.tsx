@@ -60,6 +60,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [selectedInstallmentMora, setSelectedInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
   const [selectedPaymentInstallment, setSelectedPaymentInstallment] = useState<Installment | null>(null)
   const [capitalAbonoAmount, setCapitalAbonoAmount] = useState('')
+  const [showReversalModal, setShowReversalModal] = useState(false)
+  const [reversalPaymentId, setReversalPaymentId] = useState<string | null>(null)
+  const [reversalReason, setReversalReason] = useState('')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -141,6 +144,10 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       showSuccess,
       showCapitalAbono,
       showLiquidation,
+      showReversalModal,
+      reversalPaymentId,
+      reversalReason,
+      loading,
     },
     setters: {
       setLoan,
@@ -160,6 +167,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       setShowSuccess,
       setShowCapitalAbono,
       setShowLiquidation,
+      setShowReversalModal,
+      setReversalPaymentId,
+      setReversalReason,
       setLoading,
       setPaymentError,
     },
@@ -532,13 +542,20 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
                             }
                           }} className="w-7 h-7 rounded-md hover:bg-emerald-50 hover:text-emerald-600 flex items-center justify-center transition-colors" title="WhatsApp"><ChatCircle className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => handleReversePayment(p.id)} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
+                          <button onClick={() => { setReversalPaymentId(p.id); setReversalReason(''); setShowReversalModal(true) }} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
                             <ArrowCounterClockwise className="h-3.5 w-3.5 text-destructive" />
                           </button>
                         </>
                       )}
                       {p.status !== 'paid' && (
-                        <Badge variant="cancelled">Reversado</Badge>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <Badge variant="cancelled">Reversado</Badge>
+                          {p.reversal_reason && (
+                            <span className="text-[9px] text-muted-foreground/70 whitespace-nowrap max-w-[180px] truncate" title={p.reversal_reason}>
+                              {p.reversal_reason}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -718,6 +735,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
       <BottomSheet open={showCapitalAbono} onClose={() => setShowCapitalAbono(false)} title="Abonar al capital">
         <form onSubmit={handleCapitalAbono} className="space-y-4">
+          {paymentError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+          )}
           {(() => {
             const capRemaining = calcCapitalRemaining()
             const abono = parseFloat(capitalAbonoAmount) || 0
@@ -795,6 +815,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
 
       <BottomSheet open={showLiquidation} onClose={() => setShowLiquidation(false)} title="Liquidar préstamo">
         <div className="space-y-4">
+          {paymentError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+          )}
           {(() => {
             const capRemaining = calcCapitalRemaining()
             if (capRemaining <= 0) return <p className="text-sm text-muted-foreground">No hay capital pendiente</p>
@@ -842,6 +865,30 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <Button onClick={handleLiquidation} loading={loading} className="flex-1">Confirmar liquidación</Button>
           </div>
         </div>
+      </BottomSheet>
+
+      <BottomSheet open={showReversalModal} onClose={() => setShowReversalModal(false)} title="Motivo de la reversión">
+        <form onSubmit={async (e) => {
+          e.preventDefault()
+          if (!reversalPaymentId || !reversalReason.trim()) return
+          await handleReversePayment(reversalPaymentId)
+          setShowReversalModal(false)
+        }} className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Ingresa el motivo por el cual estás revirtiendo este pago:
+          </p>
+          <textarea
+            value={reversalReason}
+            onChange={e => setReversalReason(e.target.value)}
+            required
+            placeholder="Ej: Pago duplicado, error de monto, reversión solicitada..."
+            className="block w-full rounded-lg border border-border px-3 py-2 text-sm min-h-[100px] resize-none"
+          />
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowReversalModal(false)} className="flex-1">Cancelar</Button>
+            <Button type="submit" loading={loading} className="flex-1">Confirmar reversión</Button>
+          </div>
+        </form>
       </BottomSheet>
 
       <BottomSheet open={showContract} onClose={() => setShowContract(false)} title="Contrato de préstamo">

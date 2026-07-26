@@ -1,10 +1,11 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import PageHeader from '@/components/ui/PageHeader'
 import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 import {
   TrendUp, CurrencyDollar, Users, Handshake, Percent,
 } from '@phosphor-icons/react'
@@ -17,37 +18,30 @@ interface Props {
   loans: Loan[]
   payments: Payment[]
   clients: Client[]
+  initialPeriod?: string
 }
 
-export default function ReportsContent({ loans, payments, clients }: Props) {
-  const [period, setPeriod] = useState<'all' | 'month' | 'quarter' | 'year'>('all')
-
-  const now = new Date()
-  const periodStart = period === 'month' ? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-    : period === 'quarter' ? new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().split('T')[0]
-    : period === 'year' ? new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0]
-    : '2000-01-01'
+export default function ReportsContent({ loans, payments, clients, initialPeriod = 'all' }: Props) {
+  const router = useRouter()
+  const period = initialPeriod as 'all' | 'month' | 'quarter' | 'year'
 
   const stats = useMemo(() => {
-    const filteredLoans = period === 'all' ? loans : loans.filter(l => l.created_at && l.created_at >= periodStart)
-    const filteredPayments = period === 'all' ? payments : payments.filter(p => p.payment_date >= periodStart)
+    const activeLoansList = loans.filter(l => l.status === 'active' || l.status === 'late')
+    const paidLoansList = loans.filter(l => l.status === 'paid')
+    const lateLoansList = loans.filter(l => l.status === 'late')
 
-    const activeLoans = filteredLoans.filter(l => l.status === 'active' || l.status === 'late')
-    const paidLoans = filteredLoans.filter(l => l.status === 'paid')
-    const lateLoans = filteredLoans.filter(l => l.status === 'late')
-
-    const totalCapital = filteredLoans.reduce((s, l) => s + Number(l.amount), 0)
-    const pendingCapital = activeLoans.reduce((s, l) => s + Number(l.remaining_amount), 0)
+    const totalCapital = loans.reduce((s, l) => s + Number(l.amount), 0)
+    const pendingCapital = activeLoansList.reduce((s, l) => s + Number(l.remaining_amount), 0)
     const recoveredCapital = Math.max(0, totalCapital - pendingCapital)
-    const generatedInterest = filteredLoans.reduce((s, l) => s + Number(l.total_interest), 0)
-    const collectedInterest = filteredPayments.reduce((s, p) => s + Number(p.interest_amount), 0)
+    const generatedInterest = loans.reduce((s, l) => s + Number(l.total_interest), 0)
+    const collectedInterest = payments.reduce((s, p) => s + Number(p.interest_amount), 0)
     const activeClients = clients.filter(c => c.status === 'active').length
-    const lateClientIds = new Set(lateLoans.map(l => l.client_id))
+    const lateClientIds = new Set(lateLoansList.map(l => l.client_id))
 
-    const activeCapital = filteredLoans
+    const activeCapital = loans
       .filter(l => l.status === 'active')
       .reduce((s, l) => s + Number(l.remaining_amount), 0)
-    const lateCapital = filteredLoans
+    const lateCapital = loans
       .filter(l => l.status === 'late')
       .reduce((s, l) => s + Number(l.remaining_amount), 0)
     const totalAtRisk = activeCapital + lateCapital
@@ -58,13 +52,13 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
     return {
       totalCapital, recoveredCapital, pendingCapital,
       generatedInterest, collectedInterest,
-      activeLoans: activeLoans.length,
-      paidLoans: paidLoans.length,
-      lateLoans: lateLoans.length,
+      activeLoans: activeLoansList.length,
+      paidLoans: paidLoansList.length,
+      lateLoans: lateLoansList.length,
       activeClients, lateClients: lateClientIds.size,
       portfolioHealth,
     }
-  }, [loans, payments, clients, period, periodStart])
+  }, [loans, payments, clients])
 
   const statusData = useMemo(() => {
     return [
@@ -104,6 +98,28 @@ export default function ReportsContent({ loans, payments, clients }: Props) {
         title="Reportes"
         description="Estadísticas y análisis de tu cartera"
       />
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {[
+          { key: 'all', label: 'Todo' },
+          { key: 'month', label: 'Este mes' },
+          { key: 'quarter', label: 'Último trimestre' },
+          { key: 'year', label: 'Este año' },
+        ].map(opt => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => router.push(`/reports?period=${opt.key}`)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              period === opt.key
+                ? 'bg-primary text-white'
+                : 'bg-muted text-muted-foreground hover:bg-border'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="flex items-center gap-3 sm:gap-4">

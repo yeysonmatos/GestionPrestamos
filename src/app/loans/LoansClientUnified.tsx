@@ -16,8 +16,16 @@ import type { Loan } from '@/types'
 
 const LoanFilters = dynamic(() => import('@/components/loans/LoanFilters').then(m => ({ default: m.LoanFilters })), { ssr: false })
 
+interface PendingInstallment {
+  id: string
+  loan_id: string
+  due_date: string
+  number: number
+}
+
 interface Props {
   loans: Loan[]
+  pendingInstallments: PendingInstallment[]
 }
 
 type ViewMode = 'cards' | 'table'
@@ -44,7 +52,7 @@ const avatarColors: Record<string, string> = {
   default: 'bg-gray-400',
 }
 
-export default function LoansClientUnified({ loans: initialLoans }: Props) {
+export default function LoansClientUnified({ loans: initialLoans, pendingInstallments }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [loans] = useState(initialLoans)
@@ -165,15 +173,15 @@ export default function LoansClientUnified({ loans: initialLoans }: Props) {
   }
 
   function calcNextDue(loan: Loan): string | null {
-    if (!loan.first_payment_date) return null
-    const paid = loan.paid_installments || 0
-    const freq = loan.frequency
-    const d = new Date(loan.first_payment_date)
-    if (freq === 'daily') d.setDate(d.getDate() + paid)
-    else if (freq === 'weekly') d.setDate(d.getDate() + paid * 7)
-    else if (freq === 'biweekly') d.setDate(d.getDate() + paid * 14)
-    else if (freq === 'monthly') d.setMonth(d.getMonth() + paid)
-    return d > new Date() ? formatDate(d.toISOString()) : null
+    const next = pendingInstallments.find(i => i.loan_id === loan.id)
+    if (next) return formatDate(next.due_date)
+    if (loan.open_ended && loan.payment_day) {
+      const d = new Date()
+      d.setDate(loan.payment_day)
+      if (d <= new Date()) d.setMonth(d.getMonth() + 1)
+      return formatDate(d.toISOString())
+    }
+    return null
   }
 
   return (

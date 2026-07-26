@@ -12,9 +12,15 @@ export default async function LoansPage() {
     .select('*, client:clients(*)')
     .order('created_at', { ascending: false })
 
+  const { data: pendingInstallments } = await supabase
+    .from('installments')
+    .select('id, loan_id, due_date, number')
+    .in('status', ['pending', 'partial'])
+    .order('due_date', { ascending: true })
+
   return (
     <MainLayout>
-      <LoansClientUnified loans={loans || []} />
+      <LoansClientUnified loans={loans || []} pendingInstallments={pendingInstallments || []} />
     </MainLayout>
   )
 }

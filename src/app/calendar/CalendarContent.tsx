@@ -51,6 +51,8 @@ const pendingStatuses = ['pending', 'partial']
 
 export default function CalendarContent({ installments, payments, openEndedLoans }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [listLimit, setListLimit] = useState(10)
 
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
@@ -189,11 +191,18 @@ export default function CalendarContent({ installments, payments, openEndedLoans
             const totalPaid = dayPaid.reduce((s, p) => s + Number(p.amount), 0)
 
             return (
-              <div
+              <button
                 key={key}
-                className={`bg-card min-h-[80px] p-1.5 ${
+                type="button"
+                onClick={() => {
+                  setSelectedDate(selectedDate === key ? null : key)
+                  setListLimit(10)
+                }}
+                className={`bg-card min-h-[80px] p-1.5 text-left w-full ${
                   !isCurrent ? 'opacity-40' : ''
-                } ${isToday ? 'ring-2 ring-primary ring-inset' : ''}`}
+                } ${isToday ? 'ring-2 ring-primary ring-inset' : ''} ${
+                  selectedDate === key ? 'ring-2 ring-accent' : ''
+                } hover:bg-muted/50 transition-colors cursor-pointer`}
               >
                 <p className={`text-xs font-medium mb-1 ${
                   isToday ? 'text-primary' : 'text-muted-foreground'
@@ -215,24 +224,41 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                     {formatCurrency(totalPaid)} cobrado
                   </p>
                 )}
-              </div>
+              </button>
             )
           })}
         </div>
       </Card>
 
       <Card>
-        <h3 className="text-base font-semibold text-foreground mb-4">
-          Cuotas del {format(currentDate, "MMMM 'de' yyyy", { locale: es })}
-        </h3>
-        {installments.filter(i => isSameMonth(parseISO(i.due_date), currentDate) && pendingStatuses.includes(i.status)).length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No hay cuotas pendientes este mes</p>
-        ) : (
-          <div className="space-y-2">
-            {installments
-              .filter(i => isSameMonth(parseISO(i.due_date), currentDate) && pendingStatuses.includes(i.status))
-              .slice(0, 10)
-              .map(inst => (
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-foreground">
+            {selectedDate
+              ? `Cuotas del ${format(parseISO(selectedDate), "d 'de' MMMM", { locale: es })}`
+              : `Cuotas del ${format(currentDate, "MMMM 'de' yyyy", { locale: es })}`}
+          </h3>
+          {selectedDate && (
+            <button type="button" onClick={() => { setSelectedDate(null); setListLimit(10) }} className="text-xs text-primary hover:underline">
+              Mostrar todo el mes
+            </button>
+          )}
+        </div>
+        {(() => {
+          const filtered = installments.filter(i => {
+            const matchMonth = isSameMonth(parseISO(i.due_date), currentDate) && pendingStatuses.includes(i.status)
+            if (!selectedDate) return matchMonth
+            return matchMonth && i.due_date === selectedDate
+          })
+          if (filtered.length === 0) {
+            return (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {selectedDate ? 'No hay cuotas pendientes este día' : 'No hay cuotas pendientes este mes'}
+              </p>
+            )
+          }
+          return (
+            <div className="space-y-2">
+              {filtered.slice(0, listLimit).map(inst => (
                 <div key={inst.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div>
                     <p className="text-sm font-medium text-foreground">
@@ -240,20 +266,30 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                     </p>
                     <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
                   </div>
-<div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
-                      <Badge variant={
-                        inst.status === 'partial' ? 'active' :
-                        parseISO(inst.due_date) < new Date() ? 'late' : 'active'
-                      }>
-                        {inst.status === 'partial' ? 'Parcial' :
-                         parseISO(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
-                      </Badge>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
+                    <Badge variant={
+                      inst.status === 'partial' ? 'active' :
+                      parseISO(inst.due_date) < new Date() ? 'late' : 'active'
+                    }>
+                      {inst.status === 'partial' ? 'Parcial' :
+                       parseISO(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
+                    </Badge>
                   </div>
                 </div>
               ))}
-          </div>
-        )}
+              {filtered.length > listLimit && (
+                <button
+                  type="button"
+                  onClick={() => setListLimit(prev => prev + 10)}
+                  className="w-full py-3 text-sm font-medium text-primary hover:text-primary/80 transition-colors border border-dashed border-border rounded-lg"
+                >
+                  Ver más ({filtered.length - listLimit} restantes)
+                </button>
+              )}
+            </div>
+          )
+        })()}
       </Card>
     </div>
   )

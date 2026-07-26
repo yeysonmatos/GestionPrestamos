@@ -30,14 +30,6 @@ export interface ProcessPaymentInput {
 export interface ProcessPaymentResult {
   payment: Payment
   allocation: PaymentAllocation
-  loanUpdates: {
-    paid_installments: number
-    paid_amount: number
-    remaining_amount: number
-    progress: number
-    status?: string
-    paid_at?: string
-  }
 }
 
 export function calculatePaymentAllocation(
@@ -146,7 +138,7 @@ export async function processInstallmentPayment(
 
   if (instError) throw new Error(`Error updating installment: ${instError.message}`)
 
-  return { payment, allocation, loanUpdates: { paid_installments: 0, paid_amount: 0, remaining_amount: 0, progress: 0 } }
+  return { payment, allocation }
 }
 
 export async function recalculateInstallment(

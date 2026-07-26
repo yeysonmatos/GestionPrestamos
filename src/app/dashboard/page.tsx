@@ -45,8 +45,7 @@ export default async function DashboardPage() {
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
     .in('status', ['pending', 'partial'])
-    .gte('due_date', today)
-    .lte('due_date', today)
+    .gt('due_date', today)
     .order('due_date', { ascending: true })
     .limit(10)
 

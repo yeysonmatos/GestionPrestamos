@@ -54,15 +54,6 @@ export function calculateProportionalInterest(principal: number, monthlyRate: nu
   return round(principal * dailyRate * daysElapsed)
 }
 
-export function calculateFrenchProportionalInterest(
-  remainingCapital: number,
-  monthlyRate: number,
-  daysElapsed: number,
-): number {
-  const dailyRate = monthlyRate / 30
-  return round(remainingCapital * dailyRate * daysElapsed)
-}
-
 function calculateInterestOnly(
   principal: number,
   periodicRate: number,

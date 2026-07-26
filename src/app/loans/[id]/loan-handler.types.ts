@@ -20,6 +20,10 @@ export interface LoanHandlerState {
   showSuccess: boolean
   showCapitalAbono: boolean
   showLiquidation: boolean
+  showReversalModal: boolean
+  reversalPaymentId: string | null
+  reversalReason: string
+  loading: boolean
 }
 
 export interface LoanHandlerSetters {
@@ -40,6 +44,9 @@ export interface LoanHandlerSetters {
   setShowSuccess: React.Dispatch<React.SetStateAction<boolean>>
   setShowCapitalAbono: React.Dispatch<React.SetStateAction<boolean>>
   setShowLiquidation: React.Dispatch<React.SetStateAction<boolean>>
+  setShowReversalModal: React.Dispatch<React.SetStateAction<boolean>>
+  setReversalPaymentId: React.Dispatch<React.SetStateAction<string | null>>
+  setReversalReason: React.Dispatch<React.SetStateAction<string>>
   setLoading: React.Dispatch<React.SetStateAction<boolean>>
   setPaymentError: React.Dispatch<React.SetStateAction<string>>
 }

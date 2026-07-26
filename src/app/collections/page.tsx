@@ -35,7 +35,6 @@ export default async function CollectionsPage() {
     .select('*, loan:loans(*, client:clients(*))')
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
-    .limit(10)
 
   const { data: openEndedLoans } = await supabase
     .from('loans')

@@ -11,9 +11,9 @@ import BottomSheet from '@/components/ui/BottomSheet'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate, getStatusLabel } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
-import { uploadFile, getFilePath } from '@/lib/storage'
+import { uploadFile, getFilePath, deleteFile } from '@/lib/storage'
 import { FileText, Image, Shield, Signature, UploadSimple, DownloadSimple, Trash } from '@phosphor-icons/react'
-import type { Document } from '@/types'
+import type { Document, Client } from '@/types'
 
 const typeIcons: Record<string, React.ReactNode> = {
   contract: <FileText className="h-5 w-5 text-blue-500" />,
@@ -25,14 +25,15 @@ const typeIcons: Record<string, React.ReactNode> = {
 
 interface Props {
   documents: Document[]
+  clients: Client[]
 }
 
-export default function DocumentsContent({ documents: initialDocuments }: Props) {
+export default function DocumentsContent({ documents: initialDocuments, clients }: Props) {
   const [documents, setDocuments] = useState(initialDocuments)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ name: '', type: 'contract', notes: '' })
+  const [form, setForm] = useState({ name: '', type: 'contract', notes: '', client_id: '' })
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
@@ -64,6 +65,7 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
         mime_type: file.type,
         size: file.size,
         notes: form.notes || null,
+        client_id: form.client_id || null,
       })
       .select('*, client:clients(id, name)')
       .single()
@@ -71,23 +73,30 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
     if (!error && data) {
       setDocuments(prev => [data, ...prev])
       setShowModal(false)
-      setForm({ name: '', type: 'contract', notes: '' })
+      setForm({ name: '', type: 'contract', notes: '', client_id: '' })
       setFile(null)
     }
 
     setLoading(false)
   }
 
-  async function handleDelete(id: string) {
+  async function handleDownload(doc: Document) {
+    const { data } = await supabase.storage.from('documents').createSignedUrl(doc.path, 60)
+    if (data) window.open(data.signedUrl, '_blank')
+  }
+
+  async function handleDelete(doc: Document) {
     if (!confirm('¿Eliminar este documento?')) return
+
+    await supabase.storage.from('documents').remove([doc.path])
 
     const { error } = await supabase
       .from('documents')
       .delete()
-      .eq('id', id)
+      .eq('id', doc.id)
 
     if (!error) {
-      setDocuments(prev => prev.filter(d => d.id !== id))
+      setDocuments(prev => prev.filter(d => d.id !== doc.id))
     }
   }
 
@@ -154,10 +163,10 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
                 </div>
               </div>
               <div className="flex gap-1 mt-3 pt-2 border-t border-border">
-                <Button variant="ghost" size="sm" className="flex-1">
+                <Button variant="ghost" size="sm" className="flex-1" onClick={() => handleDownload(doc)}>
                   <DownloadSimple className="h-4 w-4 mr-1" /> Descargar
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} className="text-destructive hover:text-destructive">
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(doc)} className="text-destructive hover:text-destructive">
                   <Trash className="h-4 w-4" />
                 </Button>
               </div>
@@ -176,6 +185,12 @@ export default function DocumentsContent({ documents: initialDocuments }: Props)
               { value: 'guarantee', label: 'Garantía' },
               { value: 'photo', label: 'Foto' },
               { value: 'note', label: 'Nota' },
+            ]}
+          />
+          <Select label="Cliente" value={form.client_id} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))}
+            options={[
+              { value: '', label: 'Sin cliente' },
+              ...clients.map(c => ({ value: c.id, label: c.name })),
             ]}
           />
           <div>
