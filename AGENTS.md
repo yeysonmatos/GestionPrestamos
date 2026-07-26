@@ -181,3 +181,15 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 ### Pendiente
 - [x] Bug 4: Fallback mejorado en historial cobros (muestra loan_id si client name es null)
 - [x] **Bug 10: Sistema de Recibos post-pago**: Componente `PaymentReceipt` con formato imprimible (@media print), integrado en modal de éxito de LoanDetail y CollectionsContent. Incluye datos del negocio, cliente, préstamo, desglose (capital/interés/mora), balance anterior/nuevo. Botones PDF (print), WhatsApp, Compartir.
+
+## Hoy — 26 Jul 2026
+
+### Separación de lógica francesa vs interés-only (hooks)
+- [x] **`loan-handler.types.ts`**: Interfaz compartida `LoanHandlerInput` (state + setters + services) que tipa los hooks de forma idéntica
+- [x] **`useFrenchLoan.ts`**: Hook con los 4 handlers (`handlePayInstallment`, `handleCapitalAbono`, `handleLiquidation`, `handleReversePayment`) con lógica francesa — recalcula schedule con `recalculateFrenchSchedule` al abonar/reversar
+- [x] **`useInterestOnlyLoan.ts`**: Hook con los 4 handlers con lógica interés-only — recalcula interés periódico sobre nuevo capital al abonar/reversar
+- [x] **`LoanDetail.tsx` refactorizado**: Eliminados 400+ líneas de handlers inline; usa `useFrenchLoan` o `useInterestOnlyLoan` según `amortization_type`; imports limpios
+- [x] **Aislamiento total**: Modificar lógica francesa (ej. fórmula de recálculo) no afecta interés-only y viceversa — archivos completamente independientes
+
+### Pendiente
+- Nada por ahora

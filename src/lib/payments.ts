@@ -240,10 +240,6 @@ export async function updateLoanAfterPayment(
     paidAmount = installmentsPaid + extraPaid
   }
 
-  const progress = !isOpenEnded && updatedInstallments.length > 0
-    ? Math.round((fullyPaidCount / updatedInstallments.length) * 100)
-    : 0
-
   const { data: allPayments } = await supabase
     .from('payments')
     .select('capital_amount')
@@ -254,7 +250,15 @@ export async function updateLoanAfterPayment(
 
   const remaining = (isOpenEnded || isInterestOnly)
     ? Math.max(0, Number(loan.amount) - totalCapitalPaid)
-    : Math.max(0, Number(loan.total_amount || loan.amount) - paidAmount)
+    : updatedInstallments
+      .filter(i => i.status !== 'paid')
+      .reduce((s, i) => s + Number(i.amount) - Number(i.paid_amount || 0), 0)
+
+  const progress = isInterestOnly
+    ? Math.round(((Number(loan.amount) - remaining) / Number(loan.amount)) * 100)
+    : !isOpenEnded && updatedInstallments.length > 0
+      ? Math.round((fullyPaidCount / updatedInstallments.length) * 100)
+      : 0
 
   const updates: Record<string, string | number | boolean> = {
     paid_installments: fullyPaidCount,
@@ -263,7 +267,7 @@ export async function updateLoanAfterPayment(
     progress,
   }
 
-  const allPaid = !isOpenEnded && updatedInstallments.length > 0 && fullyPaidCount >= updatedInstallments.length
+  const allPaid = !isOpenEnded && updatedInstallments.length > 0 && fullyPaidCount >= updatedInstallments.length && remaining <= 0
   if (allPaid) {
     updates.status = 'paid'
     updates.paid_at = new Date().toISOString()

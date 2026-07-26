@@ -669,7 +669,9 @@ export default function CollectionsContent({
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               if (!successPayment || !successLoanInfo) return
-              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${successLoanInfo.loan_id}\nCliente: ${successLoanInfo.clientName}\nMonto: ${formatCurrency(successPayment.amount)}\nFecha: ${formatDate(successPayment.payment_date)}\nMétodo: ${successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'}\nPendiente: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const payType = successPayment.type === 'installment' ? 'Cuota' : successPayment.type === 'capital_abono' ? 'Abono a capital' : successPayment.type === 'liquidation' ? 'Liquidación' : 'Pago'
+              const payMethod = successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'
+              const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(successPayment.amount)}\n${payType} · ${payMethod}\n\nCliente: ${successLoanInfo.clientName}\nPréstamo: ${successLoanInfo.loan_id}\nFecha: ${formatDate(successPayment.payment_date)}\n\nNuevo balance: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
               const phone = successPayment.loan?.client?.whatsapp || successPayment.loan?.client?.phone
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -681,7 +683,9 @@ export default function CollectionsContent({
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               if (!successPayment || !successLoanInfo) return
-              const msg = `🧾 RECIBO DE PAGO\n\nPréstamo: ${successLoanInfo.loan_id}\nCliente: ${successLoanInfo.clientName}\nMonto: ${formatCurrency(successPayment.amount)}\nFecha: ${formatDate(successPayment.payment_date)}\nMétodo: ${successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'}\nPendiente: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const payType = successPayment.type === 'installment' ? 'Cuota' : successPayment.type === 'capital_abono' ? 'Abono a capital' : successPayment.type === 'liquidation' ? 'Liquidación' : 'Pago'
+              const payMethod = successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'
+              const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(successPayment.amount)}\n${payType} · ${payMethod}\n\nCliente: ${successLoanInfo.clientName}\nPréstamo: ${successLoanInfo.loan_id}\nFecha: ${formatDate(successPayment.payment_date)}\n\nNuevo balance: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
               navigator.clipboard.writeText(msg)
             }}>
               <ShareNetwork className="h-4 w-4 mr-1" /> Compartir

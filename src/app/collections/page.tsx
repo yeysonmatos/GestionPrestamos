@@ -10,21 +10,21 @@ export default async function CollectionsPage() {
 
   const { data: todayInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans(*, client:clients(*))')
     .eq('due_date', today)
     .in('status', pendingStatuses)
     .order('due_date')
 
   const { data: overdueInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans(*, client:clients(*))')
     .in('status', pendingStatuses)
     .lt('due_date', today)
     .order('due_date')
 
   const { data: upcomingInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans(*, client:clients(*))')
     .in('status', pendingStatuses)
     .gt('due_date', today)
     .order('due_date')
@@ -32,7 +32,7 @@ export default async function CollectionsPage() {
 
   const { data: recentPayments } = await supabase
     .from('payments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans(*, client:clients(*))')
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
     .limit(10)
