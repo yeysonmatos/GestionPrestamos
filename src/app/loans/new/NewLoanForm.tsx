@@ -10,36 +10,55 @@ import { createClient } from '@/lib/supabase-client'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { calculateLoan } from '@/lib/calculations'
 import { FREQUENCIES } from '@/types'
-import type { Client, Setting } from '@/types'
+import type { Client, Setting, Loan } from '@/types'
 
 interface Props {
   clients: Client[]
   settings: Setting | null
   selectedClientId?: string
+  initialData?: Loan
+  isEditing?: boolean
+  loanId?: string
+  onSaved?: () => void
 }
 
-const DAYS = Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))
-
-export default function NewLoanForm({ clients, settings, selectedClientId }: Props) {
+export default function NewLoanForm({ clients, settings, selectedClientId, initialData, isEditing, loanId, onSaved }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [form, setForm] = useState({
-    client_id: selectedClientId || '',
-    amount: '',
-    interest_type: 'percentage' as 'percentage' | 'fixed',
-    interest_rate: '',
-    installments: String(settings?.default_installments || 10),
-    frequency: settings?.default_frequency || 'weekly',
-    amortization_type: 'interest_only' as 'interest_only' | 'french',
-    open_ended: false,
-    payment_day: '',
-    start_date: new Date().toISOString().split('T')[0],
-    first_payment_date: '',
-    guarantee: '',
-    notes: '',
+  const [form, setForm] = useState(() => {
+    if (isEditing && initialData) {
+      return {
+        client_id: initialData.client_id,
+        amount: String(initialData.amount),
+        interest_type: initialData.amortization_type === 'interest_only' ? 'percentage' : initialData.interest_type,
+        interest_rate: String(initialData.interest_rate),
+        installments: String(initialData.installments),
+        frequency: initialData.frequency,
+        amortization_type: initialData.amortization_type,
+        open_ended: initialData.open_ended,
+        start_date: initialData.start_date.split('T')[0],
+        first_payment_date: initialData.first_payment_date.split('T')[0],
+        guarantee: initialData.guarantee || '',
+        notes: initialData.notes || '',
+      }
+    }
+    return {
+      client_id: selectedClientId || '',
+      amount: '',
+      interest_type: 'percentage' as 'percentage' | 'fixed',
+      interest_rate: '',
+      installments: String(settings?.default_installments || 10),
+      frequency: settings?.default_frequency || 'weekly',
+      amortization_type: 'interest_only' as 'interest_only' | 'french',
+      open_ended: false,
+      start_date: new Date().toISOString().split('T')[0],
+      first_payment_date: '',
+      guarantee: '',
+      notes: '',
+    }
   })
 
   const isInterestOnly = form.amortization_type === 'interest_only'
@@ -68,7 +87,13 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
   }, [form.amount, form.interest_rate, form.interest_type, form.installments, form.frequency, form.first_payment_date, form.amortization_type, form.open_ended, form.start_date])
 
   function update(field: string, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }))
+    setForm(prev => {
+      const next = { ...prev, [field]: value }
+      if (field === 'amortization_type' && value === 'interest_only' && prev.interest_type === 'fixed') {
+        next.interest_type = 'percentage'
+      }
+      return next
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -81,9 +106,38 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
 
     const amount = parseFloat(form.amount)
     const rate = parseFloat(form.interest_rate)
-    const numInstallments = form.open_ended ? 0 : parseInt(form.installments)
 
     if (amount <= 0) { setError('El monto debe ser mayor a cero'); setLoading(false); return }
+
+    if (isEditing && loanId) {
+      const paymentDay = form.open_ended ? parseInt(form.first_payment_date.split('-')[2]) || null : null
+
+      const res = await fetch(`/api/loans/${loanId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          interest_type: form.interest_type,
+          interest_rate: rate,
+          amortization_type: form.amortization_type,
+          open_ended: form.open_ended,
+          payment_day: paymentDay,
+          installments: form.open_ended ? 0 : parseInt(form.installments),
+          frequency: form.frequency,
+          start_date: form.start_date,
+          first_payment_date: form.first_payment_date,
+          guarantee: form.guarantee || null,
+          notes: form.notes || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setLoading(false); return }
+      onSaved?.()
+      router.push(`/loans/${loanId}`)
+      router.refresh()
+      setLoading(false)
+      return
+    }
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setError('Debes iniciar sesión'); setLoading(false); return }
@@ -94,12 +148,12 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
       .single()
 
     const prefix = settingsData?.loan_id_prefix || 'L-'
-    const loanId = `${prefix}${String(Date.now()).slice(-6)}`
+    const loanIdNew = `${prefix}${String(Date.now()).slice(-6)}`
 
     const { data: loan, error: err } = await supabase
       .from('loans')
       .insert({
-        loan_id: loanId,
+        loan_id: loanIdNew,
         user_id: user.id,
         client_id: form.client_id,
         amount,
@@ -107,12 +161,12 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
         interest_rate: rate,
         amortization_type: form.amortization_type,
         open_ended: form.open_ended,
-        payment_day: form.open_ended ? parseInt(form.payment_day) || null : null,
+        payment_day: form.open_ended ? parseInt(form.first_payment_date.split('-')[2]) || null : null,
         total_amount: schedule.total_amount,
         total_interest: schedule.total_interest,
         installment_amount: schedule.installment_amount,
         remaining_amount: isInterestOnly ? amount : schedule.total_amount,
-        installments: numInstallments,
+        installments: form.open_ended ? 0 : parseInt(form.installments),
         frequency: form.frequency,
         start_date: form.start_date,
         first_payment_date: form.first_payment_date,
@@ -155,15 +209,24 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{error}</div>}
 
-        <Select label="Cliente" value={form.client_id} onChange={e => update('client_id', e.target.value)}
-          options={[{ value: '', label: 'Seleccionar cliente...' }, ...clients.map(c => ({ value: c.id, label: c.name }))]}
-        />
+        {isEditing ? (
+          <div className="text-sm text-muted-foreground p-3 rounded-lg bg-muted">
+            Editando préstamo — los cambios solo son permitidos porque no tiene pagos registrados.
+          </div>
+        ) : (
+          <Select label="Cliente" value={form.client_id} onChange={e => update('client_id', e.target.value)}
+            options={[{ value: '', label: 'Seleccionar cliente...' }, ...clients.map(c => ({ value: c.id, label: c.name }))]}
+          />
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <MoneyInput label="Monto" value={form.amount} onChange={e => update('amount', e)} required />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <Select label="Tipo interés" value={form.interest_type} onChange={e => update('interest_type', e.target.value)}
-              options={[{ value: 'percentage', label: 'Porcentaje %' }, { value: 'fixed', label: 'Monto fijo' }]}
+              options={isInterestOnly
+                ? [{ value: 'percentage', label: 'Porcentaje %' }]
+                : [{ value: 'percentage', label: 'Porcentaje %' }, { value: 'fixed', label: 'Monto fijo' }]
+              }
             />
             <MoneyInput label={form.interest_type === 'percentage' ? 'Tasa %' : 'Monto'} value={form.interest_rate} onChange={e => update('interest_rate', e)} required />
           </div>
@@ -194,14 +257,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
           <Input label="Inicio" type="date" value={form.start_date} onChange={e => update('start_date', e.target.value)} required />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <Input label="Fecha primer pago" type="date" value={form.first_payment_date} onChange={e => update('first_payment_date', e.target.value)} required />
-          {form.open_ended && (
-            <Select label="Día de pago" value={form.payment_day} onChange={e => update('payment_day', e.target.value)}
-              options={[{ value: '', label: 'Seleccionar...' }, ...DAYS]}
-            />
-          )}
-        </div>
+        <Input label="Fecha primer pago" type="date" value={form.first_payment_date} onChange={e => update('first_payment_date', e.target.value)} required />
 
         <Input label="Garantía (opcional)" value={form.guarantee} onChange={e => update('guarantee', e.target.value)} placeholder="Ej: Vehículo, propiedad..." />
         <Input label="Notas (opcional)" value={form.notes} onChange={e => update('notes', e.target.value)} />
@@ -266,8 +322,8 @@ export default function NewLoanForm({ clients, settings, selectedClientId }: Pro
         })()}
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" type="button" onClick={() => router.back()}>Cancelar</Button>
-          <Button type="submit" loading={loading}>Crear préstamo</Button>
+          <Button variant="secondary" type="button" onClick={() => router.back()}>{isEditing ? 'Cancelar' : 'Cancelar'}</Button>
+          <Button type="submit" loading={loading}>{isEditing ? 'Guardar cambios' : 'Crear préstamo'}</Button>
         </div>
       </form>
     </Card>

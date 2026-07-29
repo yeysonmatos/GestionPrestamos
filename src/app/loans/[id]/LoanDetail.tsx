@@ -16,8 +16,9 @@ import { Progress } from '@/components/ui/Progress'
 import BottomSheet from '@/components/ui/BottomSheet'
 import {
   ArrowLeft, ChatCircle, FileText, Scroll, ArrowCounterClockwise,
-  Check, FileArrowDown, ShareNetwork, X, Plus,
+  Check, FileArrowDown, ShareNetwork, X, Plus, Pencil,
 } from '@phosphor-icons/react'
+import NewLoanForm from '@/app/loans/new/NewLoanForm'
 import type { Loan, Installment, Payment, Setting, Client } from '@/types'
 import { useFrenchLoan } from './useFrenchLoan'
 import { useInterestOnlyLoan } from './useInterestOnlyLoan'
@@ -47,6 +48,17 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [docs, setDocs] = useState<Array<{id: string; name: string; type: string; path: string}>>([])
   const [loading, setLoading] = useState(false)
   const [paymentError, setPaymentError] = useState('')
+
+  const [showEdit, setShowEdit] = useState(false)
+  const [editClients, setEditClients] = useState<Client[]>([])
+
+  async function openEdit() {
+    if (editClients.length === 0) {
+      const { data } = await supabase.from('clients').select('*').order('name')
+      if (data) setEditClients(data as Client[])
+    }
+    setShowEdit(true)
+  }
 
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer' | 'deposit' | 'other'>('cash')
@@ -244,6 +256,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </div>
           </div>
           <div className="flex gap-1 flex-shrink-0">
+            {loan.paid_installments === 0 && loan.paid_amount === 0 && (
+              <button type="button" onClick={openEdit} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors" title="Editar">
+                <Pencil className="h-5 w-5" />
+              </button>
+            )}
             <button type="button" onClick={() => {
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
@@ -977,6 +994,19 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </div>
           )}
         </div>
+      </BottomSheet>
+
+      <BottomSheet open={showEdit} onClose={() => setShowEdit(false)} title="Editar préstamo">
+        {editClients.length > 0 && (
+          <NewLoanForm
+            clients={editClients}
+            settings={settings}
+            initialData={loan}
+            isEditing={true}
+            loanId={loan.id}
+            onSaved={() => setShowEdit(false)}
+          />
+        )}
       </BottomSheet>
 
       <BottomSheet open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
