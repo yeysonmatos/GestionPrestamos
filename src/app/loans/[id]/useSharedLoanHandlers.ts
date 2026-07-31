@@ -1,6 +1,7 @@
 import type { LoanHandlerInput } from './loan-handler.types'
 import { calculateLateDays, calculateLateAmount, calculateProportionalInterest } from '@/lib/calculations'
 import { updateLoanAfterPayment } from '@/lib/payments'
+import { logAuditEvent } from '@/lib/audit'
 
 export function useSharedLoanHandlers({ state, setters, services }: LoanHandlerInput) {
   const { supabase, userId, settings, router } = services
@@ -43,42 +44,42 @@ export function useSharedLoanHandlers({ state, setters, services }: LoanHandlerI
     const amount = parseFloat(state.paymentAmount)
     if (isNaN(amount) || amount <= 0) { setters.setPaymentError('Monto inválido'); setters.setLoading(false); return }
     try {
-      const remaining = inst.amount - (inst.paid_amount || 0)
       const graceDays = settings?.grace_days || 0
       const lateRate = settings?.late_interest_rate || 0.5
-      const lateDays = calculateLateDays(inst.due_date, graceDays)
-      const totalLateAmount = lateDays > 0 ? calculateLateAmount(Math.max(remaining, 0.01), lateDays, lateRate) : 0
-      const paidLateAmount = inst.paid_late_amount || 0
-      const remainingLateAmount = Math.max(0, totalLateAmount - paidLateAmount)
-      const paidToInstallment = Math.min(amount, remaining)
-      const paidToLate = Math.max(0, amount - paidToInstallment)
-      const newPaidInstallment = (inst.paid_amount || 0) + paidToInstallment
-      const newPaidLate = paidLateAmount + paidToLate
-      const payInterestAmount = Math.min(paidToInstallment, inst.interest)
-      const payCapitalAmount = Math.max(0, paidToInstallment - payInterestAmount)
-      const isNowFullyPaid = newPaidInstallment >= inst.amount - 0.005
-      const { data: payment, error: payErr } = await supabase.from('payments').insert({
-        loan_id: state.loan.id, client_id: state.loan.client_id, installment_id: inst.id,
-        user_id: userId, amount, capital_amount: payCapitalAmount, interest_amount: payInterestAmount,
-        late_amount: paidToLate, payment_date: state.paymentDate, method: state.paymentMethod,
-        notes: state.paymentNotes || null, type: 'installment',
-      }).select().single()
-      if (payErr) throw payErr
-      await supabase.from('installments').update({
-        status: isNowFullyPaid ? 'paid' : newPaidInstallment > 0 ? 'partial' : (lateDays > 0 ? 'late' : 'pending'),
-        paid_amount: newPaidInstallment, paid_late_amount: newPaidLate,
-        late_amount: totalLateAmount, late_days: lateDays,
-        paid_at: isNowFullyPaid ? state.paymentDate : null,
-      }).eq('id', inst.id)
-      const newPaidAmount = Number(state.loan.paid_amount) + amount
-      const newRemaining = Math.max(0, Number(state.loan.remaining_amount) - payCapitalAmount)
-      await supabase.from('loans').update({ paid_amount: newPaidAmount, remaining_amount: newRemaining }).eq('id', state.loan.id)
-      const loanUpdates = await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('process_installment_payment', {
+        p_loan_id: state.loan.id,
+        p_installment_id: inst.id,
+        p_user_id: userId,
+        p_amount: amount,
+        p_include_mora: state.includeMora,
+        p_payment_date: state.paymentDate,
+        p_method: state.paymentMethod,
+        p_notes: state.paymentNotes,
+        p_late_interest_rate: lateRate,
+        p_grace_days: graceDays,
+      })
+      if (rpcError) throw new Error(`Error al procesar el pago: ${rpcError.message}`)
+      if (!rpcResult?.ok) throw new Error(rpcResult?.error || 'Error al procesar el pago')
+
+      const payment = rpcResult.payment
+      const allocation = rpcResult.allocation
+      const loanUpdates = rpcResult.loan
+
+      const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
       setters.setInstallments(prev => prev.map(i => i.id === inst.id
-        ? { ...i, status: isNowFullyPaid ? 'paid' : newPaidInstallment > 0 ? 'partial' : (lateDays > 0 ? 'late' : 'pending'), paid_amount: newPaidInstallment, paid_late_amount: newPaidLate, late_amount: remainingLateAmount, late_days: lateDays, paid_at: isNowFullyPaid ? state.paymentDate : null }
+        ? { ...i, status: newStatus, paid_amount: allocation.totalPaidOnInstallment, paid_late_amount: allocation.newPaidLateAmount, late_amount: allocation.totalLateAmount, late_days: allocation.lateDays, paid_at: allocation.isNowFullyPaid ? state.paymentDate : null }
         : i))
       setters.setPayments(prev => [payment, ...prev])
-      setters.setLoan(prev => ({ ...prev, paid_amount: newPaidAmount, remaining_amount: newRemaining, progress: loanUpdates.progress ?? prev.progress, paid_installments: loanUpdates.paid_installments ?? prev.paid_installments, status: loanUpdates.status ?? prev.status }))
+      setters.setLoan(prev => ({
+        ...prev,
+        paid_amount: loanUpdates.paid_amount ?? prev.paid_amount,
+        remaining_amount: loanUpdates.remaining_amount ?? prev.remaining_amount,
+        progress: loanUpdates.progress ?? prev.progress,
+        paid_installments: loanUpdates.paid_installments ?? prev.paid_installments,
+        status: loanUpdates.status ?? prev.status,
+        prepaid_balance: allocation.newPrepaidBalance,
+      }))
       setters.setSuccessPayment(payment)
       setters.setShowPayment(false)
       setters.setShowSuccess(true)
@@ -127,6 +128,7 @@ export function useSharedLoanHandlers({ state, setters, services }: LoanHandlerI
       notes: state.paymentNotes || 'Liquidación total', type: 'liquidation',
     }).select().single()
     if (error) { setters.setPaymentError('Error al liquidar: ' + error.message); setters.setLoading(false); return }
+    logAuditEvent(supabase, { userId, action: 'loan.liquidated', entityType: 'loan', entityId: state.loan.id, details: { client_id: state.loan.client_id, amount: total, capital_amount: capRemaining, interest_amount: propInterest, late_amount: totalMora } })
     await supabase.from('loans').update({ status: 'paid', paid_amount: Number(state.loan.amount), remaining_amount: 0, paid_installments: state.loan.installments, progress: 100 }).eq('id', state.loan.id)
     for (const inst of state.installments) {
       if (inst.status !== 'paid') {

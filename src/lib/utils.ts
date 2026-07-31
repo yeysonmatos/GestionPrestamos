@@ -42,6 +42,41 @@ export function getLocalDate(date: Date = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+export function buildMonthlySeries(
+  points: { month: string; income: number; loans: number }[],
+  maxMonths: number = Infinity,
+): { month: string; income: number; loans: number }[] {
+  if (points.length === 0) return []
+
+  const map: Record<string, { income: number; loans: number }> = {}
+  let minMonth = points[0].month
+  let maxMonth = points[0].month
+  for (const p of points) {
+    if (!map[p.month]) map[p.month] = { income: 0, loans: 0 }
+    map[p.month].income += p.income
+    map[p.month].loans += p.loans
+    if (p.month < minMonth) minMonth = p.month
+    if (p.month > maxMonth) maxMonth = p.month
+  }
+
+  const all: string[] = []
+  const [sy, sm] = minMonth.split('-').map(Number)
+  const [ey, em] = maxMonth.split('-').map(Number)
+  let y = sy
+  let m = sm
+  while (y < ey || (y === ey && m <= em)) {
+    all.push(`${y}-${String(m).padStart(2, '0')}`)
+    m++
+    if (m > 12) { m = 1; y++ }
+  }
+
+  return all.slice(-maxMonths).map(month => ({
+    month,
+    income: map[month]?.income || 0,
+    loans: map[month]?.loans || 0,
+  }))
+}
+
 export function getInitials(name: string): string {
   return name
     .split(' ')

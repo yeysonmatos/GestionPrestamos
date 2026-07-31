@@ -11,9 +11,10 @@ import Input from '@/components/ui/Input'
 import MoneyInput from '@/components/ui/MoneyInput'
 import BottomSheet from '@/components/ui/BottomSheet'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { buildReceiptMessage } from '@/lib/messages'
 import { createClient } from '@/lib/supabase-client'
-import { calculateLateDays, calculateLateAmount } from '@/lib/calculations'
-import { processInstallmentPayment, updateLoanAfterPayment } from '@/lib/payments'
+import { calculateLateDays, calculateLateAmount, nextDueDateAfter } from '@/lib/calculations'
+import { updateLoanAfterPayment } from '@/lib/payments'
 import PaymentReceipt from '@/components/loans/PaymentReceipt'
 import { useRouter } from 'next/navigation'
 import {
@@ -57,13 +58,11 @@ interface SyntheticInstallment {
 }
 
 function getNextDueDate(loan: OpenEndedLoan): string {
-  const d = new Date(loan.first_payment_date)
-  d.setDate(loan.payment_day || 1)
-  const now = new Date()
-  while (d <= now) {
-    d.setMonth(d.getMonth() + 1)
-  }
-  return d.toISOString().split('T')[0]
+  const next = nextDueDateAfter(loan.first_payment_date, loan.payment_day, new Date())
+  const y = next.getFullYear()
+  const m = String(next.getMonth() + 1).padStart(2, '0')
+  const d = String(next.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 interface ActiveLoanBrief {
@@ -116,6 +115,7 @@ export default function CollectionsContent({
   const [payments, setPayments] = useState(initialPayments)
   const [showSuccess, setShowSuccess] = useState(false)
   const [successPayment, setSuccessPayment] = useState<Payment | null>(null)
+  const [successPrepaidBalance, setSuccessPrepaidBalance] = useState(0)
   const [successLoanInfo, setSuccessLoanInfo] = useState<{ loan_id: string; clientName: string; amount: number; remaining_amount: number; amortization_type: string; frequency: string; open_ended: boolean } | null>(null)
 
   const lateInterestRate = settings?.late_interest_rate || 0.5
@@ -179,7 +179,7 @@ export default function CollectionsContent({
       const totalLate = calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, lateInterestRate)
       const paidLate = inst.paid_late_amount || 0
       const remainingLate = Math.max(0, totalLate - paidLate)
-      return { ...inst, late_days: Math.max(inst.late_days, lateDays), late_amount: remainingLate }
+      return { ...inst, late_days: Math.max(inst.late_days, lateDays), late_amount: Math.max(Number(inst.late_amount || 0), remainingLate) }
     })
   }, [allOverdue, lateInterestRate])
 
@@ -249,29 +249,24 @@ export default function CollectionsContent({
     const realInst = inst as Installment
 
     try {
-      const loanForPayment = {
-        id: inst.loan_id,
-        client_id: inst.client_id,
-        amortization_type: inst.loan?.amortization_type || 'french',
-        amount: Number(inst.loan?.total_amount || 0),
-        installments: 0,
-        total_amount: Number(inst.loan?.total_amount || 0),
-        remaining_amount: Number(inst.loan?.remaining_amount || 0),
-      }
-      const { payment, allocation } = await processInstallmentPayment(supabase, {
-        loan: loanForPayment as import('@/types').Loan,
-        installment: realInst,
-        amount,
-        includeMora,
-        paymentDate,
-        method: paymentMethod,
-        notes: paymentNotes,
-        userId,
-        lateInterestRate,
-        graceDays,
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('process_installment_payment', {
+        p_loan_id: inst.loan_id,
+        p_installment_id: realInst.id,
+        p_user_id: userId,
+        p_amount: amount,
+        p_include_mora: includeMora,
+        p_payment_date: paymentDate,
+        p_method: paymentMethod,
+        p_notes: paymentNotes,
+        p_late_interest_rate: lateInterestRate,
+        p_grace_days: graceDays,
       })
+      if (rpcError) throw new Error(`Error al procesar el pago: ${rpcError.message}`)
+      if (!rpcResult?.ok) throw new Error(rpcResult?.error || 'Error al procesar el pago')
 
-      const loanUpdates = await updateLoanAfterPayment(supabase, inst.loan_id, inst.client_id)
+      const payment = rpcResult.payment
+      const allocation = rpcResult.allocation
+      const loanUpdates = rpcResult.loan
 
       const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
       const updatedInstallment: Installment = {
@@ -293,11 +288,12 @@ export default function CollectionsContent({
         loan_id: inst.loan?.loan_id || inst.loan_id,
         clientName: inst.loan?.client?.name || ('isOpenEnded' in inst && inst.isOpenEnded ? (inst as SyntheticInstallment).openEndedLoan?.client?.name : undefined) || '—',
         amount: Number(inst.loan?.total_amount || inst.amount),
-        remaining_amount: inst.loan?.remaining_amount ?? 0,
+        remaining_amount: loanUpdates?.remaining_amount ?? inst.loan?.remaining_amount ?? 0,
         amortization_type: inst.loan?.amortization_type || 'french',
         frequency: inst.loan?.frequency || 'monthly',
         open_ended: inst.loan?.open_ended || false,
       })
+      setSuccessPrepaidBalance(allocation.newPrepaidBalance)
       setShowSuccess(true)
       setShowPayment(false)
       setSelectedInstallment(null)
@@ -582,10 +578,15 @@ export default function CollectionsContent({
                   <label className="block text-sm font-medium text-muted-foreground mb-1.5">Monto</label>
                   <MoneyInput value={paymentAmount} onChange={setPaymentAmount} required />
                 <div className="flex gap-2 mt-2 flex-wrap">
-                    <button type="button" onClick={() => setPaymentAmount(String(remaining + (includeMora && mora ? mora.lateAmount : 0)))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
+                    <button type="button" onClick={() => setPaymentAmount(String(Math.max(0, remaining + (includeMora && mora ? mora.lateAmount : 0) - Number((inst.loan as { prepaid_balance?: number } | undefined)?.prepaid_balance || 0))))} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
                     <button type="button" onClick={() => { const v = parseFloat(paymentAmount) || 0; setPaymentAmount(String(Math.round(v / 2 * 100) / 100)) }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Mitad</button>
                   </div>
                 </div>
+                {Number((inst.loan as { prepaid_balance?: number } | undefined)?.prepaid_balance || 0) > 0 && (
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+                    Saldo a favor disponible: <strong>{formatCurrency(Number((inst.loan as { prepaid_balance?: number } | undefined)?.prepaid_balance || 0))}</strong>. Se aplicará automáticamente a esta cuota.
+                  </div>
+                )}
                 {mora && (
                   <div className={`transition-all duration-200 ${includeMora ? 'opacity-100' : 'opacity-70'}`}>
                     <label className="flex items-center gap-2 text-sm p-3 rounded-lg border border-border cursor-pointer hover:bg-muted transition-colors">
@@ -629,7 +630,7 @@ export default function CollectionsContent({
         </form>
       </BottomSheet>
 
-      <BottomSheet open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
+      <BottomSheet open={showSuccess} onClose={() => { setShowSuccess(false); setSuccessPrepaidBalance(0) }} title="Pago exitoso">
         <div className="text-center space-y-5 py-2">
           <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
             <Check className="h-8 w-8 text-green-600" />
@@ -640,9 +641,15 @@ export default function CollectionsContent({
             <div className="border border-border rounded-xl overflow-hidden">
               <PaymentReceipt
                 payment={successPayment}
-                loan={{ ...{ id: '', user_id: '', client_id: '', installment_amount: 0, paid_amount: 0, paid_installments: 0, installments: 0, progress: 0, interest_type: 'percentage', interest_rate: 0, total_interest: 0, start_date: '', first_payment_date: '', end_date: null, payment_day: null, status: 'active', late_days: 0, late_interest_rate: 0, guarantee: null, notes: null, paid_at: null, cancelled_at: null, created_at: '', updated_at: '', planned_end_date: null, late_amount: 0, payments: undefined, client: { name: successLoanInfo.clientName } as import('@/types').Client, loan_id: successLoanInfo.loan_id, amount: successLoanInfo.amount, total_amount: successLoanInfo.amount, remaining_amount: successLoanInfo.remaining_amount, amortization_type: successLoanInfo.amortization_type, open_ended: successLoanInfo.open_ended, frequency: successLoanInfo.frequency } as import('@/types').Loan}}
+                loan={{ ...{ id: '', user_id: '', client_id: '', installment_amount: 0, paid_amount: 0, paid_installments: 0, installments: 0, progress: 0, prepaid_balance: 0, interest_type: 'percentage', interest_rate: 0, total_interest: 0, start_date: '', first_payment_date: '', end_date: null, payment_day: null, status: 'active', late_days: 0, late_interest_rate: 0, guarantee: null, notes: null, paid_at: null, cancelled_at: null, created_at: '', updated_at: '', planned_end_date: null, late_amount: 0, payments: undefined, client: { name: successLoanInfo.clientName } as import('@/types').Client, loan_id: successLoanInfo.loan_id, amount: successLoanInfo.amount, total_amount: successLoanInfo.amount, remaining_amount: successLoanInfo.remaining_amount, amortization_type: successLoanInfo.amortization_type, open_ended: successLoanInfo.open_ended, frequency: successLoanInfo.frequency } as import('@/types').Loan}}
                 settings={settings}
               />
+            </div>
+          )}
+
+          {successPrepaidBalance > 0 && (
+            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+              Saldo a favor actual del préstamo: <strong>{formatCurrency(successPrepaidBalance)}</strong>. Se aplicará a la próxima cuota.
             </div>
           )}
 
@@ -654,7 +661,16 @@ export default function CollectionsContent({
               if (!successPayment || !successLoanInfo) return
               const payType = successPayment.type === 'installment' ? 'Cuota' : successPayment.type === 'capital_abono' ? 'Abono a capital' : successPayment.type === 'liquidation' ? 'Liquidación' : 'Pago'
               const payMethod = successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'
-              const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(successPayment.amount)}\n${payType} · ${payMethod}\n\nCliente: ${successLoanInfo.clientName}\nPréstamo: ${successLoanInfo.loan_id}\nFecha: ${formatDate(successPayment.payment_date)}\n\nNuevo balance: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const msg = buildReceiptMessage({
+                amount: successPayment.amount,
+                payType,
+                payMethod,
+                clientName: successLoanInfo.clientName,
+                loanId: successLoanInfo.loan_id,
+                paymentDate: successPayment.payment_date,
+                remaining: successLoanInfo.remaining_amount,
+                businessName: settings?.business_name || 'Gestor de Prestamos',
+              })
               const phone = successPayment.loan?.client?.whatsapp || successPayment.loan?.client?.phone
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -668,7 +684,16 @@ export default function CollectionsContent({
               if (!successPayment || !successLoanInfo) return
               const payType = successPayment.type === 'installment' ? 'Cuota' : successPayment.type === 'capital_abono' ? 'Abono a capital' : successPayment.type === 'liquidation' ? 'Liquidación' : 'Pago'
               const payMethod = successPayment.method === 'cash' ? 'Efectivo' : successPayment.method === 'transfer' ? 'Transferencia' : successPayment.method === 'deposit' ? 'Depósito' : 'Otro'
-              const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(successPayment.amount)}\n${payType} · ${payMethod}\n\nCliente: ${successLoanInfo.clientName}\nPréstamo: ${successLoanInfo.loan_id}\nFecha: ${formatDate(successPayment.payment_date)}\n\nNuevo balance: ${formatCurrency(successLoanInfo.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const msg = buildReceiptMessage({
+                amount: successPayment.amount,
+                payType,
+                payMethod,
+                clientName: successLoanInfo.clientName,
+                loanId: successLoanInfo.loan_id,
+                paymentDate: successPayment.payment_date,
+                remaining: successLoanInfo.remaining_amount,
+                businessName: settings?.business_name || 'Gestor de Prestamos',
+              })
               navigator.clipboard.writeText(msg)
             }}>
               <ShareNetwork className="h-4 w-4 mr-1" /> Compartir

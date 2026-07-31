@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import PageHeader from '@/components/ui/PageHeader'
-import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatDate, buildMonthlySeries } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import {
   TrendUp, CurrencyDollar, Users, Handshake, Percent,
@@ -69,27 +69,14 @@ export default function ReportsContent({ loans, payments, clients, initialPeriod
   }, [stats])
 
   const monthlyData = useMemo(() => {
-    const monthMap: Record<string, { income: number; loans: number }> = {}
-
-    payments.forEach(p => {
-      const month = p.payment_date.slice(0, 7)
-      if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
-      monthMap[month].income += Number(p.amount)
-    })
-
-    loans.filter(l => l.created_at).forEach(l => {
-      const month = l.created_at!.slice(0, 7)
-      if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
-      monthMap[month].loans += Number(l.amount)
-    })
-
-    return Object.entries(monthMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([month, data]) => ({
-        month: new Date(month + '-01').toLocaleString('es-MX', { month: 'short' }),
-        ...data,
-      }))
+    const points: { month: string; income: number; loans: number }[] = [
+      ...payments.map(p => ({ month: p.payment_date.slice(0, 7), income: Number(p.amount), loans: 0 })),
+      ...loans.filter(l => l.created_at).map(l => ({ month: l.created_at!.slice(0, 7), income: 0, loans: Number(l.amount) })),
+    ]
+    return buildMonthlySeries(points, 6).map(d => ({
+      ...d,
+      month: new Date(d.month + '-01').toLocaleString('es-MX', { month: 'short' }),
+    }))
   }, [loans, payments])
 
   return (

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
+import { rateLimitByIp } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  if (!rateLimitByIp(request, 'backup:setup', 3, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  }
+
   const admin = createAdminClient()
   if (!admin) {
     return NextResponse.json({

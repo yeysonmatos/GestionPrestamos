@@ -27,7 +27,7 @@ interface CalculateLoanResult {
   installments: AmortizationRow[]
 }
 
-const DAYS_IN_PERIOD: Record<string, number> = {
+export const DAYS_IN_PERIOD: Record<string, number> = {
   daily: 1, weekly: 7, biweekly: 14, monthly: 30,
 }
 
@@ -258,6 +258,21 @@ export function calculateLateDays(dueDate: string, graceDays: number = 0): numbe
   const due = parseISO(dueDate)
   const now = new Date()
   return Math.max(0, differenceInCalendarDays(now, due) - graceDays)
+}
+
+export function nextDueDateAfter(firstPaymentDate: string, paymentDay: number, from: Date): Date {
+  const start = new Date(firstPaymentDate)
+  const day = paymentDay || 1
+  let y = start.getFullYear()
+  let m = start.getMonth()
+  while (true) {
+    const daysInMonth = new Date(y, m + 1, 0).getDate()
+    const d = Math.min(day, daysInMonth)
+    const candidate = new Date(y, m, d)
+    if (candidate > from) return candidate
+    m++
+    if (m > 11) { m = 0; y++ }
+  }
 }
 
 export function calculateLateAmount(amount: number, lateDays: number, lateInterestRate: number): number {

@@ -8,6 +8,7 @@ import MoneyInput from '@/components/ui/MoneyInput'
 import PageHeader from '@/components/ui/PageHeader'
 import BackupPanel from '@/components/settings/BackupPanel'
 import { createClient } from '@/lib/supabase-client'
+import { logAuditEvent } from '@/lib/audit'
 import { CURRENCIES, FREQUENCIES } from '@/types'
 import { FloppyDisk } from '@phosphor-icons/react'
 import type { Setting } from '@/types'
@@ -53,9 +54,9 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       business_phone: form.business_phone,
       business_email: form.business_email,
       currency: form.currency,
-      late_interest_rate: parseFloat(form.late_interest_rate),
+      late_interest_rate: Math.max(0, parseFloat(form.late_interest_rate)),
       loan_id_prefix: form.loan_id_prefix,
-      grace_days: parseInt(form.grace_days) || 0,
+      grace_days: Math.max(0, parseInt(form.grace_days) || 0),
       notify_upcoming_days: parseInt(form.notify_upcoming_days),
       default_installments: parseInt(form.default_installments),
       default_frequency: form.default_frequency,
@@ -71,6 +72,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       if (!error) {
         setMessage('Configuración guardada correctamente')
         setSettings({ ...settings, ...payload } as Setting)
+        logAuditEvent(supabase, { userId: user.id, action: 'settings.updated', entityType: 'settings', entityId: settings.id, details: { ...payload } })
       } else {
         setMessage('Error: ' + error.message)
       }
@@ -84,6 +86,7 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       if (!error && data) {
         setMessage('Configuración guardada correctamente')
         setSettings(data)
+        logAuditEvent(supabase, { userId: user.id, action: 'settings.updated', entityType: 'settings', entityId: data.id, details: { ...payload } })
       } else {
         setMessage('Error: ' + (error?.message || 'No se pudo guardar'))
       }

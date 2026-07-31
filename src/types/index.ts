@@ -67,6 +67,7 @@ export interface Loan {
   paid_amount: number
   remaining_amount: number
   progress: number
+  prepaid_balance: number
   frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly'
   start_date: string
   first_payment_date: string

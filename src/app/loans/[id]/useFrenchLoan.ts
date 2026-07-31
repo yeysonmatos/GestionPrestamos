@@ -1,6 +1,7 @@
 import type { LoanHandlerInput } from './loan-handler.types'
-import { recalculateFrenchSchedule } from '@/lib/calculations'
+import { recalculateFrenchSchedule, DAYS_IN_PERIOD } from '@/lib/calculations'
 import { updateLoanAfterPayment, recalculateInstallment } from '@/lib/payments'
+import { logAuditEvent } from '@/lib/audit'
 import { useSharedLoanHandlers } from './useSharedLoanHandlers'
 
 export function useFrenchLoan(input: LoanHandlerInput) {
@@ -24,16 +25,15 @@ export function useFrenchLoan(input: LoanHandlerInput) {
       notes: state.paymentNotes || null, type: 'capital_abono',
     }).select().single()
     if (error) { setters.setPaymentError('Error al registrar abono: ' + error.message); setters.setLoading(false); return }
-    const newPaid = Number(state.loan.paid_amount) + amount
+    logAuditEvent(supabase, { userId, action: 'capital_abono', entityType: 'payment', entityId: payment.id, details: { loan_id: state.loan.id, amount } })
     const newContractualRemaining = Math.max(0, Number(state.loan.remaining_amount) - amount)
-    const loanUpdates: Record<string, string | number | boolean | null> = { paid_amount: newPaid, remaining_amount: newContractualRemaining }
+    const loanUpdates: Record<string, string | number | boolean | null> = {}
     if (newContractualRemaining > 0) {
       const paidInstallmentsCount = state.installments.filter(i => i.status === 'paid').length
       const capitalRemaining = Math.max(0, Number(state.loan.amount) - existingCapitalPaid - amount)
       const remainingCount = state.loan.installments - paidInstallmentsCount
       if (remainingCount > 0) {
         const monthlyRate = state.loan.interest_type === 'percentage' ? state.loan.interest_rate / 100 : 0
-        const DAYS_IN_PERIOD: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
         const days = DAYS_IN_PERIOD[state.loan.frequency] || 30
         const periodicRate = monthlyRate / 30 * days
         const startAt = paidInstallmentsCount + 1
@@ -51,12 +51,16 @@ export function useFrenchLoan(input: LoanHandlerInput) {
         loanUpdates.total_amount = newTotalAmount
         loanUpdates.total_interest = newTotalInterest
       }
+    } else {
+      loanUpdates.remaining_amount = 0
     }
     await supabase.from('loans').update(loanUpdates).eq('id', state.loan.id)
     const loanResult = await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
     setters.setPayments(prev => [payment, ...prev])
     setters.setLoan(prev => ({
-      ...prev, paid_amount: newPaid, remaining_amount: newContractualRemaining,
+      ...prev,
+      paid_amount: loanResult.paid_amount ?? prev.paid_amount,
+      remaining_amount: newContractualRemaining <= 0 ? 0 : (loanResult.remaining_amount ?? prev.remaining_amount),
       installment_amount: (loanUpdates.installment_amount as number) ?? prev.installment_amount,
       total_amount: (loanUpdates.total_amount as number) ?? prev.total_amount,
       total_interest: (loanUpdates.total_interest as number) ?? prev.total_interest,
@@ -78,8 +82,9 @@ export function useFrenchLoan(input: LoanHandlerInput) {
     const reason = state.reversalReason
     if (!reason.trim()) return
     setters.setLoading(true)
-    let reversalLoanUpdates: Record<string, number> = {}
+    const reversalLoanUpdates: Record<string, number> = {}
     await supabase.from('payments').update({ status: 'reversed', reversal_reason: reason }).eq('id', paymentId)
+    logAuditEvent(supabase, { userId, action: 'payment.reversed', entityType: 'payment', entityId: paymentId, details: { loan_id: state.loan.id, amount: payment.amount, reason } })
     const newPaid = Math.max(0, Number(state.loan.paid_amount) - Number(payment.amount))
     const paidCapital = Number(payment.capital_amount || 0)
     const newRemaining = Math.max(0, Number(state.loan.remaining_amount) + paidCapital)
@@ -100,7 +105,6 @@ export function useFrenchLoan(input: LoanHandlerInput) {
       const reversalCapitalRemaining = Math.max(0, Number(state.loan.amount) - paidCapitalViaInstallments - totalPaidAbonoCapital + Number(payment.capital_amount))
       if (remainingCount > 0) {
         const monthlyRate = state.loan.interest_type === 'percentage' ? state.loan.interest_rate / 100 : 0
-        const DAYS_IN_PERIOD: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
         const days = DAYS_IN_PERIOD[state.loan.frequency] || 30
         const periodicRate = monthlyRate / 30 * days
         const recalculated = recalculateFrenchSchedule(reversalCapitalRemaining, remainingCount, periodicRate, state.loan.first_payment_date, state.loan.frequency, paidCount + 1)

@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
-import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatDate, buildMonthlySeries } from '@/lib/utils'
 import Link from 'next/link'
 import {
   Wallet, PiggyBank, CurrencyDollar, TrendUp, Users, Warning,
@@ -41,28 +41,15 @@ export default function DashboardContent({
   const lateClientIds = new Set(lateLoans.map(l => l.client_id))
 
   const monthlyData = useMemo(() => {
-    const monthMap: Record<string, { income: number; loans: number }> = {}
-
-    chartPayments.forEach(p => {
-      const month = p.payment_date.slice(0, 7)
-      if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
-      monthMap[month].income += Number(p.amount)
-    })
-
-    loans.filter(l => l.created_at).forEach(l => {
-      const month = l.created_at!.slice(0, 7)
-      if (!monthMap[month]) monthMap[month] = { income: 0, loans: 0 }
-      monthMap[month].loans += Number(l.amount)
-    })
-
-    return Object.entries(monthMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-6)
-      .map(([month, data]) => ({
-        month: new Date(month + '-01').toLocaleString('es-MX', { month: 'short' }),
-        income: data.income,
-        loans: data.loans,
-      }))
+    const points: { month: string; income: number; loans: number }[] = [
+      ...chartPayments.map(p => ({ month: p.payment_date.slice(0, 7), income: Number(p.amount), loans: 0 })),
+      ...loans.filter(l => l.created_at).map(l => ({ month: l.created_at!.slice(0, 7), income: 0, loans: Number(l.amount) })),
+    ]
+    return buildMonthlySeries(points, 6).map(d => ({
+      month: new Date(d.month + '-01').toLocaleString('es-MX', { month: 'short' }),
+      income: d.income,
+      loans: d.loans,
+    }))
   }, [chartPayments, loans])
 
   return (

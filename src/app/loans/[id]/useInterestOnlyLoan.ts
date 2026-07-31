@@ -1,5 +1,7 @@
 import type { LoanHandlerInput } from './loan-handler.types'
+import { DAYS_IN_PERIOD } from '@/lib/calculations'
 import { updateLoanAfterPayment, recalculateInstallment } from '@/lib/payments'
+import { logAuditEvent } from '@/lib/audit'
 import { useSharedLoanHandlers } from './useSharedLoanHandlers'
 
 export function useInterestOnlyLoan(input: LoanHandlerInput) {
@@ -23,11 +25,11 @@ export function useInterestOnlyLoan(input: LoanHandlerInput) {
       notes: state.paymentNotes || null, type: 'capital_abono',
     }).select().single()
     if (error) { setters.setPaymentError('Error al registrar abono: ' + error.message); setters.setLoading(false); return }
+    logAuditEvent(supabase, { userId, action: 'capital_abono', entityType: 'payment', entityId: payment.id, details: { loan_id: state.loan.id, amount } })
     const newPaid = Number(state.loan.paid_amount) + amount
     const capitalRemaining = Math.max(0, Number(state.loan.amount) - existingCapitalPaid - amount)
     await supabase.from('loans').update({ paid_amount: newPaid, remaining_amount: capitalRemaining }).eq('id', state.loan.id)
     const monthlyRate = state.loan.interest_type === 'percentage' ? state.loan.interest_rate / 100 : 0
-    const DAYS_IN_PERIOD: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
     const days = DAYS_IN_PERIOD[state.loan.frequency] || 30
     const periodicRate = monthlyRate / 30 * days
     const newInterest = periodicRate * capitalRemaining
@@ -77,6 +79,7 @@ export function useInterestOnlyLoan(input: LoanHandlerInput) {
     if (!reason.trim()) return
     setters.setLoading(true)
     await supabase.from('payments').update({ status: 'reversed', reversal_reason: reason }).eq('id', paymentId)
+    logAuditEvent(supabase, { userId, action: 'payment.reversed', entityType: 'payment', entityId: paymentId, details: { loan_id: state.loan.id, amount: payment.amount, reason } })
     const newPaid = Math.max(0, Number(state.loan.paid_amount) - Number(payment.amount))
     const paidCapital = Number(payment.capital_amount || 0)
     const newRemaining = Math.max(0, Number(state.loan.remaining_amount) + paidCapital)
@@ -91,7 +94,6 @@ export function useInterestOnlyLoan(input: LoanHandlerInput) {
       }
     } else if (payment.type === 'capital_abono' && newRemaining > 0) {
       const monthlyRate = state.loan.interest_type === 'percentage' ? state.loan.interest_rate / 100 : 0
-      const DAYS_IN_PERIOD: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
       const days = DAYS_IN_PERIOD[state.loan.frequency] || 30
       const periodicRate = monthlyRate / 30 * days
       const restoredInterest = periodicRate * newRemaining

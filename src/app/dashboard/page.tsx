@@ -38,13 +38,13 @@ export default async function DashboardPage() {
   const { data: overdueInstallments } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .in('status', ['pending', 'partial'])
+    .in('status', ['pending', 'partial', 'late'])
     .lt('due_date', today)
 
   const { data: upcomingInstallments } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .in('status', ['pending', 'partial'])
+    .in('status', ['pending', 'partial', 'late'])
     .gt('due_date', today)
     .order('due_date', { ascending: true })
     .limit(10)

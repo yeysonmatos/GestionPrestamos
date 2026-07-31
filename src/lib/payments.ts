@@ -12,6 +12,9 @@ export interface PaymentAllocation {
   totalLateAmount: number
   pendingLateAmount: number
   expectedTotal: number
+  surplus: number
+  creditConsumed: number
+  newPrepaidBalance: number
 }
 
 export interface ProcessPaymentInput {
@@ -25,6 +28,7 @@ export interface ProcessPaymentInput {
   userId: string
   lateInterestRate: number
   graceDays?: number
+  prepaidBalance?: number
 }
 
 export interface ProcessPaymentResult {
@@ -40,24 +44,33 @@ export function calculatePaymentAllocation(
   totalLateAmount: number,
   includeMora: boolean,
   lateDays: number = 0,
+  availableCredit: number = 0,
 ): PaymentAllocation {
   const pendingLateAmount = Math.max(0, totalLateAmount - previouslyPaidLate)
   const remaining = installmentAmount - previouslyPaid
+
+  const creditForInstallment = Math.min(availableCredit, Math.max(0, remaining))
+  const creditForLate = Math.min(Math.max(0, availableCredit - creditForInstallment), pendingLateAmount)
+  const creditConsumed = creditForInstallment + creditForLate
+  const effectiveRemaining = Math.max(0, remaining - creditForInstallment)
+  const effectivePendingLate = Math.max(0, pendingLateAmount - creditForLate)
 
   let paidToInstallment: number
   let paidToLate: number
 
   if (includeMora) {
-    paidToLate = Math.min(amount, pendingLateAmount)
-    paidToInstallment = Math.min(Math.max(0, amount - paidToLate), remaining)
+    paidToLate = Math.min(amount, effectivePendingLate)
+    paidToInstallment = Math.min(Math.max(0, amount - paidToLate), effectiveRemaining)
   } else {
     paidToLate = 0
-    paidToInstallment = Math.min(amount, remaining)
+    paidToInstallment = Math.min(amount, effectiveRemaining)
   }
 
-  const totalPaidOnInstallment = Math.min(previouslyPaid + paidToInstallment, installmentAmount)
-  const newPaidLateAmount = previouslyPaidLate + paidToLate
-  const expectedTotal = remaining + (includeMora ? pendingLateAmount : 0)
+  const totalPaidOnInstallment = Math.min(previouslyPaid + creditForInstallment + paidToInstallment, installmentAmount)
+  const newPaidLateAmount = previouslyPaidLate + creditForLate + paidToLate
+  const surplus = Math.max(0, amount - paidToInstallment - paidToLate)
+  const newPrepaidBalance = Math.max(0, availableCredit - creditConsumed + surplus)
+  const expectedTotal = effectiveRemaining + (includeMora ? effectivePendingLate : 0)
   const isNowFullyPaid = amount >= expectedTotal
 
   return {
@@ -70,6 +83,9 @@ export function calculatePaymentAllocation(
     totalLateAmount,
     pendingLateAmount,
     expectedTotal,
+    surplus,
+    creditConsumed,
+    newPrepaidBalance,
   }
 }
 
@@ -84,6 +100,7 @@ export async function processInstallmentPayment(
   const previouslyPaidLate = installment.paid_late_amount || 0
   const remaining = installment.amount - previouslyPaid
   const totalLateAmount = calculateLateAmount(remaining > 0 ? remaining : installment.amount, lateDays, lateInterestRate)
+  const availableCredit = input.prepaidBalance ?? loan.prepaid_balance ?? 0
 
   const allocation = calculatePaymentAllocation(
     amount,
@@ -93,6 +110,7 @@ export async function processInstallmentPayment(
     totalLateAmount,
     includeMora,
     lateDays,
+    availableCredit,
   )
 
   const interestAmount = Math.min(allocation.paidToInstallment, installment.interest)
@@ -137,6 +155,14 @@ export async function processInstallmentPayment(
     .eq('id', installment.id)
 
   if (instError) throw new Error(`Error updating installment: ${instError.message}`)
+
+  if (Math.abs(allocation.newPrepaidBalance - availableCredit) >= 0.005) {
+    const { error: balanceError } = await supabase
+      .from('loans')
+      .update({ prepaid_balance: allocation.newPrepaidBalance })
+      .eq('id', loan.id)
+    if (balanceError) throw new Error(`Error updating loan balance: ${balanceError.message}`)
+  }
 
   return { payment, allocation }
 }

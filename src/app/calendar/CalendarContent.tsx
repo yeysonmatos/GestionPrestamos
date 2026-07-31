@@ -12,6 +12,7 @@ import {
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { nextDueDateAfter } from '@/lib/calculations'
 import type { Installment, Payment, Client, Loan } from '@/types'
 
 export interface OpenEndedLoan {
@@ -27,16 +28,15 @@ export interface OpenEndedLoan {
 
 function getNextDueDates(loan: OpenEndedLoan, count: number = 6): string[] {
   const dates: string[] = []
-  const d = new Date(loan.first_payment_date)
-  d.setDate(loan.payment_day || 1)
-  const now = new Date()
-  while (d <= now) {
-    d.setMonth(d.getMonth() + 1)
-  }
+  let cursor = nextDueDateAfter(loan.first_payment_date, loan.payment_day, new Date())
   for (let i = 0; i < count; i++) {
-    const next = new Date(d)
-    next.setMonth(next.getMonth() + i)
-    dates.push(next.toISOString().split('T')[0])
+    dates.push(format(cursor, 'yyyy-MM-dd'))
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+    cursor = nextDueDateAfter(
+      format(cursor, 'yyyy-MM-dd'),
+      loan.payment_day,
+      cursor,
+    )
   }
   return dates
 }
@@ -47,7 +47,64 @@ interface Props {
   openEndedLoans: OpenEndedLoan[]
 }
 
-const pendingStatuses = ['pending', 'partial']
+const pendingStatuses = ['pending', 'partial', 'late']
+
+export interface SyntheticInstallment {
+  id: string
+  loan_id: string
+  client_id: string
+  amount: number
+  number: number
+  status: 'pending'
+  due_date: string
+  loan: Loan & { client?: Client }
+}
+
+function buildSynthetic(loan: OpenEndedLoan, due: string): SyntheticInstallment {
+  return {
+    id: `open_${loan.id}_${due}`,
+    loan_id: loan.id,
+    client_id: loan.client?.id || '',
+    amount: loan.installment_amount,
+    number: 0,
+    status: 'pending' as const,
+    due_date: due,
+    loan: {
+      id: loan.id,
+      loan_id: loan.loan_id,
+      user_id: '',
+      client_id: loan.client?.id || '',
+      amount: loan.amount,
+      interest_type: 'percentage' as const,
+      interest_rate: 0,
+      total_amount: loan.amount,
+      total_interest: 0,
+      installment_amount: loan.installment_amount,
+      installments: 0,
+      paid_installments: 0,
+      paid_amount: 0,
+      remaining_amount: loan.remaining_amount,
+      progress: 0,
+      frequency: 'monthly' as const,
+      start_date: loan.first_payment_date,
+      first_payment_date: loan.first_payment_date,
+      end_date: null,
+      amortization_type: 'interest_only' as const,
+      open_ended: true,
+      payment_day: loan.payment_day,
+      status: 'active' as const,
+      late_days: 0,
+      late_interest_rate: 0,
+      guarantee: null,
+      notes: null,
+      paid_at: null,
+      cancelled_at: null,
+      created_at: loan.first_payment_date,
+      updated_at: loan.first_payment_date,
+      client: loan.client,
+    } as Loan & { client?: Client },
+  }
+}
 
 export default function CalendarContent({ installments, payments, openEndedLoans }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -73,18 +130,8 @@ export default function CalendarContent({ installments, payments, openEndedLoans
     const dueByDate: Record<string, (Installment | SyntheticInstallment)[]> = {}
     const paidByDate: Record<string, Payment[]> = {}
 
-    interface SyntheticInstallment {
-      id: string
-      loan_id: string
-      client_id: string
-      amount: number
-      number: number
-      status: 'pending'
-      due_date: string
-      loan: Loan & { client?: Client }
-    }
-
     installments.forEach(inst => {
+      if (inst.status === 'paid') return
       const key = inst.due_date
       if (!dueByDate[key]) dueByDate[key] = []
       dueByDate[key].push(inst)
@@ -94,49 +141,7 @@ export default function CalendarContent({ installments, payments, openEndedLoans
       const dates = getNextDueDates(loan, 12)
       dates.forEach(due => {
         if (!dueByDate[due]) dueByDate[due] = []
-        dueByDate[due].push({
-          id: `open_${loan.id}_${due}`,
-          loan_id: loan.id,
-          client_id: loan.client?.id || '',
-          amount: loan.installment_amount,
-          number: 0,
-          status: 'pending' as const,
-          due_date: due,
-          loan: {
-            id: loan.id,
-            loan_id: loan.loan_id,
-            user_id: '',
-            client_id: loan.client?.id || '',
-            amount: loan.amount,
-            interest_type: 'percentage' as const,
-            interest_rate: 0,
-            total_amount: loan.amount,
-            total_interest: 0,
-            installment_amount: loan.installment_amount,
-            installments: 0,
-            paid_installments: 0,
-            paid_amount: 0,
-            remaining_amount: loan.remaining_amount,
-            progress: 0,
-            frequency: 'monthly' as const,
-            start_date: loan.first_payment_date,
-            first_payment_date: loan.first_payment_date,
-            end_date: null,
-            amortization_type: 'interest_only' as const,
-            open_ended: true,
-            payment_day: loan.payment_day,
-            status: 'active' as const,
-            late_days: 0,
-            late_interest_rate: 0,
-            guarantee: null,
-            notes: null,
-            paid_at: null,
-            cancelled_at: null,
-            created_at: loan.first_payment_date,
-            updated_at: loan.first_payment_date,
-            client: loan.client,
-          } as Loan & { client?: Client },
-        })
+        dueByDate[due].push(buildSynthetic(loan, due))
       })
     })
 
@@ -245,7 +250,11 @@ export default function CalendarContent({ installments, payments, openEndedLoans
           )}
         </div>
         {(() => {
-          const filtered = installments.filter(i => {
+          const openEndedSynthetic = openEndedLoans.flatMap(loan =>
+            getNextDueDates(loan, 12).map(due => buildSynthetic(loan, due))
+          )
+          const allPending = [...installments, ...openEndedSynthetic] as (Installment | SyntheticInstallment)[]
+          const filtered = allPending.filter(i => {
             const matchMonth = isSameMonth(parseISO(i.due_date), currentDate) && pendingStatuses.includes(i.status)
             if (!selectedDate) return matchMonth
             return matchMonth && i.due_date === selectedDate
@@ -263,7 +272,8 @@ export default function CalendarContent({ installments, payments, openEndedLoans
                 <div key={inst.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      {inst.loan?.client?.name} · Cuota #{inst.number}
+                      {inst.loan?.client?.name}
+                      {inst.number > 0 ? ` · Cuota #${inst.number}` : ' · Cuota mensual'}
                     </p>
                     <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
                   </div>

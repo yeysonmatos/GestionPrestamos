@@ -6,7 +6,7 @@ export default async function CollectionsPage() {
   const supabase = await createServerSideClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const pendingStatuses = ['pending', 'partial']
+  const pendingStatuses = ['pending', 'partial', 'late']
 
   const { data: todayInstallments } = await supabase
     .from('installments')

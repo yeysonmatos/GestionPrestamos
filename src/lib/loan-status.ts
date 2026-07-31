@@ -14,7 +14,7 @@ export async function updateAllLoanLateStatuses(supabase: SupabaseClient): Promi
       .from('installments')
       .select('due_date')
       .eq('loan_id', loan.id)
-      .in('status', ['pending', 'partial'])
+      .in('status', ['pending', 'partial', 'late'])
 
     if (!installments || installments.length === 0) continue
 

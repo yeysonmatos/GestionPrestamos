@@ -15,7 +15,7 @@ export default async function LoansPage() {
   const { data: pendingInstallments } = await supabase
     .from('installments')
     .select('id, loan_id, due_date, number')
-    .in('status', ['pending', 'partial'])
+    .in('status', ['pending', 'partial', 'late'])
     .order('due_date', { ascending: true })
 
   return (

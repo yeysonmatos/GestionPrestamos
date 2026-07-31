@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { formatCurrency, formatDate } from '@/lib/utils'
-import { calculateProportionalInterest, calculateLateDays, calculateLateAmount } from '@/lib/calculations'
+import { buildReceiptMessage, buildQuickMessage, buildPaymentSummary } from '@/lib/messages'
+import { calculateProportionalInterest, calculateLateDays, calculateLateAmount, nextDueDateAfter } from '@/lib/calculations'
 import PaymentReceipt from '@/components/loans/PaymentReceipt'
 import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -193,9 +194,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     },
   }
 
-  const handlers = loan.amortization_type === 'interest_only'
-    ? useInterestOnlyLoan(hookInput)
-    : useFrenchLoan(hookInput)
+  const interestOnlyHandlers = useInterestOnlyLoan(hookInput)
+  const frenchHandlers = useFrenchLoan(hookInput)
+  const handlers = loan.amortization_type === 'interest_only' ? interestOnlyHandlers : frenchHandlers
 
   const { handlePayInstallment, handleCapitalAbono, handleLiquidation, handleReversePayment } = handlers
 
@@ -223,10 +224,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const nextDueDate = isOpenEnded
     ? (() => {
         const last = lastPayment?.payment_date || loan.first_payment_date
-        const next = new Date(last)
-        next.setDate(loan.payment_day || 1)
-        if (next <= new Date(last)) next.setMonth(next.getMonth() + 1)
-        return formatDate(next.toISOString())
+        const next = nextDueDateAfter(loan.first_payment_date, loan.payment_day || 1, new Date(last))
+        return formatDate(next)
       })()
     : null
 
@@ -246,6 +245,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-foreground">{formatCurrency(loan.amount)}</h1>
                 <Badge variant={statusVariant[loan.status] || 'default'}>{getStatusLabel(loan.status)}</Badge>
+                {loan.prepaid_balance > 0 && (
+                  <Badge variant="success">Saldo a favor: {formatCurrency(loan.prepaid_balance)}</Badge>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">
                 {loan.loan_id} · {loan.client?.name} · {formatDate(loan.start_date)}
@@ -264,7 +266,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <button type="button" onClick={() => {
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
-                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`🧾 ${loan.loan_id} · ${loan.client?.name}`)}`, '_blank')
+                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildQuickMessage({ loanId: loan.loan_id, clientName: loan.client?.name || '' }))}`, '_blank')
               }
             }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="WhatsApp">
               <ChatCircle className="h-5 w-5" />
@@ -498,7 +500,13 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               type="button"
               onClick={() => {
                 const total = payments.filter(p => p.status === 'paid').reduce((s, p) => s + Number(p.amount), 0)
-                const msg = `📊 *RESUMEN DE PAGOS*\n\nPréstamo: ${loan.loan_id}\nCliente: ${loan.client?.name}\nTotal pagado: ${formatCurrency(total)}\nPendiente: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+                const msg = buildPaymentSummary({
+                  loanId: loan.loan_id,
+                  clientName: loan.client?.name || '',
+                  totalPaid: total,
+                  remaining: loan.remaining_amount,
+                  businessName: settings?.business_name || 'Gestor de Prestamos',
+                })
                 const phone = loan.client?.whatsapp || loan.client?.phone
                 if (phone) {
                   navigator.clipboard.writeText(msg).then(() => {})
@@ -551,7 +559,17 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                           <button onClick={() => {
                             const payType = p.type === 'installment' ? 'Cuota' : p.type === 'capital_abono' ? 'Abono a capital' : p.type === 'liquidation' ? 'Liquidación' : 'Pago'
                             const payMethod = p.method === 'cash' ? 'Efectivo' : p.method === 'transfer' ? 'Transferencia' : p.method === 'deposit' ? 'Depósito' : 'Otro'
-                            const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(p.amount)}\n${payType} · ${payMethod}\n\nCliente: ${loan.client?.name}\nPréstamo: ${loan.loan_id}\nFecha: ${formatDate(p.payment_date)}${p.notes ? `\nNota: ${p.notes}` : ''}\n\nNuevo balance: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+                            const msg = buildReceiptMessage({
+                              amount: p.amount,
+                              payType,
+                              payMethod,
+                              clientName: loan.client?.name || '',
+                              loanId: loan.loan_id,
+                              paymentDate: p.payment_date,
+                              remaining: loan.remaining_amount,
+                              businessName: settings?.business_name || 'Gestor de Prestamos',
+                              notes: p.notes,
+                            })
                             const phone = loan.client?.whatsapp || loan.client?.phone
                             if (phone) {
                               window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -676,7 +694,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               if (selectedPaymentInstallment) {
                 const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
                 const mora = includeMora ? (selectedInstallmentMora?.lateAmount || 0) : 0
-                setPaymentAmount(String(remaining + mora))
+                setPaymentAmount(String(Math.max(0, remaining + mora - (loan.prepaid_balance || 0))))
               }
             }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Completo</button>
             {isInterestOnly && selectedPaymentInstallment && selectedPaymentInstallment.interest < selectedPaymentInstallment.amount && (
@@ -692,6 +710,12 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             }} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted text-muted-foreground hover:bg-border transition-colors">Mitad</button>
           </div>
         </div>
+
+        {loan.prepaid_balance > 0 && (
+          <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+            Saldo a favor disponible: <strong>{formatCurrency(loan.prepaid_balance)}</strong>. Se aplicará automáticamente a esta cuota.
+          </div>
+        )}
 
         {selectedInstallmentMora && selectedPaymentInstallment && (() => {
           const remaining = selectedPaymentInstallment.amount - (selectedPaymentInstallment.paid_amount || 0)
@@ -1019,6 +1043,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           {successPayment && (() => {
             const prevBalance = Number(loan.remaining_amount) + Number(successPayment.amount)
             return (
+              <>
                 <div className="border border-border rounded-xl overflow-hidden">
                   <PaymentReceipt
                     payment={successPayment}
@@ -1027,6 +1052,12 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                     previousBalance={prevBalance}
                   />
                 </div>
+                {loan.prepaid_balance > 0 && (
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+                    Saldo a favor actual del préstamo: <strong>{formatCurrency(loan.prepaid_balance)}</strong>. Se aplicará a la próxima cuota.
+                  </div>
+                )}
+              </>
             )
           })()}
 
@@ -1038,7 +1069,16 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               const actualDate = successPayment?.payment_date || paymentDate
               const payType = successPayment?.type === 'installment' ? 'Cuota' : successPayment?.type === 'capital_abono' ? 'Abono a capital' : successPayment?.type === 'liquidation' ? 'Liquidación' : 'Pago'
               const payMethod = paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'
-              const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(successPayment?.amount || 0)}\n${payType} · ${payMethod}\n\nCliente: ${loan.client?.name}\nPréstamo: ${loan.loan_id}\nFecha: ${formatDate(actualDate)}\n\nNuevo balance: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const msg = buildReceiptMessage({
+                amount: successPayment?.amount || 0,
+                payType,
+                payMethod,
+                clientName: loan.client?.name || '',
+                loanId: loan.loan_id,
+                paymentDate: actualDate,
+                remaining: loan.remaining_amount,
+                businessName: settings?.business_name || 'Gestor de Prestamos',
+              })
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -1052,7 +1092,16 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               const actualDate = successPayment?.payment_date || paymentDate
               const payType = successPayment?.type === 'installment' ? 'Cuota' : successPayment?.type === 'capital_abono' ? 'Abono a capital' : successPayment?.type === 'liquidation' ? 'Liquidación' : 'Pago'
               const payMethod = paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'
-              const msg = `🧾 RECIBO DE PAGO\n${formatCurrency(successPayment?.amount || 0)}\n${payType} · ${payMethod}\n\nCliente: ${loan.client?.name}\nPréstamo: ${loan.loan_id}\nFecha: ${formatDate(actualDate)}\n\nNuevo balance: ${formatCurrency(loan.remaining_amount)}\n\n${settings?.business_name || 'Gestor de Prestamos'}`
+              const msg = buildReceiptMessage({
+                amount: successPayment?.amount || 0,
+                payType,
+                payMethod,
+                clientName: loan.client?.name || '',
+                loanId: loan.loan_id,
+                paymentDate: actualDate,
+                remaining: loan.remaining_amount,
+                businessName: settings?.business_name || 'Gestor de Prestamos',
+              })
               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
             }}>
               <ShareNetwork className="h-4 w-4 mr-1" /> Compartir

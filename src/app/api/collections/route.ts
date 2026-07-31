@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { rateLimitByIp } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -9,18 +10,18 @@ export async function GET(request: NextRequest) {
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
     .eq('due_date', today)
-    .in('status', ['pending', 'partial'])
+    .in('status', ['pending', 'partial', 'late'])
 
   const { data: overdueInstallments, error: err2 } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .in('status', ['pending', 'partial'])
+    .in('status', ['pending', 'partial', 'late'])
     .lt('due_date', today)
 
   const { data: upcomingInstallments, error: err3 } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
-    .in('status', ['pending', 'partial'])
+    .in('status', ['pending', 'partial', 'late'])
     .gte('due_date', today)
 
   if (err1 || err2 || err3) {
@@ -35,6 +36,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!rateLimitByIp(request, 'collections:create', 30, 60 * 1000)) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  }
+
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
   const body = await request.json()
 
