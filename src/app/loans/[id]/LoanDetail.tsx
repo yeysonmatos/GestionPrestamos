@@ -16,7 +16,7 @@ import { Progress } from '@/components/ui/Progress'
 import BottomSheet from '@/components/ui/BottomSheet'
 import {
   ArrowLeft, ChatCircle, FileText, Scroll, ArrowCounterClockwise,
-  Check, FileArrowDown, ShareNetwork, X, Plus, Pencil,
+  Check, FileArrowDown, ShareNetwork, Plus, Pencil,
 } from '@phosphor-icons/react'
 import NewLoanForm from '@/app/loans/new/NewLoanForm'
 import type { Loan, Installment, Payment, Setting, Client } from '@/types'
@@ -61,7 +61,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   }
 
   const [paymentAmount, setPaymentAmount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer' | 'deposit' | 'other'>('cash')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
   const [paymentNotes, setPaymentNotes] = useState('')
   const [paymentDate, setPaymentDate] = useState(() => {
     const d = new Date()
@@ -166,13 +166,13 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       setInstallments,
       setPayments,
       setPaymentDate,
-      setPaymentMethod: setPaymentMethod as React.Dispatch<React.SetStateAction<string>>,
+      setPaymentMethod,
       setPaymentNotes,
       setPaymentAmount,
       setPaymentInstallmentId,
       setIncludeMora,
-      setSelectedInstallmentMora: setSelectedInstallmentMora as React.Dispatch<React.SetStateAction<any>>,
-      setSelectedPaymentInstallment: setSelectedPaymentInstallment as React.Dispatch<React.SetStateAction<any>>,
+      setSelectedInstallmentMora,
+      setSelectedPaymentInstallment,
       setCapitalAbonoAmount,
       setSuccessPayment,
       setShowPayment,
@@ -186,7 +186,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       setPaymentError,
     },
     services: {
-      supabase: supabase as any,
+      supabase,
       userId: userId || '',
       settings,
       router,
@@ -726,7 +726,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div className="min-w-0">
             <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
-            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)}
+            <select value={paymentMethod} onChange={e => setPaymentMethod(e.currentTarget.value)}
               className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11">
               <option value="cash">Efectivo</option>
               <option value="transfer">Transferencia</option>
@@ -805,7 +805,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 <div className="grid grid-cols-2 gap-4">
                   <div className="min-w-0">
                     <label className="block text-sm font-medium text-muted-foreground mb-1">Método</label>
-                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value as any)}
+                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.currentTarget.value)}
                       className="block w-full min-w-0 rounded-lg border border-border px-3 py-2 text-sm bg-card min-h-11">
                       <option value="cash">Efectivo</option>
                       <option value="transfer">Transferencia</option>

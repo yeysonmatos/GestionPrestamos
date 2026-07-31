@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import MoneyInput from '@/components/ui/MoneyInput'
 import PageHeader from '@/components/ui/PageHeader'
+import BackupPanel from '@/components/settings/BackupPanel'
 import { createClient } from '@/lib/supabase-client'
 import { CURRENCIES, FREQUENCIES } from '@/types'
 import { FloppyDisk } from '@phosphor-icons/react'
@@ -148,6 +149,8 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
           </div>
         </form>
       </Card>
+
+      <BackupPanel />
     </div>
   )
 }

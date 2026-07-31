@@ -53,7 +53,8 @@ export default async function CollectionsPage() {
     .in('status', ['active', 'late'])
     .order('loan_id')
 
-  const activeLoans: { id: string; loan_id: string; amount: number; remaining_amount: number; installment_amount: number; amortization_type: string; open_ended: boolean; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null }[] = (activeLoansRaw || []).map((r: any) => ({
+  type ActiveLoanRaw = { id: string; loan_id: string; amount: number; remaining_amount: number; installment_amount: number; amortization_type: string; open_ended: boolean; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | { id: string; name: string; phone: string | null; whatsapp: string | null }[] | null }
+  const activeLoans: { id: string; loan_id: string; amount: number; remaining_amount: number; installment_amount: number; amortization_type: string; open_ended: boolean; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null }[] = (activeLoansRaw || []).map((r: ActiveLoanRaw) => ({
     ...r,
     client: Array.isArray(r.client) ? r.client[0] || null : r.client || null,
   }))

@@ -35,6 +35,7 @@ export default function Button({
 }: ButtonProps) {
   return (
     <button
+      type="button"
       className={cn(
         'inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
         variantStyles[variant],

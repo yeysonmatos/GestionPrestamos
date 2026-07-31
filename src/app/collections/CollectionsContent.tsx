@@ -51,7 +51,7 @@ interface SyntheticInstallment {
   status: 'pending' | 'paid' | 'late'
   late_days: number
   late_amount: number
-  loan: { loan_id: string; client: Client | null; amortization_type?: string; total_amount?: number; remaining_amount?: number }
+  loan: { loan_id: string; client: Client | null; amortization_type?: string; total_amount?: number; remaining_amount?: number; frequency?: string; open_ended?: boolean }
   isOpenEnded: true
   openEndedLoan: OpenEndedLoan
 }
@@ -216,7 +216,7 @@ export default function CollectionsContent({
       if (error) { setPaymentError('Error al registrar pago: ' + error.message); setLoading(false); return }
 
       if (payment) {
-        await updateLoanAfterPayment(supabase as any, inst.loan_id, inst.client_id)
+        await updateLoanAfterPayment(supabase, inst.loan_id, inst.client_id)
 
         setPayments(prev => [payment, ...prev])
         setSuccessPayment(payment)
@@ -258,8 +258,8 @@ export default function CollectionsContent({
         total_amount: Number(inst.loan?.total_amount || 0),
         remaining_amount: Number(inst.loan?.remaining_amount || 0),
       }
-      const { payment, allocation } = await processInstallmentPayment(supabase as any, {
-        loan: loanForPayment as any,
+      const { payment, allocation } = await processInstallmentPayment(supabase, {
+        loan: loanForPayment as import('@/types').Loan,
         installment: realInst,
         amount,
         includeMora,
@@ -271,7 +271,7 @@ export default function CollectionsContent({
         graceDays,
       })
 
-      const loanUpdates = await updateLoanAfterPayment(supabase as any, inst.loan_id, inst.client_id)
+      const loanUpdates = await updateLoanAfterPayment(supabase, inst.loan_id, inst.client_id)
 
       const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
       const updatedInstallment: Installment = {
@@ -291,12 +291,12 @@ export default function CollectionsContent({
       setSuccessPayment(payment)
       setSuccessLoanInfo({
         loan_id: inst.loan?.loan_id || inst.loan_id,
-        clientName: inst.loan?.client?.name || (inst as any).openEndedLoan?.client?.name || '—',
+        clientName: inst.loan?.client?.name || ('isOpenEnded' in inst && inst.isOpenEnded ? (inst as SyntheticInstallment).openEndedLoan?.client?.name : undefined) || '—',
         amount: Number(inst.loan?.total_amount || inst.amount),
         remaining_amount: inst.loan?.remaining_amount ?? 0,
         amortization_type: inst.loan?.amortization_type || 'french',
-        frequency: 'monthly',
-        open_ended: false,
+        frequency: inst.loan?.frequency || 'monthly',
+        open_ended: inst.loan?.open_ended || false,
       })
       setShowSuccess(true)
       setShowPayment(false)
@@ -345,7 +345,7 @@ export default function CollectionsContent({
       <PageHeader
         title="Cobros"
         description="Gestiona los pagos y cobros diarios"
-        action={<Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button>}
+        action={<Button variant="secondary" size="sm" aria-label="Actualizar" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button>}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -394,7 +394,7 @@ export default function CollectionsContent({
             { key: 'overdue', label: 'Vencidos', count: enrichedOverdue.length },
             { key: 'upcoming', label: 'Próximos', count: allUpcoming.length },
             { key: 'history', label: 'Historial', count: payments.length },
-          ]} selected={filter} onSelect={v => setFilter(v as any)} title="Filtrar cobros" />
+          ]} selected={filter} onSelect={v => setFilter(v as 'today' | 'overdue' | 'upcoming' | 'history')} title="Filtrar cobros" />
         <div className="hidden sm:flex gap-1">
           {([
             { key: 'today', label: 'Hoy', count: allToday.length },
@@ -640,40 +640,7 @@ export default function CollectionsContent({
             <div className="border border-border rounded-xl overflow-hidden">
               <PaymentReceipt
                 payment={successPayment}
-                loan={{
-                  id: '',
-                  loan_id: successLoanInfo.loan_id,
-                  user_id: '',
-                  client_id: '',
-                  client: { id: '', user_id: '', name: successLoanInfo.clientName, status: 'active', trust_level: 'medium', trust_score: 0 } as any,
-                  amount: successLoanInfo.amount,
-                  total_amount: successLoanInfo.amount,
-                  installment_amount: 0,
-                  remaining_amount: successLoanInfo.remaining_amount,
-                  amortization_type: successLoanInfo.amortization_type as any,
-                  open_ended: successLoanInfo.open_ended,
-                  frequency: successLoanInfo.frequency as any,
-                  paid_amount: 0,
-                  paid_installments: 0,
-                  installments: 0,
-                  progress: 0,
-                  interest_type: 'percentage',
-                  interest_rate: 0,
-                  total_interest: 0,
-                  start_date: '',
-                  first_payment_date: '',
-                  end_date: null,
-                  payment_day: null,
-                  status: 'active',
-                  late_days: 0,
-                  late_interest_rate: 0,
-                  guarantee: null,
-                  notes: null,
-                  paid_at: null,
-                  cancelled_at: null,
-                  created_at: '',
-                  updated_at: '',
-                }}
+                loan={{ ...{ id: '', user_id: '', client_id: '', installment_amount: 0, paid_amount: 0, paid_installments: 0, installments: 0, progress: 0, interest_type: 'percentage', interest_rate: 0, total_interest: 0, start_date: '', first_payment_date: '', end_date: null, payment_day: null, status: 'active', late_days: 0, late_interest_rate: 0, guarantee: null, notes: null, paid_at: null, cancelled_at: null, created_at: '', updated_at: '', planned_end_date: null, late_amount: 0, payments: undefined, client: { name: successLoanInfo.clientName } as import('@/types').Client, loan_id: successLoanInfo.loan_id, amount: successLoanInfo.amount, total_amount: successLoanInfo.amount, remaining_amount: successLoanInfo.remaining_amount, amortization_type: successLoanInfo.amortization_type, open_ended: successLoanInfo.open_ended, frequency: successLoanInfo.frequency } as import('@/types').Loan}}
                 settings={settings}
               />
             </div>

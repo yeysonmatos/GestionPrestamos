@@ -14,7 +14,7 @@ import { es } from 'date-fns/locale'
 import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import type { Installment, Payment, Client, Loan } from '@/types'
 
-interface OpenEndedLoan {
+export interface OpenEndedLoan {
   id: string
   loan_id: string
   amount: number
@@ -194,6 +194,7 @@ export default function CalendarContent({ installments, payments, openEndedLoans
               <button
                 key={key}
                 type="button"
+                aria-label={format(day, "d 'de' MMMM 'de' yyyy", { locale: es })}
                 onClick={() => {
                   setSelectedDate(selectedDate === key ? null : key)
                   setListLimit(10)

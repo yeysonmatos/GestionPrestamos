@@ -222,10 +222,10 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
         counts={counts}
         viewToggle={
           <div className="flex border border-border rounded-lg overflow-hidden flex-shrink-0">
-            <button onClick={() => setView('cards')} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas">
+            <button onClick={() => setView('cards')} aria-pressed={view === 'cards'} className={`p-2 transition-colors ${view === 'cards' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tarjetas" aria-label="Vista tarjetas">
               <SquaresFour className="h-4 w-4" />
             </button>
-            <button onClick={() => setView('table')} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla">
+            <button onClick={() => setView('table')} aria-pressed={view === 'table'} className={`p-2 transition-colors ${view === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`} title="Vista tabla" aria-label="Vista tabla">
               <Table className="h-4 w-4" />
             </button>
           </div>
@@ -268,7 +268,7 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
                       <p className="font-semibold text-sm text-foreground truncate">{loan.client?.name || 'Eliminado'}</p>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[11px] text-muted-foreground">{loan.loan_id}</span>
-                        <Badge variant={isLateStatus(loan.status) ? 'late' : loan.status as any}>{getStatusLabel(loan.status)}</Badge>
+                        <Badge variant={isLateStatus(loan.status) ? 'late' : (loan.status as 'active' | 'paid' | 'cancelled')}>{getStatusLabel(loan.status)}</Badge>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                         {loan.client?.phone && (
@@ -339,7 +339,7 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
                     <td className="py-3 px-3 text-right font-semibold">{formatCurrency(loan.amount)}</td>
                     <td className="py-3 px-3 text-right">
                       <div className="flex items-center gap-2 justify-end">
-                        <Progress value={loan.progress || 0} className="w-16 h-1.5" />
+                        <Progress value={loan.progress || (loan.installments > 0 ? Math.round(((loan.paid_installments || 0) / loan.installments) * 100) : 0)} className="w-16 h-1.5" />
                         <span className="text-xs text-muted-foreground">{loan.paid_installments || 0}/{loan.installments || 0}</span>
                       </div>
                     </td>

@@ -1,0 +1,33 @@
+Auditoría 6 – Auditoría Financiera y Contable
+
+Objetivo
+
+Garantizar que nunca existan inconsistencias monetarias.
+
+Validar
+
+Todo dinero debe tener origen.
+
+Todo dinero debe tener destino.
+
+Todo movimiento debe dejar evidencia.
+
+Todo pago debe generar historial.
+
+Todo recibo debe existir.
+
+Todo préstamo debe ser trazable.
+
+Toda modificación debe quedar registrada.
+
+Toda anulación debe tener motivo.
+
+Buscar
+
+Dinero perdido.
+
+Dinero duplicado.
+
+Recibos inconsistentes.
+
+Errores contables.

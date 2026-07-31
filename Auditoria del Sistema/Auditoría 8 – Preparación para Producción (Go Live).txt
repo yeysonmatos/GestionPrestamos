@@ -1,0 +1,44 @@
+Auditoría 8 – Preparación para Producción (Go Live)
+
+Objetivo
+
+Responder una única pregunta:
+
+¿Está el sistema listo para ponerse en producción?
+
+Revisar
+
+Rendimiento.
+
+Escalabilidad.
+
+Seguridad.
+
+Pruebas.
+
+Respaldo.
+
+Recuperación.
+
+Logs.
+
+Monitoreo.
+
+Versionado.
+
+Manejo de errores.
+
+Experiencia del usuario.
+
+Cumplimiento de requisitos.
+
+Resultado esperado
+
+Al finalizar, entrega un informe ejecutivo con:
+
+✅ Puntuación general (0–100).
+📊 Calificación por cada módulo.
+🚨 Riesgos críticos que impiden salir a producción.
+⚠️ Riesgos medios y bajos.
+📝 Lista priorizada de mejoras.
+📅 Recomendación sobre si el sistema está listo para producción o qué condiciones deben cumplirse antes del lanzamiento.

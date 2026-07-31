@@ -9,7 +9,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .from('payments')
     .select('*')
     .eq('loan_id', id)
-    .order('date', { ascending: false })
+    .order('payment_date', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, supabaseResponse)

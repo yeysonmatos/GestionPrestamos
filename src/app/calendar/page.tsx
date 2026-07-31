@@ -1,6 +1,6 @@
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
-import CalendarContent from './CalendarContent'
+import CalendarContent, { type OpenEndedLoan } from './CalendarContent'
 
 export default async function CalendarPage() {
   const supabase = await createServerSideClient()
@@ -27,7 +27,7 @@ export default async function CalendarPage() {
       <CalendarContent
         installments={installments || []}
         payments={payments || []}
-        openEndedLoans={(openEndedLoans || []) as any}
+        openEndedLoans={(openEndedLoans || []) as unknown as OpenEndedLoan[]}
       />
     </MainLayout>
   )

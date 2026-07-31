@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Angle, Funnel, Check } from '@phosphor-icons/react'
+import { X, Check } from '@phosphor-icons/react'
 
 interface Option {
   key: string

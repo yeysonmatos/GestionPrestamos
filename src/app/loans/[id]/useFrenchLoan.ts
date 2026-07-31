@@ -53,7 +53,7 @@ export function useFrenchLoan(input: LoanHandlerInput) {
       }
     }
     await supabase.from('loans').update(loanUpdates).eq('id', state.loan.id)
-    const loanResult = await updateLoanAfterPayment(supabase as any, state.loan.id, state.loan.client_id)
+    const loanResult = await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
     setters.setPayments(prev => [payment, ...prev])
     setters.setLoan(prev => ({
       ...prev, paid_amount: newPaid, remaining_amount: newContractualRemaining,
@@ -64,7 +64,7 @@ export function useFrenchLoan(input: LoanHandlerInput) {
       status: loanResult.status ?? prev.status,
     }))
     const refreshedInsts = await supabase.from('installments').select('*').eq('loan_id', state.loan.id).order('number')
-    if (refreshedInsts.data) setters.setInstallments(refreshedInsts.data as any)
+    if (refreshedInsts.data) setters.setInstallments(refreshedInsts.data)
     setters.setShowCapitalAbono(false)
     setters.setCapitalAbonoAmount('')
     router.refresh()
@@ -85,12 +85,12 @@ export function useFrenchLoan(input: LoanHandlerInput) {
     const newRemaining = Math.max(0, Number(state.loan.remaining_amount) + paidCapital)
     await supabase.from('loans').update({ paid_amount: newPaid, remaining_amount: newRemaining }).eq('id', state.loan.id)
     if (payment.installment_id) {
-      const updated = await recalculateInstallment(supabase as any, payment.installment_id)
-      setters.setInstallments(prev => prev.map(i => i.id === payment.installment_id ? { ...i, ...updated } as any : i))
+      const updated = await recalculateInstallment(supabase, payment.installment_id)
+      setters.setInstallments(prev => prev.map(i => i.id === payment.installment_id ? { ...i, ...updated } : i))
     } else if (payment.type === 'liquidation') {
       for (const inst of state.installments) {
-        const updated = await recalculateInstallment(supabase as any, inst.id)
-        setters.setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, ...updated } as any : i))
+        const updated = await recalculateInstallment(supabase, inst.id)
+        setters.setInstallments(prev => prev.map(i => i.id === inst.id ? { ...i, ...updated } : i))
       }
     } else if (payment.type === 'capital_abono' && newRemaining > 0) {
       const paidCount = state.installments.filter(i => i.status === 'paid').length
@@ -121,7 +121,7 @@ export function useFrenchLoan(input: LoanHandlerInput) {
         reversalLoanUpdates.total_interest = newTotalInterest
       }
     }
-    const loanUpdates = await updateLoanAfterPayment(supabase as any, state.loan.id, state.loan.client_id)
+    const loanUpdates = await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
     if (payment.type === 'capital_abono') {
       await supabase.from('loans').update({ remaining_amount: newRemaining, paid_amount: newPaid, status: 'active' }).eq('id', state.loan.id)
       loanUpdates.remaining_amount = newRemaining

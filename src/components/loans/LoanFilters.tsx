@@ -221,6 +221,7 @@ export function LoanFilters({
             type="text"
             className={styles.searchInput}
             placeholder="Buscar por cliente, ID, teléfono..."
+            aria-label="Buscar préstamos"
             value={state.search}
             onChange={e => actions.setSearch(e.target.value)}
           />

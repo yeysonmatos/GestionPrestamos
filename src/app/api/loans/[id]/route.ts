@@ -7,7 +7,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { data, error } = await supabase
     .from('loans')
-    .select('*, person:people(*)')
+    .select('*, client:clients(*)')
     .eq('id', id)
     .single()
 

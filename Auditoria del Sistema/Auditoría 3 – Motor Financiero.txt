@@ -1,0 +1,63 @@
+Auditoría 3 – Motor Financiero
+
+Objetivo
+
+Auditar el núcleo del sistema.
+
+Rol
+
+Actúa como un especialista en motores financieros y microcréditos.
+
+Analizar
+
+Cómo se calcula:
+
+Capital
+Interés
+Mora
+Penalidades
+Descuentos
+Pagos
+Casos
+
+Pago exacto.
+
+Pago parcial.
+
+Pago doble.
+
+Pago mayor.
+
+Pago menor.
+
+Pago únicamente de mora.
+
+Pago únicamente de interés.
+
+Pago de varias cuotas.
+
+Pago anticipado.
+
+Pago después del vencimiento.
+
+Cambio de tasa.
+
+Cambio de frecuencia.
+
+Refinanciación.
+
+Renovación.
+
+Reestructuración.
+
+Detectar
+
+Errores matemáticos.
+
+Errores de redondeo.
+
+Pérdida de dinero.
+
+Duplicidad.
+
+Inconsistencias.

@@ -20,7 +20,7 @@ export function useSharedLoanHandlers({ state, setters, services }: LoanHandlerI
         notes: state.paymentNotes || null, type: 'installment',
       }).select().single()
       if (error) { setters.setPaymentError('Error al registrar pago: ' + error.message); setters.setLoading(false); return }
-      await updateLoanAfterPayment(supabase as any, state.loan.id, state.loan.client_id)
+      await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
       setters.setPayments(prev => [payment, ...prev])
       setters.setSuccessPayment(payment)
       setters.setShowPayment(false)
@@ -73,7 +73,7 @@ export function useSharedLoanHandlers({ state, setters, services }: LoanHandlerI
       const newPaidAmount = Number(state.loan.paid_amount) + amount
       const newRemaining = Math.max(0, Number(state.loan.remaining_amount) - payCapitalAmount)
       await supabase.from('loans').update({ paid_amount: newPaidAmount, remaining_amount: newRemaining }).eq('id', state.loan.id)
-      const loanUpdates = await updateLoanAfterPayment(supabase as any, state.loan.id, state.loan.client_id)
+      const loanUpdates = await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
       setters.setInstallments(prev => prev.map(i => i.id === inst.id
         ? { ...i, status: isNowFullyPaid ? 'paid' : newPaidInstallment > 0 ? 'partial' : (lateDays > 0 ? 'late' : 'pending'), paid_amount: newPaidInstallment, paid_late_amount: newPaidLate, late_amount: remainingLateAmount, late_days: lateDays, paid_at: isNowFullyPaid ? state.paymentDate : null }
         : i))
