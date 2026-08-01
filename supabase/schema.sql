@@ -639,13 +639,13 @@ END;
 $$;
 
 -- Habilitar pg_cron (ejecutar una vez; si ya está habilitado no hace nada)
--- CREATE EXTENSION IF NOT EXISTS pg_cron;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
 
--- Job diario a las 03:00 UTC para actualizar estados de mora
--- SELECT cron.schedule('update-loan-statuses-daily', '0 3 * * *', 'SELECT public.update_all_loan_statuses();');
+-- Job diario a las 03:00 RD (07:00 UTC) para actualizar estados de mora
+-- SELECT cron.schedule('update-loan-statuses-daily', '0 7 * * *', 'SELECT public.update_all_loan_statuses();');
 
--- Job semanal (domingos 04:00 UTC) para limpiar audit_logs > 1 año
--- SELECT cron.schedule('cleanup-audit-logs-weekly', '0 4 * * 0', 'DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL ''1 year'';');
+-- Job semanal (domingos 04:00 RD / 08:00 UTC) para limpiar audit_logs > 1 año
+-- SELECT cron.schedule('cleanup-audit-logs-weekly', '0 8 * * 0', 'DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL ''1 year'';');
 
--- Job diario a las 05:00 UTC para recalcular stats de clientes con préstamos activos
--- SELECT cron.schedule('recalc-client-stats-daily', '0 5 * * *', 'SELECT public.update_client_stats(client_id) FROM (SELECT DISTINCT client_id FROM loans WHERE status IN (''active'', ''late'')) s;');
+-- Job diario a las 05:00 RD (09:00 UTC) para recalcular stats de clientes con préstamos activos
+-- SELECT cron.schedule('recalc-client-stats-daily', '0 9 * * *', 'SELECT public.update_client_stats(client_id) FROM (SELECT DISTINCT client_id FROM loans WHERE status IN (''active'', ''late'')) s;');
