@@ -569,3 +569,83 @@ BEGIN
   );
 END;
 $$;
+
+-- ============================================================
+-- ÍNDICES COMPUESTOS PARA ESCALABILIDAD (consultas calientes)
+-- ============================================================
+-- installments: due_date + status (dashboard vencidas, collections hoy/vencidas/próximos)
+CREATE INDEX IF NOT EXISTS idx_installments_due_date_status ON installments(due_date, status);
+-- installments: loan_id + number (detalle de préstamo ordenado)
+CREATE INDEX IF NOT EXISTS idx_installments_loan_id_number ON installments(loan_id, number);
+-- payments: status + payment_date (historial pagados en calendar/reports/collections)
+CREATE INDEX IF NOT EXISTS idx_payments_status_payment_date ON payments(status, payment_date);
+-- payments: loan_id + created_at (pagos por préstamo ordenados)
+CREATE INDEX IF NOT EXISTS idx_payments_loan_id_created_at ON payments(loan_id, created_at);
+-- loans: user_id + status (filtro de préstamos activos/atrasados)
+CREATE INDEX IF NOT EXISTS idx_loans_user_id_status ON loans(user_id, status);
+-- loans: user_id + created_at (listados ordenados por fecha)
+CREATE INDEX IF NOT EXISTS idx_loans_user_id_created_at ON loans(user_id, created_at);
+-- documents: user_id (filtrado por dueño)
+CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
+
+-- ============================================================
+-- pg_cron: TAREAS PROGRAMADAS (requiere extensión pg_cron habilitada en Supabase)
+-- ============================================================
+
+-- Función para actualizar estados de mora de todos los préstamos (equivalente a /api/loan-status)
+CREATE OR REPLACE FUNCTION public.update_all_loan_statuses()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = 'public'
+AS $$
+DECLARE
+  v_loan RECORD;
+  v_max_late_days INTEGER;
+  v_new_status TEXT;
+  v_updated_count INTEGER := 0;
+BEGIN
+  FOR v_loan IN
+    SELECT id FROM loans
+    WHERE status IN ('active', 'late', 'late_1_30', 'late_31_60', 'late_61_90')
+  LOOP
+    SELECT COALESCE(MAX(GREATEST(0, CURRENT_DATE - due_date)), 0)
+    INTO v_max_late_days
+    FROM installments
+    WHERE loan_id = v_loan.id
+    AND status IN ('pending', 'partial', 'late');
+
+    IF v_max_late_days <= 0 THEN
+      CONTINUE;
+    END IF;
+
+    IF v_max_late_days <= 30 THEN
+      v_new_status := 'late_1_30';
+    ELSIF v_max_late_days <= 60 THEN
+      v_new_status := 'late_31_60';
+    ELSE
+      v_new_status := 'late_61_90';
+    END IF;
+
+    UPDATE loans
+    SET status = v_new_status,
+        late_days = v_max_late_days
+    WHERE id = v_loan.id;
+
+    v_updated_count := v_updated_count + 1;
+  END LOOP;
+
+  RETURN v_updated_count;
+END;
+$$;
+
+-- Habilitar pg_cron (ejecutar una vez; si ya está habilitado no hace nada)
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Job diario a las 03:00 UTC para actualizar estados de mora
+-- SELECT cron.schedule('update-loan-statuses-daily', '0 3 * * *', 'SELECT public.update_all_loan_statuses();');
+
+-- Job semanal (domingos 04:00 UTC) para limpiar audit_logs > 1 año
+-- SELECT cron.schedule('cleanup-audit-logs-weekly', '0 4 * * 0', 'DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL ''1 year'';');
+
+-- Job diario a las 05:00 UTC para recalcular stats de clientes con préstamos activos
+-- SELECT cron.schedule('recalc-client-stats-daily', '0 5 * * *', 'SELECT public.update_client_stats(client_id) FROM (SELECT DISTINCT client_id FROM loans WHERE status IN (''active'', ''late'')) s;');

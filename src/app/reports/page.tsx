@@ -19,13 +19,13 @@ export default async function ReportsPage(props: { searchParams: Promise<{ perio
 
   let loansQuery = supabase.from('loans').select('*, client:clients(*)')
   if (filterDate) loansQuery = loansQuery.gte('created_at', filterDate)
-  const { data: loans } = await loansQuery.order('created_at', { ascending: false })
+  const { data: loans } = await loansQuery.order('created_at', { ascending: false }).limit(100)
 
   let paymentsQuery = supabase.from('payments').select('*, loan:loans(client:clients(*))').eq('status', 'paid')
   if (filterDate) paymentsQuery = paymentsQuery.gte('payment_date', filterDate)
-  const { data: payments } = await paymentsQuery.order('payment_date', { ascending: false })
+  const { data: payments } = await paymentsQuery.order('payment_date', { ascending: false }).limit(100)
 
-  const { data: clients } = await supabase.from('clients').select('*')
+  const { data: clients } = await supabase.from('clients').select('*').limit(100)
 
   return (
     <MainLayout>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { rateLimitByIp } from '@/lib/rate-limit'
+import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -36,8 +36,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!rateLimitByIp(request, 'collections:create', 30, 60 * 1000)) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  const rl = rateLimitByIp(request, 'collections:create', 30, 60 * 1000)
+  if (!rl.allowed) {
+    return addRateLimitHeaders(
+      NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 }),
+      rl
+    )
   }
 
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -60,7 +64,7 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) return addRateLimitHeaders(NextResponse.json({ error: error.message }, { status: 500 }), rl)
 
   if (body.installment_id) {
     await supabase
@@ -69,5 +73,5 @@ export async function POST(request: NextRequest) {
       .eq('id', body.installment_id)
   }
 
-  return NextResponse.json(payment, supabaseResponse)
+  return addRateLimitHeaders(NextResponse.json(payment, supabaseResponse), rl)
 }

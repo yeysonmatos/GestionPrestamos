@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
-import { rateLimitByIp } from '@/lib/rate-limit'
+import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -15,8 +15,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  if (!rateLimitByIp(request, 'settings:update', 10, 60 * 60 * 1000)) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  const rl = rateLimitByIp(request, 'settings:update', 10, 60 * 60 * 1000)
+  if (!rl.allowed) {
+    return addRateLimitHeaders(
+      NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 }),
+      rl
+    )
   }
 
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -57,5 +61,5 @@ export async function PUT(request: NextRequest) {
     result = data
   }
 
-  return NextResponse.json(result, supabaseResponse)
+  return addRateLimitHeaders(NextResponse.json(result, supabaseResponse), rl)
 }

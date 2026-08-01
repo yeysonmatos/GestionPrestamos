@@ -4,17 +4,25 @@ import CalendarContent, { type OpenEndedLoan } from './CalendarContent'
 
 export default async function CalendarPage() {
   const supabase = await createServerSideClient()
+  const today = new Date().toISOString().split('T')[0]
+  const yearAgo = new Date()
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1)
+  const yearAgoStr = yearAgo.toISOString().split('T')[0]
 
   const { data: installments } = await supabase
     .from('installments')
     .select('*, loan:loans(client:clients(*))')
+    .gte('due_date', yearAgoStr)
     .order('due_date', { ascending: true })
+    .limit(200)
 
   const { data: payments } = await supabase
     .from('payments')
     .select('*, loan:loans(client:clients(*))')
     .eq('status', 'paid')
+    .gte('payment_date', yearAgoStr)
     .order('payment_date', { ascending: false })
+    .limit(200)
 
   const { data: openEndedLoans } = await supabase
     .from('loans')

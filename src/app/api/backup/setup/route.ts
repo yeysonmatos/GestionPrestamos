@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
-import { rateLimitByIp } from '@/lib/rate-limit'
+import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
-  if (!rateLimitByIp(request, 'backup:setup', 3, 10 * 60 * 1000)) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  const rl = rateLimitByIp(request, 'backup:setup', 3, 10 * 60 * 1000)
+  if (!rl.allowed) {
+    return addRateLimitHeaders(
+      NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 }),
+      rl
+    )
   }
 
   const admin = createAdminClient()
   if (!admin) {
-    return NextResponse.json({
-      error: 'SUPABASE_SERVICE_ROLE_KEY no configurada',
-      hint: 'Agrega SUPABASE_SERVICE_ROLE_KEY a .env.local o ejecuta el SQL manualmente en Supabase Dashboard → SQL Editor',
-      sql: `-- Crear bucket
+    return addRateLimitHeaders(
+      NextResponse.json({
+        error: 'SUPABASE_SERVICE_ROLE_KEY no configurada',
+        hint: 'Agrega SUPABASE_SERVICE_ROLE_KEY a .env.local o ejecuta el SQL manualmente en Supabase Dashboard → SQL Editor',
+        sql: `-- Crear bucket
 INSERT INTO storage.buckets (id, name, public, avif_autodetection)
 VALUES ('backups', 'backups', false, false)
 ON CONFLICT (id) DO NOTHING;
@@ -35,12 +40,14 @@ CREATE POLICY "users_delete_own_backups" ON storage.objects
     bucket_id = 'backups' AND auth.role() = 'authenticated'
     AND (storage.foldername(name))[1] = 'user_' || auth.uid()::text
   );`,
-    }, { status: 400 })
+      }, { status: 400 }),
+      rl
+    )
   }
 
   const { data: buckets } = await admin.storage.listBuckets()
   if (buckets?.some(b => b.id === 'backups')) {
-    return NextResponse.json({ success: true, message: 'El bucket backups ya existe' })
+    return addRateLimitHeaders(NextResponse.json({ success: true, message: 'El bucket backups ya existe' }), rl)
   }
 
   const { error } = await admin.storage.createBucket('backups', {
@@ -49,14 +56,17 @@ CREATE POLICY "users_delete_own_backups" ON storage.objects
   })
 
   if (error) {
-    return NextResponse.json({
-      error: `Error al crear bucket: ${error.message}`,
-      hint: 'Ejecuta el SQL manualmente en Supabase Dashboard → SQL Editor',
-      sql: `INSERT INTO storage.buckets (id, name, public, avif_autodetection) VALUES ('backups', 'backups', false, false) ON CONFLICT (id) DO NOTHING;`,
-    }, { status: 500 })
+    return addRateLimitHeaders(
+      NextResponse.json({
+        error: `Error al crear bucket: ${error.message}`,
+        hint: 'Ejecuta el SQL manualmente en Supabase Dashboard → SQL Editor',
+        sql: `INSERT INTO storage.buckets (id, name, public, avif_autodetection) VALUES ('backups', 'backups', false, false) ON CONFLICT (id) DO NOTHING;`,
+      }, { status: 500 }),
+      rl
+    )
   }
 
-  return NextResponse.json({ success: true, message: 'Bucket backups creado correctamente' })
+  return addRateLimitHeaders(NextResponse.json({ success: true, message: 'Bucket backups creado correctamente' }), rl)
 }
 
 export async function GET() {

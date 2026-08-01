@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimitByIp } from '@/lib/rate-limit'
+import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
 
 export async function GET(request: NextRequest) {
-  if (!rateLimitByIp(request, 'backup:ping', 60, 60 * 1000)) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  const rl = rateLimitByIp(request, 'backup:ping', 60, 60 * 1000)
+  if (!rl.allowed) {
+    return addRateLimitHeaders(
+      NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 }),
+      rl
+    )
   }
-  return NextResponse.json({ ok: true, time: Date.now() })
+  return addRateLimitHeaders(NextResponse.json({ ok: true, time: Date.now() }), rl)
 }
 
 export async function POST(request: NextRequest) {
-  if (!rateLimitByIp(request, 'backup:ping', 60, 60 * 1000)) {
-    return NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 })
+  const rl = rateLimitByIp(request, 'backup:ping', 60, 60 * 1000)
+  if (!rl.allowed) {
+    return addRateLimitHeaders(
+      NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 }),
+      rl
+    )
   }
-  return NextResponse.json({ ok: true, time: Date.now() })
+  return addRateLimitHeaders(NextResponse.json({ ok: true, time: Date.now() }), rl)
 }

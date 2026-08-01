@@ -11,12 +11,14 @@ export default async function LoansPage() {
     .from('loans')
     .select('*, client:clients(*)')
     .order('created_at', { ascending: false })
+    .limit(100)
 
   const { data: pendingInstallments } = await supabase
     .from('installments')
     .select('id, loan_id, due_date, number')
     .in('status', ['pending', 'partial', 'late'])
     .order('due_date', { ascending: true })
+    .limit(100)
 
   return (
     <MainLayout>

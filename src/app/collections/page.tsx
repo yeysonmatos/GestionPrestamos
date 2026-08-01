@@ -14,6 +14,7 @@ export default async function CollectionsPage() {
     .eq('due_date', today)
     .in('status', pendingStatuses)
     .order('due_date')
+    .limit(50)
 
   const { data: overdueInstallments } = await supabase
     .from('installments')
@@ -21,6 +22,7 @@ export default async function CollectionsPage() {
     .in('status', pendingStatuses)
     .lt('due_date', today)
     .order('due_date')
+    .limit(50)
 
   const { data: upcomingInstallments } = await supabase
     .from('installments')
@@ -35,6 +37,7 @@ export default async function CollectionsPage() {
     .select('*, loan:loans(*, client:clients(*))')
     .eq('status', 'paid')
     .order('created_at', { ascending: false })
+    .limit(50)
 
   const { data: openEndedLoans } = await supabase
     .from('loans')

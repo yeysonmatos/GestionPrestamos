@@ -11,10 +11,12 @@ export default async function ClientsPage() {
     .from('clients')
     .select('*')
     .order('name')
+    .limit(100)
 
   const { data: loans } = await supabase
     .from('loans')
     .select('*')
+    .limit(100)
 
   return (
     <MainLayout>
