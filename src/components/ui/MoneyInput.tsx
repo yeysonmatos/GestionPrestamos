@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, cleanAmount } from '@/lib/utils'
 
 interface MoneyInputProps {
   value: string
@@ -21,12 +21,17 @@ function formatDisplay(v: string): string {
   if (parts.length > 2) return v
   const intPart = parts[0]
   if (!intPart) return v
-  const formatted = new Intl.NumberFormat('es-MX', { style: 'decimal', maximumFractionDigits: 0 }).format(Number(intPart))
-  return parts[1] !== undefined ? `${formatted}.${parts[1]}` : formatted
+  const num = Number(clean)
+  const rounded = Number.isFinite(num) ? String(cleanAmount(num)) : clean
+  const rParts = rounded.split('.')
+  const formatted = new Intl.NumberFormat('es-MX', { style: 'decimal', maximumFractionDigits: 0 }).format(Number(rParts[0]))
+  return rParts[1] !== undefined ? `${formatted}.${rParts[1]}` : formatted
 }
 
 function stripFormatting(v: string): string {
-  return v.replace(/,/g, '')
+  const clean = v.replace(/[^0-9.]/g, '')
+  const num = Number(clean)
+  return v && Number.isFinite(num) ? String(cleanAmount(num)) : v.replace(/,/g, '')
 }
 
 export default function MoneyInput({ value, onChange, label, error, className, placeholder, required, autoFocus, id }: MoneyInputProps) {

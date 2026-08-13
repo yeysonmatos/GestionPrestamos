@@ -1,9 +1,7 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
-import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import SearchInput from '@/components/ui/SearchInput'
 import PageHeader from '@/components/ui/PageHeader'
@@ -11,19 +9,23 @@ import Input from '@/components/ui/Input'
 import MoneyInput from '@/components/ui/MoneyInput'
 import BottomSheet from '@/components/ui/BottomSheet'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { paymentTypeColors, paymentMethodColor } from '@/lib/status-colors'
 import { buildReceiptMessage } from '@/lib/messages'
 import { createClient } from '@/lib/supabase-client'
 import { calculateLateDays, calculateLateAmount, nextDueDateAfter } from '@/lib/calculations'
 import { updateLoanAfterPayment } from '@/lib/payments'
+import { logAuditEvent } from '@/lib/audit'
 import PaymentReceipt from '@/components/loans/PaymentReceipt'
+import Badge from '@/components/ui/Badge'
+import ViewTabs from '@/components/ui/ViewTabs'
+import { Alert } from '@/components/ui/Alert'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarCheck, Warning, Calendar, CurrencyDollar, CaretDown, ArrowsClockwise,
-  Check, ChatCircle, FileArrowDown, ShareNetwork,
+  CalendarCheck, Warning, Calendar, ArrowsClockwise,
+  Check, ChatCircle, FileArrowDown, ShareNetwork, Receipt,
+  Bank, Money, DownloadSimple,
 } from '@phosphor-icons/react'
 import type { Installment, Payment, Client, Setting } from '@/types'
-
-const ActionSheet = dynamic(() => import('@/components/ui/ActionSheet'), { ssr: false })
 
 interface OpenEndedLoan {
   id: string
@@ -106,7 +108,6 @@ export default function CollectionsContent({
   const [paymentError, setPaymentError] = useState('')
   const [filter, setFilter] = useState<'today' | 'overdue' | 'upcoming' | 'history'>('today')
   const [historyLimit, setHistoryLimit] = useState(20)
-  const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [includeMora, setIncludeMora] = useState(true)
   const [installmentMora, setInstallmentMora] = useState<{ lateDays: number; lateAmount: number } | null>(null)
   const [todayInstallments, setTodayInstallments] = useState(initialToday)
@@ -118,7 +119,7 @@ export default function CollectionsContent({
   const [successPrepaidBalance, setSuccessPrepaidBalance] = useState(0)
   const [successLoanInfo, setSuccessLoanInfo] = useState<{ loan_id: string; clientName: string; amount: number; remaining_amount: number; amortization_type: string; frequency: string; open_ended: boolean } | null>(null)
 
-  const lateInterestRate = settings?.late_interest_rate || 0.5
+  const lateInterestRate = settings?.late_interest_rate ?? 0
   const graceDays = settings?.grace_days || 0
 
   useEffect(() => {
@@ -216,6 +217,7 @@ export default function CollectionsContent({
       if (error) { setPaymentError('Error al registrar pago: ' + error.message); setLoading(false); return }
 
       if (payment) {
+        logAuditEvent(supabase, { userId, action: 'payment.recorded', entityType: 'payment', entityId: payment.id, details: { loan_id: inst.loan?.loan_id || inst.loan_id, client_name: inst.loan?.client?.name, amount, type: 'interest_only' } })
         await updateLoanAfterPayment(supabase, inst.loan_id, inst.client_id)
 
         setPayments(prev => [payment, ...prev])
@@ -267,6 +269,8 @@ export default function CollectionsContent({
       const payment = rpcResult.payment
       const allocation = rpcResult.allocation
       const loanUpdates = rpcResult.loan
+
+      logAuditEvent(supabase, { userId, action: 'payment.recorded', entityType: 'payment', entityId: payment.id, details: { loan_id: inst.loan?.loan_id || inst.loan_id, client_name: inst.loan?.client?.name, installment_id: realInst.id, amount: allocation.totalPaidOnInstallment, late_amount: allocation.newPaidLateAmount } })
 
       const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
       const updatedInstallment: Installment = {
@@ -336,6 +340,13 @@ export default function CollectionsContent({
     return name.includes(search.toLowerCase())
   })
 
+  const filterTabs = [
+    { key: 'today' as const, label: 'Hoy', count: allToday.length },
+    { key: 'overdue' as const, label: 'Vencidos', count: enrichedOverdue.length },
+    { key: 'upcoming' as const, label: 'Próximos', count: allUpcoming.length },
+    { key: 'history' as const, label: 'Historial', count: payments.length },
+  ]
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -365,7 +376,7 @@ export default function CollectionsContent({
         </Card>
         <Card className="flex items-center gap-4">
           <div className="h-10 w-10 rounded-xl bg-white border border-border flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-emerald-600" />
+            <Calendar className="h-5 w-5 text-primary" />
           </div>
           <div>
             <p className="text-xl font-bold text-foreground">{formatCurrency(upcomingTotal)}</p>
@@ -374,43 +385,15 @@ export default function CollectionsContent({
         </Card>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por cliente..." className="flex-1" />
-        <button onClick={() => setShowFilterSheet(true)}
-          className="w-full sm:hidden flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm bg-card min-h-11">
-          <span className="font-medium">{({ today: 'Hoy', overdue: 'Vencidos', upcoming: 'Próximos', history: 'Historial' } as Record<string, string>)[filter]}</span>
-          <span className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">({[allToday.length, enrichedOverdue.length, allUpcoming.length, payments.length][['today', 'overdue', 'upcoming', 'history'].indexOf(filter)]})</span>
-            <CaretDown className="h-4 w-4 text-muted-foreground" />
-          </span>
-        </button>
-        <ActionSheet open={showFilterSheet} onClose={() => setShowFilterSheet(false)}
-          options={[
-            { key: 'today', label: 'Hoy', count: allToday.length },
-            { key: 'overdue', label: 'Vencidos', count: enrichedOverdue.length },
-            { key: 'upcoming', label: 'Próximos', count: allUpcoming.length },
-            { key: 'history', label: 'Historial', count: payments.length },
-          ]} selected={filter} onSelect={v => setFilter(v as 'today' | 'overdue' | 'upcoming' | 'history')} title="Filtrar cobros" />
-        <div className="hidden sm:flex gap-1">
-          {([
-            { key: 'today', label: 'Hoy', count: allToday.length },
-            { key: 'overdue', label: 'Vencidos', count: enrichedOverdue.length },
-            { key: 'upcoming', label: 'Próximos', count: allUpcoming.length },
-            { key: 'history', label: 'Historial', count: payments.length },
-          ] as const).map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setFilter(tab.key)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                filter === tab.key
-                  ? 'bg-primary text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-border'
-              }`}
-            >
-              {tab.label} ({tab.count})
-            </button>
-          ))}
-        </div>
+        <ViewTabs
+          options={filterTabs}
+          selected={filter}
+          onSelect={v => setFilter(v as 'today' | 'overdue' | 'upcoming' | 'history')}
+          ariaLabel="Filtrar cobros"
+          className="w-full lg:w-auto"
+        />
       </div>
 
       {filter === 'history' ? (
@@ -418,21 +401,21 @@ export default function CollectionsContent({
           <h3 className="text-base font-semibold text-foreground mb-4">Últimos cobros realizados</h3>
           {payments.length === 0 ? (
             <div className="text-center py-10">
-              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-2xl">📭</div>
+              <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                <Receipt className="h-6 w-6 text-muted-foreground" />
+              </div>
               <p className="font-medium text-foreground">Sin cobros registrados</p>
               <p className="text-sm text-muted-foreground mt-1">Los cobros aparecerán aquí cuando se registren</p>
             </div>
           ) : (
             <div className="space-y-2">
               {payments.slice(0, historyLimit).map(p => {
-                const methodIcon = p.method === 'cash' ? '💰' : p.method === 'transfer' ? '🏦' : p.method === 'deposit' ? '📥' : '💳'
+                const methodIcon = p.method === 'cash' ? <Money className="h-4 w-4" /> : p.method === 'transfer' ? <Bank className="h-4 w-4" /> : p.method === 'deposit' ? <DownloadSimple className="h-4 w-4" /> : <Receipt className="h-4 w-4" />
                 const typeLabel = p.type === 'capital_abono' ? 'Abono' : p.type === 'liquidation' ? 'Liquidación' : p.type === 'installment' ? 'Interés' : 'Cuota'
-                const typeColor = p.type === 'capital_abono' ? 'bg-purple-100 text-purple-700' : p.type === 'liquidation' ? 'bg-green-100 text-green-700' : p.type === 'installment' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+                const typeColor = paymentTypeColors(p.type)
                 return (
                   <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 transition-all">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${
-                      p.method === 'cash' ? 'bg-green-50' : p.method === 'transfer' ? 'bg-blue-50' : p.method === 'deposit' ? 'bg-amber-50' : 'bg-gray-50'
-                    }`}>
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethodColor(p.method)}`}>
                       {methodIcon}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -469,8 +452,8 @@ export default function CollectionsContent({
       ) : filteredList.length === 0 ? (
         <Card>
           <div className="text-center py-10">
-            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-2xl">
-              {filter === 'today' ? '📅' : filter === 'overdue' ? '⚠️' : '📆'}
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+              {filter === 'today' ? <CalendarCheck className="h-6 w-6 text-muted-foreground" /> : filter === 'overdue' ? <Warning className="h-6 w-6 text-muted-foreground" /> : <Calendar className="h-6 w-6 text-muted-foreground" />}
             </div>
             <p className="font-medium text-foreground">
               {filter === 'today' ? 'No hay cobros para hoy' : filter === 'overdue' ? 'No hay cuotas vencidas' : 'No hay cuotas próximas'}
@@ -481,18 +464,17 @@ export default function CollectionsContent({
           </div>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="max-h-[55vh] overflow-y-auto pr-1 space-y-2">
           {filteredList.map((inst: Installment | SyntheticInstallment) => {
             const client = inst.loan?.client
             const isOpen = ('isOpenEnded' in inst && inst.isOpenEnded)
             const remainingLate = Math.max(0, (inst.late_amount || 0) - ((inst as Installment).paid_late_amount || 0))
             const remaining = inst.amount - (inst.paid_amount || 0)
             const isPartial = (inst.paid_amount ?? 0) > 0 && inst.status !== 'paid'
-            const borderColor = filter === 'overdue' ? 'border-l-red-500' : filter === 'upcoming' ? 'border-l-amber-400' : 'border-l-blue-500'
             const avatarColor = 'bg-primary'
             const clientInitial = client?.name?.charAt(0)?.toUpperCase() || '?'
             return (
-              <div key={inst.id} className={`bg-card rounded-xl border border-border border-l-4 ${borderColor} p-4 hover:shadow-sm transition-shadow`}>
+              <div key={inst.id} className="bg-card rounded-xl border border-border p-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-white flex-shrink-0 bg-primary`}>
@@ -528,7 +510,7 @@ export default function CollectionsContent({
                       <p className="text-xs text-destructive font-medium">+{formatCurrency(remainingLate)} mora</p>
                     )}
                     <Button size="sm" onClick={() => openPayment(inst)} className="mt-1.5 min-h-9">
-                      <CurrencyDollar className="h-4 w-4 mr-1" /> Cobrar
+                      Cobrar
                     </Button>
                   </div>
                 </div>
@@ -541,7 +523,7 @@ export default function CollectionsContent({
       <BottomSheet open={showPayment} onClose={() => { setShowPayment(false); setSelectedInstallment(null); setInstallmentMora(null) }} title="Registrar cobro">
         <form onSubmit={handlePay} className="space-y-4">
           {paymentError && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+            <Alert variant="danger">{paymentError}</Alert>
           )}
           {selectedInstallment && (() => {
             const inst = selectedInstallment
@@ -567,7 +549,7 @@ export default function CollectionsContent({
                   )}
                   <p><span className="text-muted-foreground">Vence:</span> <strong>{formatDate(inst.due_date)}</strong></p>
                   {(inst.paid_amount ?? 0) > 0 && (
-                    <p className="text-blue-600"><span className="text-muted-foreground">Pagado antes:</span> <strong>{formatCurrency(inst.paid_amount!)}</strong></p>
+                    <p className="text-primary"><span className="text-muted-foreground">Pagado antes:</span> <strong>{formatCurrency(inst.paid_amount!)}</strong></p>
                   )}
                   <p><span className="text-muted-foreground">Restante:</span> <strong>{formatCurrency(remaining)}</strong></p>
                   {mora && (
@@ -583,9 +565,9 @@ export default function CollectionsContent({
                   </div>
                 </div>
                 {Number((inst.loan as { prepaid_balance?: number } | undefined)?.prepaid_balance || 0) > 0 && (
-                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+                  <Alert variant="success">
                     Saldo a favor disponible: <strong>{formatCurrency(Number((inst.loan as { prepaid_balance?: number } | undefined)?.prepaid_balance || 0))}</strong>. Se aplicará automáticamente a esta cuota.
-                  </div>
+                  </Alert>
                 )}
                 {mora && (
                   <div className={`transition-all duration-200 ${includeMora ? 'opacity-100' : 'opacity-70'}`}>
@@ -632,8 +614,8 @@ export default function CollectionsContent({
 
       <BottomSheet open={showSuccess} onClose={() => { setShowSuccess(false); setSuccessPrepaidBalance(0) }} title="Pago exitoso">
         <div className="text-center space-y-5 py-2">
-          <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-            <Check className="h-8 w-8 text-green-600" />
+          <div className="mx-auto w-16 h-16 bg-success/15 rounded-full flex items-center justify-center">
+            <Check className="h-8 w-8 text-success" />
           </div>
           <p className="text-xl font-semibold text-foreground">Pago registrado correctamente</p>
 
@@ -641,16 +623,16 @@ export default function CollectionsContent({
             <div className="border border-border rounded-xl overflow-hidden">
               <PaymentReceipt
                 payment={successPayment}
-                loan={{ ...{ id: '', user_id: '', client_id: '', installment_amount: 0, paid_amount: 0, paid_installments: 0, installments: 0, progress: 0, prepaid_balance: 0, interest_type: 'percentage', interest_rate: 0, total_interest: 0, start_date: '', first_payment_date: '', end_date: null, payment_day: null, status: 'active', late_days: 0, late_interest_rate: 0, guarantee: null, notes: null, paid_at: null, cancelled_at: null, created_at: '', updated_at: '', planned_end_date: null, late_amount: 0, payments: undefined, client: { name: successLoanInfo.clientName } as import('@/types').Client, loan_id: successLoanInfo.loan_id, amount: successLoanInfo.amount, total_amount: successLoanInfo.amount, remaining_amount: successLoanInfo.remaining_amount, amortization_type: successLoanInfo.amortization_type, open_ended: successLoanInfo.open_ended, frequency: successLoanInfo.frequency } as import('@/types').Loan}}
+                loan={{ ...{ id: '', user_id: '', client_id: '', installment_amount: 0, paid_amount: 0, paid_installments: 0, installments: 0, progress: 0, prepaid_balance: 0, interest_type: 'percentage', interest_rate: 0, total_interest: 0, start_date: '', first_payment_date: '', end_date: null, payment_day: null, status: 'active', late_days: 0, late_interest_rate: 0, guarantee: null, notes: null, paid_at: null, cancelled_at: null, deleted_at: null, deleted_reason: null, created_at: '', updated_at: '', planned_end_date: null, late_amount: 0, payments: undefined, client: { name: successLoanInfo.clientName } as import('@/types').Client, loan_id: successLoanInfo.loan_id, amount: successLoanInfo.amount, total_amount: successLoanInfo.amount, remaining_amount: successLoanInfo.remaining_amount, amortization_type: successLoanInfo.amortization_type, open_ended: successLoanInfo.open_ended, frequency: successLoanInfo.frequency } as import('@/types').Loan}}
                 settings={settings}
               />
             </div>
           )}
 
           {successPrepaidBalance > 0 && (
-            <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+            <Alert variant="success">
               Saldo a favor actual del préstamo: <strong>{formatCurrency(successPrepaidBalance)}</strong>. Se aplicará a la próxima cuota.
-            </div>
+            </Alert>
           )}
 
           <div className="flex flex-col sm:flex-row gap-2">

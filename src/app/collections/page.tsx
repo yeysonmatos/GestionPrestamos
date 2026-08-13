@@ -10,25 +10,28 @@ export default async function CollectionsPage() {
 
   const { data: todayInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(*, client:clients(*))')
+    .select('*, loan:loans!inner(*, client:clients(*))')
     .eq('due_date', today)
     .in('status', pendingStatuses)
+    .is('loan.deleted_at', null)
     .order('due_date')
     .limit(50)
 
   const { data: overdueInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(*, client:clients(*))')
+    .select('*, loan:loans!inner(*, client:clients(*))')
     .in('status', pendingStatuses)
     .lt('due_date', today)
+    .is('loan.deleted_at', null)
     .order('due_date')
     .limit(50)
 
   const { data: upcomingInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(*, client:clients(*))')
+    .select('*, loan:loans!inner(*, client:clients(*))')
     .in('status', pendingStatuses)
     .gt('due_date', today)
+    .is('loan.deleted_at', null)
     .order('due_date')
     .limit(20)
 
@@ -43,7 +46,8 @@ export default async function CollectionsPage() {
     .from('loans')
     .select('id, loan_id, amount, installment_amount, remaining_amount, payment_day, first_payment_date, client:clients(id, name, phone)')
     .eq('open_ended', true)
-    .eq('status', 'active') as { data: { id: string; loan_id: string; amount: number; installment_amount: number; remaining_amount: number; payment_day: number; first_payment_date: string; client: { id: string; name: string; phone: string | null } | null }[] | null }
+    .eq('status', 'active')
+    .is('deleted_at', null) as { data: { id: string; loan_id: string; amount: number; installment_amount: number; remaining_amount: number; payment_day: number; first_payment_date: string; client: { id: string; name: string; phone: string | null } | null }[] | null }
 
   const { data: settings } = await supabase
     .from('settings')
@@ -54,6 +58,7 @@ export default async function CollectionsPage() {
     .from('loans')
     .select('id, loan_id, amount, remaining_amount, installment_amount, amortization_type, open_ended, client:clients(id, name, phone, whatsapp)')
     .in('status', ['active', 'late'])
+    .is('deleted_at', null)
     .order('loan_id')
 
   type ActiveLoanRaw = { id: string; loan_id: string; amount: number; remaining_amount: number; installment_amount: number; amortization_type: string; open_ended: boolean; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | { id: string; name: string; phone: string | null; whatsapp: string | null }[] | null }

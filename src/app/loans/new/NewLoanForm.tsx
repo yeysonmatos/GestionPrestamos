@@ -1,14 +1,18 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { addDays, format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/Card'
+import { Alert } from '@/components/ui/Alert'
 import Input, { Select } from '@/components/ui/Input'
 import MoneyInput from '@/components/ui/MoneyInput'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase-client'
+import { logAuditEvent } from '@/lib/audit'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { calculateLoan } from '@/lib/calculations'
+import { computeLateStatus } from '@/lib/loan-status'
 import { FREQUENCIES } from '@/types'
 import type { Client, Setting, Loan } from '@/types'
 
@@ -20,6 +24,13 @@ interface Props {
   isEditing?: boolean
   loanId?: string
   onSaved?: () => void
+}
+
+const PERIOD_DAYS: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
+
+function defaultFirstPaymentDate(startDate: string, frequency: string): string {
+  if (!startDate) return ''
+  return format(addDays(new Date(startDate), PERIOD_DAYS[frequency] || 30), 'yyyy-MM-dd')
 }
 
 export default function NewLoanForm({ clients, settings, selectedClientId, initialData, isEditing, loanId, onSaved }: Props) {
@@ -55,13 +66,29 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
       amortization_type: 'interest_only' as 'interest_only' | 'french',
       open_ended: false,
       start_date: new Date().toISOString().split('T')[0],
-      first_payment_date: '',
+      first_payment_date: defaultFirstPaymentDate(new Date().toISOString().split('T')[0], settings?.default_frequency || 'weekly'),
       guarantee: '',
       notes: '',
     }
   })
 
   const isInterestOnly = form.amortization_type === 'interest_only'
+
+  function update(field: string, value: string) {
+    setForm(prev => {
+      const next = { ...prev, [field]: value }
+      if (field === 'amortization_type' && value === 'interest_only' && prev.interest_type === 'fixed') {
+        next.interest_type = 'percentage'
+      }
+      if (field === 'start_date') {
+        const autoSynced = defaultFirstPaymentDate(prev.start_date, prev.frequency)
+        if (next.first_payment_date === autoSynced) {
+          next.first_payment_date = defaultFirstPaymentDate(value, prev.frequency)
+        }
+      }
+      return next
+    })
+  }
 
   const schedule = useMemo(() => {
     const amount = parseFloat(form.amount)
@@ -85,16 +112,6 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
       return null
     }
   }, [form.amount, form.interest_rate, form.interest_type, form.installments, form.frequency, form.first_payment_date, form.amortization_type, form.open_ended, form.start_date])
-
-  function update(field: string, value: string) {
-    setForm(prev => {
-      const next = { ...prev, [field]: value }
-      if (field === 'amortization_type' && value === 'interest_only' && prev.interest_type === 'fixed') {
-        next.interest_type = 'percentage'
-      }
-      return next
-    })
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -147,7 +164,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
       .select('loan_id_prefix')
       .single()
 
-    const prefix = settingsData?.loan_id_prefix || 'L-'
+    const prefix = settingsData?.loan_id_prefix || 'P'
     const loanIdNew = `${prefix}${String(Date.now()).slice(-6)}`
 
     const { data: loan, error: err } = await supabase
@@ -195,9 +212,19 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
         .insert(installmentsData)
 
       if (instErr) { setError(instErr.message); setLoading(false); return }
+
+      const late = computeLateStatus(schedule.installments.map(i => i.due_date))
+      if (late) {
+        await supabase.from('loans').update({
+          status: late.status,
+          late_days: late.lateDays,
+        }).eq('id', loan.id)
+      }
     }
 
     await supabase.rpc('update_client_stats', { p_client_id: form.client_id })
+    const clientName = clients.find(c => c.id === form.client_id)?.name
+    logAuditEvent(supabase, { userId: user.id, action: 'loan.created', entityType: 'loan', entityId: loan.id, details: { loan_id: loanIdNew, client_id: form.client_id, client_name: clientName, amount, amortization_type: form.amortization_type, open_ended: form.open_ended } })
 
     router.push(`/loans/${loan.id}`)
     router.refresh()
@@ -207,7 +234,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
   return (
     <Card>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{error}</div>}
+        {error && <Alert variant="danger">{error}</Alert>}
 
         {isEditing ? (
           <div className="text-sm text-muted-foreground p-3 rounded-lg bg-muted">
@@ -269,7 +296,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
 
           return (
             <div className="bg-primary-light rounded-lg p-4 space-y-3">
-              <p className="text-sm font-semibold text-blue-800">Resumen del cálculo</p>
+              <p className="text-sm font-semibold text-primary">Resumen del cálculo</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                 <div className="bg-white rounded-lg p-2.5">
                   <p className="text-xs text-muted-foreground">Monto del préstamo</p>
@@ -321,9 +348,9 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
           )
         })()}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" type="button" onClick={() => router.back()}>{isEditing ? 'Cancelar' : 'Cancelar'}</Button>
-          <Button type="submit" loading={loading}>{isEditing ? 'Guardar cambios' : 'Crear préstamo'}</Button>
+        <div className="flex gap-2 pt-2">
+          <Button variant="secondary" type="button" onClick={() => router.back()} className="flex-1">{isEditing ? 'Cancelar' : 'Cancelar'}</Button>
+          <Button type="submit" loading={loading} className="flex-1">{isEditing ? 'Guardar cambios' : 'Guardar préstamo'}</Button>
         </div>
       </form>
     </Card>

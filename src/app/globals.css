@@ -22,8 +22,6 @@
   --color-warning: #F59E0B;
   --color-warning-light: #FEF3C7;
   --color-ring: #2563EB;
-  --color-sidebar: #081528;
-  --color-sidebar-hover: #0F2A55;
   --font-family-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
 }
 
@@ -33,4 +31,12 @@ body {
   color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

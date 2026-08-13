@@ -1,15 +1,26 @@
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import DashboardContent from './DashboardContent'
+import type { LoanStats } from '@/types'
 
 export default async function DashboardPage() {
   const supabase = await createServerSideClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('status, ends_at, plan:plans(name)')
+    .eq('user_id', user?.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const { data: loans } = await supabase
     .from('loans')
     .select('*, client:clients(*)')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
-    .limit(50)
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -24,9 +35,7 @@ export default async function DashboardPage() {
     .gte('payment_date', sixMonthsAgoStr)
     .order('payment_date', { ascending: false })
 
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('*')
+  const { data: loanStats } = await supabase.rpc('get_loan_stats', { p_user_id: user?.id })
 
   const { data: todayPayments } = await supabase
     .from('payments')
@@ -36,16 +45,18 @@ export default async function DashboardPage() {
 
   const { data: overdueInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
     .in('status', ['pending', 'partial', 'late'])
+    .is('loan.deleted_at', null)
     .lt('due_date', today)
     .order('due_date', { ascending: true })
     .limit(20)
 
   const { data: upcomingInstallments } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
     .in('status', ['pending', 'partial', 'late'])
+    .is('loan.deleted_at', null)
     .gt('due_date', today)
     .order('due_date', { ascending: true })
     .limit(10)
@@ -55,10 +66,11 @@ export default async function DashboardPage() {
       <DashboardContent
         loans={loans || []}
         chartPayments={chartPayments || []}
-        clients={clients || []}
+        loanStats={loanStats as LoanStats | null}
         todayPayments={todayPayments || []}
         overdueInstallments={overdueInstallments || []}
         upcomingInstallments={upcomingInstallments || []}
+        subscription={subscription as { status: string; ends_at: string | null; plan: { name: string } | null } | null}
       />
     </MainLayout>
   )

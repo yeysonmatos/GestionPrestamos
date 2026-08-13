@@ -31,6 +31,35 @@ export default function Input({ label, error, className, id, ...props }: InputPr
   )
 }
 
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string
+  error?: string
+}
+
+export function Textarea({ label, error, className, id, ...props }: TextareaProps) {
+  const inputId = id || label?.toLowerCase().replace(/\s+/g, '-')
+
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label htmlFor={inputId} className="block text-sm font-medium text-muted-foreground">
+          {label}
+        </label>
+      )}
+      <textarea
+        id={inputId}
+        className={cn(
+          'block w-full min-w-0 rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring bg-card',
+          error ? 'border-destructive focus:ring-destructive' : 'border-border',
+          className
+        )}
+        {...props}
+      />
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   options: { value: string; label: string }[]

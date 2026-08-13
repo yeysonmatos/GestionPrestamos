@@ -9,7 +9,7 @@ import {
   Calendar, ChartBar, FileText, Gear, SignOut,
   List, X,
 } from '@phosphor-icons/react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Layout },
@@ -26,13 +26,6 @@ export default function Sidebar() {
   const pathname = usePathname()
   const supabase = createClient()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [userEmail, setUserEmail] = useState<string | null>(null)
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) setUserEmail(data.user.email ?? null)
-    })
-  }, [supabase])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -86,14 +79,6 @@ export default function Sidebar() {
 
       {/* User section */}
       <div className="p-3 border-t border-border">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
-            {userEmail ? userEmail[0].toUpperCase() : '?'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-foreground font-medium truncate">{userEmail ?? 'Usuario'}</p>
-          </div>
-        </div>
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors w-full min-h-11 mt-0.5"

@@ -82,6 +82,8 @@ export interface Loan {
   notes: string | null
   paid_at: string | null
   cancelled_at: string | null
+  deleted_at: string | null
+  deleted_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -148,6 +150,9 @@ export interface Setting {
   business_address: string
   business_phone: string
   business_email: string
+  personal_name: string
+  personal_phone: string
+  personal_email: string
   currency: string
   late_interest_rate: number
   loan_id_prefix: string
@@ -155,6 +160,9 @@ export interface Setting {
   default_installments: number
   default_frequency: 'daily' | 'weekly' | 'biweekly' | 'monthly'
   grace_days: number
+  country: string
+  timezone: string
+  onboarding_completed: boolean
   language: string
   updated_at: string
 }
@@ -186,6 +194,22 @@ export interface ReportOverview {
   portfolio_health: number
 }
 
+export interface LoanStats {
+  total_capital: number
+  recovered_capital: number
+  pending_capital: number
+  generated_interest: number
+  collected_interest: number
+  active_capital: number
+  late_capital: number
+  active_loans: number
+  outstanding_loans: number
+  paid_loans: number
+  late_loans: number
+  active_clients: number
+  late_clients: number
+}
+
 export interface Person {
   id: string
   name: string
@@ -193,18 +217,33 @@ export interface Person {
   created_at: string
 }
 
-export type Currency = 'MXN' | 'USD' | 'EUR' | 'COP' | 'ARS' | 'CLP' | 'PEN' | 'BRL' | 'DOP'
+export interface Plan {
+  id: string
+  name: string
+  price: number
+  currency: string
+  billing_cycle: 'monthly' | 'yearly'
+  description: string | null
+  features: string[]
+  max_clients: number | null
+  is_active: boolean
+}
 
-export const CURRENCIES: { code: Currency; symbol: string; name: string }[] = [
-  { code: 'MXN', symbol: '$', name: 'Peso Mexicano' },
-  { code: 'USD', symbol: '$', name: 'Dólar Americano' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'COP', symbol: '$', name: 'Peso Colombiano' },
-  { code: 'DOP', symbol: 'RD$', name: 'Peso Dominicano' },
-  { code: 'ARS', symbol: '$', name: 'Peso Argentino' },
-  { code: 'CLP', symbol: '$', name: 'Peso Chileno' },
-  { code: 'PEN', symbol: 'S/', name: 'Sol Peruano' },
-  { code: 'BRL', symbol: 'R$', name: 'Real Brasileño' },
+export const COUNTRIES = [
+  { value: 'República Dominicana', label: '🇩🇴 República Dominicana' },
+]
+
+export const TIMEZONES = [
+  'GMT-5',
+  'GMT-4',
+  'GMT-3',
+  'GMT-1',
+  'GMT',
+  'GMT+1',
+  'GMT+2',
+  'GMT+3',
+  'GMT+5',
+  'GMT+8',
 ]
 
 export const FREQUENCIES = [

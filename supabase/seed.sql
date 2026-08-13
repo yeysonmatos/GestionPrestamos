@@ -61,9 +61,9 @@ BEGIN
 
   -- Settings
   INSERT INTO public.settings (user_id, business_name, business_phone, currency, late_interest_rate, loan_id_prefix, grace_days, default_frequency, default_installments)
-  VALUES (v_user_id, 'Financiera Demo', '809-555-0000', 'DOP', 0.5, 'L-', 0, 'monthly', 6)
+  VALUES (v_user_id, 'Financiera Demo', '809-555-0000', 'DOP', 0, 'P', 0, 'monthly', 6)
   ON CONFLICT (user_id) DO UPDATE SET
-    business_name = 'Financiera Demo', late_interest_rate = 0.5, grace_days = 0;
+    business_name = 'Financiera Demo', late_interest_rate = 0, grace_days = 0;
 
   -- Limpiar datos previos
   DELETE FROM public.payments p USING public.loans l WHERE p.loan_id = l.id AND l.user_id = v_user_id;

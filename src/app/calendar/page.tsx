@@ -11,8 +11,9 @@ export default async function CalendarPage() {
 
   const { data: installments } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
     .gte('due_date', yearAgoStr)
+    .is('loan.deleted_at', null)
     .order('due_date', { ascending: true })
     .limit(200)
 
@@ -29,6 +30,7 @@ export default async function CalendarPage() {
     .select('id, loan_id, amount, installment_amount, remaining_amount, payment_day, first_payment_date, client:clients(id, name, phone)')
     .eq('open_ended', true)
     .eq('status', 'active')
+    .is('deleted_at', null)
 
   return (
     <MainLayout>

@@ -16,10 +16,10 @@ import { FileText, Image, Shield, Signature, UploadSimple, DownloadSimple, Trash
 import type { Document, Client } from '@/types'
 
 const typeIcons: Record<string, React.ReactNode> = {
-  contract: <FileText className="h-5 w-5 text-blue-500" />,
-  promissory: <Signature className="h-5 w-5 text-purple-500" />,
-  guarantee: <Shield className="h-5 w-5 text-green-500" />,
-  photo: <Image className="h-5 w-5 text-yellow-500" />,
+  contract: <FileText className="h-5 w-5 text-primary" />,
+  promissory: <Signature className="h-5 w-5 text-accent" />,
+  guarantee: <Shield className="h-5 w-5 text-success" />,
+  photo: <Image className="h-5 w-5 text-warning" />,
   note: <FileText className="h-5 w-5 text-muted-foreground" />,
 }
 
@@ -194,7 +194,7 @@ export default function DocumentsContent({ documents: initialDocuments, clients 
             ]}
           />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Archivo</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">Archivo</label>
             <input
               type="file"
               onChange={e => setFile(e.target.files?.[0] || null)}

@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     .from('loans')
     .select('id')
     .in('status', ['active', 'late', 'late_1_30', 'late_31_60', 'late_61_90'])
+    .is('deleted_at', null)
 
   if (!loans || loans.length === 0) {
     return addRateLimitHeaders(NextResponse.json({ updated: 0 }, supabaseResponse), rl)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { exportBackup } from '@/lib/backup/export'
 import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest) {
     if ('error' in result) {
       return addRateLimitHeaders(NextResponse.json({ error: result.error }, { status: 500 }), rl)
     }
+
+    logAuditEvent(supabase, { userId: user.id, action: 'backup.generated', entityType: 'backup', details: { folder: result.path, tables: result.tables, count: result.count } })
 
     return addRateLimitHeaders(
       NextResponse.json({

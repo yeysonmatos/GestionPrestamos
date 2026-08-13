@@ -1,32 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/Card'
+import { Alert } from '@/components/ui/Alert'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import MoneyInput from '@/components/ui/MoneyInput'
 import PageHeader from '@/components/ui/PageHeader'
-import BackupPanel from '@/components/settings/BackupPanel'
 import { createClient } from '@/lib/supabase-client'
 import { logAuditEvent } from '@/lib/audit'
-import { CURRENCIES, FREQUENCIES } from '@/types'
+import { FREQUENCIES } from '@/types'
 import { FloppyDisk } from '@phosphor-icons/react'
 import type { Setting } from '@/types'
 
 interface Props {
   settings: Setting | null
+  showHeader?: boolean
 }
 
-export default function SettingsContent({ settings: initialSettings }: Props) {
+export default function SettingsContent({ settings: initialSettings, showHeader = true }: Props) {
   const [settings, setSettings] = useState(initialSettings)
+  const [userEmail, setUserEmail] = useState('')
   const [form, setForm] = useState({
     business_name: settings?.business_name || 'Mi Negocio',
     business_address: settings?.business_address || '',
     business_phone: settings?.business_phone || '',
     business_email: settings?.business_email || '',
-    currency: settings?.currency || 'MXN',
-    late_interest_rate: String(settings?.late_interest_rate || 0.5),
-    loan_id_prefix: settings?.loan_id_prefix || 'L-',
+    personal_name: settings?.personal_name || '',
+    personal_phone: settings?.personal_phone || '',
+    personal_email: settings?.personal_email || '',
+    currency: 'DOP',
+    late_interest_rate: String(settings?.late_interest_rate ?? 0),
+    loan_id_prefix: settings?.loan_id_prefix || 'P',
     grace_days: String(settings?.grace_days || 0),
     notify_upcoming_days: String(settings?.notify_upcoming_days || 3),
     default_installments: String(settings?.default_installments || 10),
@@ -35,6 +40,19 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data?.user
+      if (!user) return
+      if (user.email) setUserEmail(user.email)
+      setForm(prev => ({
+        ...prev,
+        personal_email: prev.personal_email || user.email || '',
+        personal_name: prev.personal_name || (user.user_metadata?.full_name as string) || '',
+      }))
+    })
+  }, [supabase])
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -53,6 +71,9 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       business_address: form.business_address,
       business_phone: form.business_phone,
       business_email: form.business_email,
+      personal_name: form.personal_name,
+      personal_phone: form.personal_phone,
+      personal_email: form.personal_email,
       currency: form.currency,
       late_interest_rate: Math.max(0, parseFloat(form.late_interest_rate)),
       loan_id_prefix: form.loan_id_prefix,
@@ -60,6 +81,20 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       notify_upcoming_days: parseInt(form.notify_upcoming_days),
       default_installments: parseInt(form.default_installments),
       default_frequency: form.default_frequency,
+    }
+
+    const fieldKeys = Object.keys(payload) as (keyof typeof payload & string)[]
+    const changes: Record<string, unknown> = {}
+    const previous: Record<string, unknown> = {}
+    if (settings) {
+      for (const key of fieldKeys) {
+        const oldVal = (settings as unknown as Record<string, unknown>)[key]
+        const newVal = payload[key]
+        if (String(oldVal ?? '') !== String(newVal ?? '')) {
+          changes[key] = newVal
+          previous[key] = oldVal ?? ''
+        }
+      }
     }
 
     if (settings) {
@@ -72,7 +107,9 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
       if (!error) {
         setMessage('Configuración guardada correctamente')
         setSettings({ ...settings, ...payload } as Setting)
-        logAuditEvent(supabase, { userId: user.id, action: 'settings.updated', entityType: 'settings', entityId: settings.id, details: { ...payload } })
+        if (Object.keys(changes).length > 0) {
+          logAuditEvent(supabase, { userId: user.id, action: 'settings.updated', entityType: 'settings', entityId: settings.id, details: { ...changes, __previous: previous } })
+        }
       } else {
         setMessage('Error: ' + error.message)
       }
@@ -101,19 +138,20 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Configuración"
-        description="Personaliza tu negocio y preferencias"
-      />
+      {showHeader && (
+        <PageHeader
+          title="Configuración"
+          description="Personaliza tu negocio y preferencias"
+        />
+      )}
 
       <Card>
         <form onSubmit={handleSave} className="space-y-6">
-          {message && (
-            <div className="bg-green-50 text-green-700 text-sm p-3 rounded-lg">{message}</div>
-          )}
+          {message && <Alert variant="success">{message}</Alert>}
 
           <div>
             <h3 className="text-base font-semibold text-foreground mb-4">Información del negocio</h3>
+            <p className="text-xs text-muted-foreground -mt-2 mb-4">Esta información es la que verán tus clientes en recibos y cobros.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Nombre del negocio" value={form.business_name} onChange={e => update('business_name', e.target.value)} required />
               <Input label="Teléfono" value={form.business_phone} onChange={e => update('business_phone', e.target.value)} />
@@ -123,11 +161,23 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
           </div>
 
           <div className="border-t border-border pt-6">
+            <h3 className="text-base font-semibold text-foreground mb-4">Información personal</h3>
+            <p className="text-xs text-muted-foreground -mt-2 mb-4">Tus datos de contacto.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Nombre" value={form.personal_name} onChange={e => update('personal_name', e.target.value)} />
+              <Input label="Teléfono" value={form.personal_phone} onChange={e => update('personal_phone', e.target.value)} />
+              <div>
+                <Input label="Email" type="email" value={form.personal_email} onChange={e => update('personal_email', e.target.value)} />
+                {userEmail && (
+                  <p className="text-xs text-muted-foreground mt-1.5">Correo de tu cuenta: <span className="font-medium text-foreground">{userEmail}</span></p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-6">
             <h3 className="text-base font-semibold text-foreground mb-4">Préstamos</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select label="Moneda por defecto" value={form.currency} onChange={e => update('currency', e.target.value)}
-                options={CURRENCIES.map(c => ({ value: c.code, label: `${c.symbol} - ${c.name}` }))}
-              />
               <Input label="Prefijo ID préstamo" value={form.loan_id_prefix} onChange={e => update('loan_id_prefix', e.target.value)} />
               <MoneyInput label="Tasa de mora diaria (%)" value={form.late_interest_rate} onChange={e => update('late_interest_rate', e)} />
               <Input label="Días de gracia (sin mora)" type="number" min="0" value={form.grace_days} onChange={e => update('grace_days', e.target.value)} />
@@ -152,8 +202,6 @@ export default function SettingsContent({ settings: initialSettings }: Props) {
           </div>
         </form>
       </Card>
-
-      <BackupPanel />
     </div>
   )
 }

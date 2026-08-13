@@ -16,6 +16,7 @@ export default async function ClientsPage() {
   const { data: loans } = await supabase
     .from('loans')
     .select('*')
+    .is('deleted_at', null)
     .limit(100)
 
   return (

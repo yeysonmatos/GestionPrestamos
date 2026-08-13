@@ -8,7 +8,7 @@ const supabase = createClient('https://snwwvvmszizarakrozah.supabase.co', anonKe
 
 async function check() {
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: 'yeysonmatos@outlook.com', password: 'admin123'
+    email: 'yeysonmatos@gmail.com', password: 'admin123'
   })
   if (error) { console.error('Auth error:', error.message); return }
 

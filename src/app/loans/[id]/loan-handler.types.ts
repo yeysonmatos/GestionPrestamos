@@ -16,6 +16,8 @@ export interface LoanHandlerState {
   selectedPaymentInstallment: Installment | null
   capitalAbonoAmount: string
   successPayment: Payment | null
+  successPayments: Payment[]
+  successCoveredCount: number
   showPayment: boolean
   showSuccess: boolean
   showCapitalAbono: boolean
@@ -40,6 +42,8 @@ export interface LoanHandlerSetters {
   setSelectedPaymentInstallment: React.Dispatch<React.SetStateAction<Installment | null>>
   setCapitalAbonoAmount: React.Dispatch<React.SetStateAction<string>>
   setSuccessPayment: React.Dispatch<React.SetStateAction<Payment | null>>
+  setSuccessPayments: React.Dispatch<React.SetStateAction<Payment[]>>
+  setSuccessCoveredCount: React.Dispatch<React.SetStateAction<number>>
   setShowPayment: React.Dispatch<React.SetStateAction<boolean>>
   setShowSuccess: React.Dispatch<React.SetStateAction<boolean>>
   setShowCapitalAbono: React.Dispatch<React.SetStateAction<boolean>>
@@ -62,6 +66,52 @@ export interface LoanHandlerInput {
   state: LoanHandlerState
   setters: LoanHandlerSetters
   services: LoanHandlerServices
+}
+
+export interface ScheduleRowWrite {
+  key: 'number' | 'id'
+  value: string | number
+  data: Partial<Installment>
+}
+
+export interface AbonoRebalanceInput {
+  amount: number
+  existingCapitalPaid: number
+  loan: Loan
+  installments: Installment[]
+  paymentDate: string
+}
+
+export interface AbonoRebalanceResult {
+  installmentsToWrite: ScheduleRowWrite[]
+  loanUpdates: Record<string, string | number | boolean | null>
+  stateLoan: Partial<Loan>
+  fallbackInstallments?: Installment[]
+}
+
+export type AbonoRebalanceFn = (input: AbonoRebalanceInput) => Promise<AbonoRebalanceResult>
+
+export interface ReverseAbonoInput {
+  payment: Payment
+  newRemaining: number
+  newPaid: number
+  loan: Loan
+  installments: Installment[]
+  payments: Payment[]
+}
+
+export interface ReverseAbonoResult {
+  installmentsToWrite: ScheduleRowWrite[]
+  loanUpdates: Record<string, string | number | boolean | null>
+  stateLoan: Partial<Loan>
+  installmentsPreview?: Installment[]
+}
+
+export type ReverseAbonoFn = (input: ReverseAbonoInput) => Promise<ReverseAbonoResult>
+
+export interface LoanRebalanceStrategies {
+  rebalanceCapitalAbono: AbonoRebalanceFn
+  rebalanceReverseAbono: ReverseAbonoFn
 }
 
 export interface LoanHandlers {

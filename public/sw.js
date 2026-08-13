@@ -1,7 +1,9 @@
-const CACHE = 'mis-prestamos-v2'
+const CACHE = 'mis-prestamos-v3'
 const STATIC_ASSETS = [
   '/manifest.json',
-  '/gp-icon.png',
+  '/gp-icon-opaque.png',
+  '/gp-icon-maskable.png',
+  '/apple-touch-icon.png',
   '/offline.html',
 ]
 

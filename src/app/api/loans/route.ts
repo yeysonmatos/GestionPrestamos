@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from('loans')
     .select('*, client:clients(*)')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -19,6 +20,17 @@ export async function POST(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  // Validar que el cliente pertenezca al usuario (evita asociar préstamos a clientes ajenos)
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', body.client_id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!client) {
+    return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+  }
 
   const { data, error } = await supabase
     .from('loans')

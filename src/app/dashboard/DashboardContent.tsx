@@ -5,40 +5,51 @@ import { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import StatCard from '@/components/ui/StatCard'
 import Badge from '@/components/ui/Badge'
+import { Alert } from '@/components/ui/Alert'
+import PageHeader from '@/components/ui/PageHeader'
 import { Avatar } from '@/components/ui/Avatar'
 import { formatCurrency, formatNumber, formatDate, buildMonthlySeries } from '@/lib/utils'
 import Link from 'next/link'
 import {
   Wallet, PiggyBank, CurrencyDollar, TrendUp, Users, Warning,
-  Calendar, ArrowRight,
+  Calendar, ArrowRight, Alarm,
 } from '@phosphor-icons/react'
-import type { Loan, Payment, Client, Installment } from '@/types'
+import type { Loan, Installment, LoanStats } from '@/types'
 
 const DashboardBarChart = dynamic(() => import('./DashboardBarChart'), { ssr: false })
+
+const EMPTY_STATS: LoanStats = {
+  total_capital: 0,
+  recovered_capital: 0,
+  pending_capital: 0,
+  generated_interest: 0,
+  collected_interest: 0,
+  active_capital: 0,
+  late_capital: 0,
+  active_loans: 0,
+  outstanding_loans: 0,
+  paid_loans: 0,
+  late_loans: 0,
+  active_clients: 0,
+  late_clients: 0,
+}
 
 interface Props {
   loans: Loan[]
   chartPayments: { amount: number; payment_date: string }[]
-  clients: Client[]
-  todayPayments: { amount: number }[]
+  loanStats: LoanStats | null
+  todayPayments: { amount: number; payment_date: string }[]
   overdueInstallments: Installment[]
   upcomingInstallments: Installment[]
+  subscription: { status: string; ends_at: string | null; plan: { name: string } | null } | null
 }
 
 export default function DashboardContent({
-  loans, chartPayments, clients, todayPayments, overdueInstallments, upcomingInstallments,
+  loans, chartPayments, loanStats, todayPayments, overdueInstallments, upcomingInstallments, subscription,
 }: Props) {
-  const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'late')
-  const lateLoans = loans.filter(l => l.status === 'late')
-
-  const totalCapital = loans.reduce((s, l) => s + Number(l.amount), 0)
-  const pendingCapital = activeLoans.reduce((s, l) => s + Number(l.remaining_amount), 0)
-  const recoveredCapital = Math.max(0, totalCapital - pendingCapital)
-  const generatedInterest = loans.reduce((s, l) => s + Number(l.total_interest), 0)
+  const stats = loanStats ?? EMPTY_STATS
   const todayTotal = todayPayments.reduce((s, p) => s + Number(p.amount), 0)
   const overdueTotal = overdueInstallments.reduce((s, i) => s + (Number(i.amount) - Number(i.paid_amount || 0)), 0)
-  const activeClients = clients.filter(c => c.status === 'active').length
-  const lateClientIds = new Set(lateLoans.map(l => l.client_id))
 
   const monthlyData = useMemo(() => {
     const points: { month: string; income: number; loans: number }[] = [
@@ -46,65 +57,67 @@ export default function DashboardContent({
       ...loans.filter(l => l.created_at).map(l => ({ month: l.created_at!.slice(0, 7), income: 0, loans: Number(l.amount) })),
     ]
     return buildMonthlySeries(points, 6).map(d => ({
-      month: new Date(d.month + '-01').toLocaleString('es-MX', { month: 'short' }),
+      month: new Date(Number(d.month.slice(0, 4)), Number(d.month.slice(5, 7)) - 1, 1).toLocaleString('es-MX', { month: 'short' }),
       income: d.income,
       loans: d.loans,
     }))
   }, [chartPayments, loans])
 
+  const subEndsAt = subscription?.ends_at ? new Date(subscription.ends_at).getTime() : null
+  const subExpiringSoon = !!subEndsAt && subEndsAt - Date.now() <= 7 * 24 * 60 * 60 * 1000
+  const subExpired = !!subEndsAt && subEndsAt <= Date.now()
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Resumen de tu cartera de préstamos</p>
-        </div>
+      {subscription && subExpired && (
+        <Alert variant="danger" className="flex items-start gap-3 p-4 rounded-xl">
+          <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+            <Alarm className="h-5 w-5 text-destructive" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-destructive">
+              Tu plan {subscription.plan?.name || ''} venció el {formatDate(subscription.ends_at!)}
+            </p>
+            <p className="text-xs text-destructive/80 mt-0.5">
+              Estás en modo de solo lectura. Elige un plan para seguir usando todas las funciones.
+            </p>
+            <Link href="/account" className="text-xs font-medium text-destructive underline mt-1 inline-block">
+              Ver planes y renovar
+            </Link>
+          </div>
+        </Alert>
+      )}
+
+      {subscription && !subExpired && subExpiringSoon && (
+        <Alert variant="warning" className="flex items-start gap-3 p-4 rounded-xl">
+          <div className="w-9 h-9 rounded-lg bg-warning-light flex items-center justify-center shrink-0">
+            <Alarm className="h-5 w-5 text-warning" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-warning">
+              Tu plan {subscription.plan?.name || ''} vence el {formatDate(subscription.ends_at!)}
+            </p>
+            <p className="text-xs text-warning/80 mt-0.5">
+              Contacta al administrador para renovar tu mensualidad y evitar la suspensión del servicio.
+            </p>
+          </div>
+        </Alert>
+      )}
+
+      <PageHeader title="Dashboard" description="Resumen de tu cartera de préstamos" />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard label="Total Capital Prestado" value={formatNumber(stats.total_capital)} icon={Wallet} />
+        <StatCard label="Total capital recuperado" value={formatNumber(stats.recovered_capital)} icon={PiggyBank} />
+        <StatCard label="Total Capital Pendiente" value={formatNumber(stats.pending_capital)} icon={CurrencyDollar} />
+        <StatCard label="Total Intereses proyectados" value={formatNumber(stats.generated_interest)} icon={TrendUp} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard label="Capital Prestado" value={formatNumber(totalCapital)} icon={Wallet} />
-        <StatCard label="Capital Recuperado" value={formatNumber(recoveredCapital)} icon={PiggyBank} />
-        <StatCard label="Capital Pendiente" value={formatNumber(pendingCapital)} icon={CurrencyDollar} />
-        <StatCard label="Intereses Generados" value={formatNumber(generatedInterest)} icon={TrendUp} />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
-            <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg md:text-xl font-bold text-foreground">{activeClients}</p>
-            <p className="text-xs text-muted-foreground">Clientes activos</p>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
-            <Warning className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg md:text-xl font-bold text-foreground">{lateClientIds.size}</p>
-            <p className="text-xs text-muted-foreground">Clientes morosos</p>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
-            <Calendar className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(todayTotal)}</p>
-            <p className="text-xs text-muted-foreground">Cobros del día</p>
-          </div>
-        </Card>
-        <Card className="flex items-center gap-3 sm:gap-4">
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-white flex items-center justify-center shrink-0 border border-border">
-            <Warning className="h-4 w-4 md:h-5 md:w-5 text-destructive" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-lg md:text-xl font-bold text-foreground">{formatNumber(overdueTotal)}</p>
-            <p className="text-xs text-muted-foreground">Cobros vencidos</p>
-          </div>
-        </Card>
+        <StatCard label="Clientes activos" value={stats.active_clients} icon={Users} />
+        <StatCard label="Clientes morosos" value={stats.late_clients} icon={Warning} iconClassName="text-destructive" />
+        <StatCard label="Cobros del día" value={formatNumber(todayTotal)} icon={Calendar} iconClassName="text-success" />
+        <StatCard label="Cobros vencidos" value={formatNumber(overdueTotal)} icon={Warning} iconClassName="text-destructive" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

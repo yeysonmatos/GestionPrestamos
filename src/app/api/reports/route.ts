@@ -4,7 +4,7 @@ import { createRouteHandlerClient } from '@/lib/supabase-route'
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
 
-  const { data: loans } = await supabase.from('loans').select('*')
+  const { data: loans } = await supabase.from('loans').select('*').is('deleted_at', null)
   const { data: payments } = await supabase.from('payments').select('*').eq('status', 'paid')
   const { data: clients } = await supabase.from('clients').select('*')
 

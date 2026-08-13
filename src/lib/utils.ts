@@ -7,6 +7,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function cleanAmount(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
 export function formatNumber(amount: number): string {
   return new Intl.NumberFormat('es-DO', {
     style: 'decimal',
@@ -95,19 +99,10 @@ export function getTrustLevelColor(level: string): string {
   }
 }
 
-export function getLoanStatusColor(status: string): string {
-  switch (status) {
-    case 'active': return 'text-blue-600 bg-blue-100'
-    case 'paid': return 'text-green-600 bg-green-100'
-    case 'late': return 'text-red-600 bg-red-100'
-    case 'cancelled': return 'text-gray-500 bg-gray-100'
-    default: return 'text-gray-600 bg-gray-100'
-  }
-}
-
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     active: 'Activo',
+    inactive: 'Inactivo',
     paid: 'Pagado',
     late: 'Atrasado',
     late_1_30: 'Mora 1-30d',
@@ -120,4 +115,9 @@ export function getStatusLabel(status: string): string {
     low: 'Bajo',
   }
   return labels[status] || status
+}
+
+export function lateStatusLabel(status: string, lateDays: number = 0): string {
+  if (!['late', 'late_1_30', 'late_31_60', 'late_61_90'].includes(status)) return getStatusLabel(status)
+  return `Atrs ${Math.max(0, lateDays)}d`
 }

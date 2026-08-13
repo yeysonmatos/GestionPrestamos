@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# data backups (customer PII)
+/scripts/backups/

@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { requireAdminApi } from '@/lib/admin'
+import { retryFailed } from '@/lib/notify/queue'
+
+export async function GET(request: NextRequest) {
+  const guard = await requireAdminApi(request)
+  if (!guard.ok) return guard.response
+
+  const { adminClient, supabaseResponse } = guard
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status') || ''
+  const event = searchParams.get('event') || ''
+  const q = searchParams.get('q') || ''
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get('page_size') || '25') || 25))
+
+  let query = adminClient
+    .from('email_messages')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .range((page - 1) * pageSize, page * pageSize - 1)
+
+  if (status && ['queued', 'sending', 'sent', 'failed'].includes(status)) query = query.eq('status', status)
+  if (event) query = query.eq('event_type', event)
+
+  const [{ data, error }, countRes] = await Promise.all([
+    query,
+    adminClient.from('email_messages').select('id', { count: 'exact', head: true }),
+  ])
+  if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: supabaseResponse.headers })
+
+  const rows = (data || []) as { recipient_email: string; recipient_name?: string | null; subject: string; template_key: string; html_body: string }[]
+  const filtered = q
+    ? rows.filter(r =>
+        r.recipient_email.toLowerCase().includes(q.toLowerCase()) ||
+        (r.recipient_name || '').toLowerCase().includes(q.toLowerCase()) ||
+        r.subject.toLowerCase().includes(q.toLowerCase())
+      )
+    : rows
+
+  return NextResponse.json({
+    messages: filtered,
+    total: countRes.count || 0,
+    page,
+    page_size: pageSize,
+  }, supabaseResponse)
+}
+
+export async function POST(request: NextRequest) {
+  const guard = await requireAdminApi(request)
+  if (!guard.ok) return guard.response
+
+  const { adminClient, supabaseResponse } = guard
+  const body = await request.json().catch(() => ({}))
+  const ids = Array.isArray(body.ids) ? body.ids.filter((x: unknown) => typeof x === 'string') : undefined
+
+  const count = await retryFailed(adminClient, ids?.length ? ids : undefined)
+  return NextResponse.json({ ok: true, requeued: count }, supabaseResponse)
+}

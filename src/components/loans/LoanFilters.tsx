@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { X, Sliders } from '@phosphor-icons/react'
+import { X, Sliders, MagnifyingGlass } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'framer-motion'
 import styles from './LoanFilters.module.css'
 import MoneyInput from '@/components/ui/MoneyInput'
@@ -35,7 +35,7 @@ export interface LoanFiltersActions {
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'Todos' },
-  { value: 'active', label: 'Activos' },
+  { value: 'active', label: 'En curso' },
   { value: 'paid', label: 'Pagados' },
   { value: 'late', label: 'Atrasados' },
   { value: 'cancelled', label: 'Cancelados' },
@@ -138,11 +138,11 @@ export function LoanFilters({
   }, [])
 
   const hasAnyActiveFilter = () =>
-    state.status !== 'all' || state.type !== 'all' || state.frequency !== 'all' ||
+    state.status !== 'active' || state.type !== 'all' || state.frequency !== 'all' ||
     state.dateRange.from || state.dateRange.to || state.amountRange.min || state.amountRange.max
 
   const activeCount = useMemo(() =>
-    (state.status !== 'all' ? 1 : 0) +
+    (state.status !== 'active' ? 1 : 0) +
     (state.type !== 'all' ? 1 : 0) +
     (state.frequency !== 'all' ? 1 : 0) +
     (state.dateRange.from || state.dateRange.to ? 1 : 0) +
@@ -159,7 +159,7 @@ export function LoanFilters({
       </div>
 
       <div className={styles.filterSection}>
-        <SectionHeader title="Estado" hasActive={state.status !== 'all'} onClear={actions.clearStatus} />
+        <SectionHeader title="Estado" hasActive={state.status !== 'active'} onClear={actions.clearStatus} />
         {<ChipRow options={STATUS_OPTIONS} selected={state.status} onChange={actions.setStatus} counts={counts.status} />}
       </div>
 
@@ -198,7 +198,7 @@ export function LoanFilters({
         <div className={styles.activeFiltersSummary}>
           <span className={styles.activeFiltersLabel}>Filtros activos:</span>
           <div className={styles.activeFiltersChips}>
-            {state.status !== 'all' && <ActiveFilterChip label={STATUS_OPTIONS.find(o => o.value === state.status)?.label ?? state.status} onRemove={actions.clearStatus} />}
+            {state.status !== 'active' && <ActiveFilterChip label={STATUS_OPTIONS.find(o => o.value === state.status)?.label ?? state.status} onRemove={actions.clearStatus} />}
             {state.type !== 'all' && <ActiveFilterChip label={TYPE_OPTIONS.find(o => o.value === state.type)?.label ?? state.type} onRemove={() => actions.setType('all')} />}
             {state.frequency !== 'all' && <ActiveFilterChip label={FREQUENCY_OPTIONS.find(o => o.value === state.frequency)?.label ?? state.frequency} onRemove={() => actions.setFrequency('all')} />}
             {state.dateRange.from && <ActiveFilterChip label={`Desde ${state.dateRange.from}`} onRemove={actions.clearDateRange} />}
@@ -216,7 +216,7 @@ export function LoanFilters({
       {/* Search + Filter Toggle */}
       <div className={styles.searchFilterRow}>
         <div className={styles.searchWrapper}>
-          <span className={styles.searchIcon}>🔍</span>
+          <MagnifyingGlass className={styles.searchIcon} />
           <input
             type="text"
             className={styles.searchInput}

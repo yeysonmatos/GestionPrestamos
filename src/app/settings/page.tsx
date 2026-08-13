@@ -1,6 +1,6 @@
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
-import SettingsContent from './SettingsContent'
+import SettingsTabs from './SettingsTabs'
 
 export default async function SettingsPage() {
   const supabase = await createServerSideClient()
@@ -12,7 +12,7 @@ export default async function SettingsPage() {
 
   return (
     <MainLayout>
-      <SettingsContent settings={settings} />
+      <SettingsTabs settings={settings} />
     </MainLayout>
   )
 }

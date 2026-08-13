@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
-import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import PageHeader from '@/components/ui/PageHeader'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -13,6 +12,7 @@ import {
 import { es } from 'date-fns/locale'
 import { CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { nextDueDateAfter } from '@/lib/calculations'
+import Badge from '@/components/ui/Badge'
 import type { Installment, Payment, Client, Loan } from '@/types'
 
 export interface OpenEndedLoan {
@@ -268,27 +268,29 @@ export default function CalendarContent({ installments, payments, openEndedLoans
           }
           return (
             <div className="space-y-2">
-              {filtered.slice(0, listLimit).map(inst => (
-                <div key={inst.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {inst.loan?.client?.name}
-                      {inst.number > 0 ? ` · Cuota #${inst.number}` : ' · Cuota mensual'}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
+              {filtered.slice(0, listLimit).map(inst => {
+                const isOverdue = parseISO(inst.due_date) < new Date() && inst.status !== 'paid'
+                const badgeLabel = inst.status === 'paid' ? 'Pagada' :
+                  inst.status === 'partial' ? 'Parcial' :
+                  isOverdue ? 'Vencida' : 'Pendiente'
+                return (
+                  <div key={inst.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {inst.loan?.client?.name || inst.loan?.loan_id || ''}
+                        {inst.number > 0 ? ` · Cuota #${inst.number}` : ' · Cuota mensual'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
+                      <Badge variant={inst.status === 'paid' ? 'paid' : inst.status === 'partial' || !isOverdue ? 'active' : 'late'}>
+                        {badgeLabel}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="font-semibold text-foreground">{formatCurrency(inst.amount)}</span>
-                    <Badge variant={
-                      inst.status === 'partial' ? 'active' :
-                      parseISO(inst.due_date) < new Date() ? 'late' : 'active'
-                    }>
-                      {inst.status === 'partial' ? 'Parcial' :
-                       parseISO(inst.due_date) < new Date() ? 'Atrasado' : 'Pendiente'}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
               {filtered.length > listLimit && (
                 <button
                   type="button"

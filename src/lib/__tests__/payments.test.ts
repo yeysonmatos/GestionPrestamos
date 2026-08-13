@@ -1,12 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { calculatePaymentAllocation, processInstallmentPayment, updateLoanAfterPayment } from '../payments'
+import { calculatePaymentAllocation, updateLoanAfterPayment } from '../payments'
 import type { Loan, Installment, Payment } from '@/types'
-
-afterEach(() => {
-  vi.useRealTimers()
-})
 
 function makeLoan(overrides: Partial<Loan> = {}): Loan {
   return {
@@ -40,6 +36,8 @@ function makeLoan(overrides: Partial<Loan> = {}): Loan {
     notes: null,
     paid_at: null,
     cancelled_at: null,
+    deleted_at: null,
+    deleted_reason: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -234,124 +232,6 @@ describe('calculatePaymentAllocation', () => {
     expect(a.totalPaidOnInstallment).toBe(500)
     expect(a.surplus).toBe(200)
     expect(a.newPrepaidBalance).toBe(200)
-  })
-})
-
-describe('processInstallmentPayment', () => {
-  it('registra pago completo con mora y marca cuota pagada', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 6, 20, 12, 0, 0))
-
-    const { supabase, calls } = createMockSupabase()
-    const { payment, allocation } = await processInstallmentPayment(supabase, {
-      loan: makeLoan(),
-      installment: makeInstallment(),
-      amount: 600,
-      includeMora: true,
-      paymentDate: '2026-07-20',
-      method: 'cash',
-      notes: null,
-      userId: 'u1',
-      lateInterestRate: 2,
-    })
-
-    expect(allocation.totalLateAmount).toBe(100)
-    expect(allocation.lateDays).toBe(10)
-    expect(allocation.isNowFullyPaid).toBe(true)
-
-    expect(payment.amount).toBe(600)
-    expect(payment.late_amount).toBe(100)
-    expect(payment.capital_amount).toBe(100)
-    expect(payment.interest_amount).toBe(400)
-
-    const instUpdate = calls.find(c => c.table === 'installments' && c.op === 'update')
-    expect(instUpdate?.payload).toMatchObject({
-      status: 'paid',
-      paid_amount: 500,
-      paid_late_amount: 100,
-      late_amount: 100,
-      late_days: 10,
-      paid_at: '2026-07-20',
-    })
-  })
-
-  it('pago parcial deja cuota en partial sin paid_at', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 6, 20, 12, 0, 0))
-
-    const { supabase, calls } = createMockSupabase()
-    await processInstallmentPayment(supabase, {
-      loan: makeLoan(),
-      installment: makeInstallment(),
-      amount: 300,
-      includeMora: false,
-      paymentDate: '2026-07-20',
-      method: 'cash',
-      notes: null,
-      userId: 'u1',
-      lateInterestRate: 2,
-    })
-
-    const instUpdate = calls.find(c => c.table === 'installments' && c.op === 'update')
-    expect(instUpdate?.payload).toMatchObject({
-      status: 'partial',
-      paid_amount: 300,
-      paid_late_amount: 0,
-      paid_at: null,
-    })
-  })
-
-  it('persiste el excedente como saldo a favor en el préstamo', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 6, 20, 12, 0, 0))
-
-    const { supabase, calls } = createMockSupabase()
-    await processInstallmentPayment(supabase, {
-      loan: makeLoan(),
-      installment: makeInstallment({ due_date: '2026-08-10' }),
-      amount: 700,
-      includeMora: false,
-      paymentDate: '2026-07-20',
-      method: 'cash',
-      notes: null,
-      userId: 'u1',
-      lateInterestRate: 2,
-    })
-
-    const loanUpdate = calls.find(c => c.table === 'loans' && c.op === 'update')
-    expect(loanUpdate?.payload).toMatchObject({ prepaid_balance: 200 })
-  })
-
-  it('lanza error si falla el insert del pago', async () => {
-    const { supabase } = createMockSupabase({}, { insertError: 'insert failed' })
-
-    await expect(processInstallmentPayment(supabase, {
-      loan: makeLoan(),
-      installment: makeInstallment(),
-      amount: 600,
-      includeMora: true,
-      paymentDate: '2026-07-20',
-      method: 'cash',
-      notes: null,
-      userId: 'u1',
-      lateInterestRate: 2,
-    })).rejects.toThrow('insert failed')
-  })
-
-  it('lanza error si falla el update de la cuota', async () => {
-    const { supabase } = createMockSupabase({}, { updateError: 'update failed' })
-
-    await expect(processInstallmentPayment(supabase, {
-      loan: makeLoan(),
-      installment: makeInstallment(),
-      amount: 600,
-      includeMora: true,
-      paymentDate: '2026-07-20',
-      method: 'cash',
-      notes: null,
-      userId: 'u1',
-      lateInterestRate: 2,
-    })).rejects.toThrow('Error updating installment')
   })
 })
 

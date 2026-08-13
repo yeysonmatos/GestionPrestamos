@@ -1,5 +1,4 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { calculateLateDays, calculateLateAmount } from './calculations'
 import type { Loan, Installment, Payment } from '@/types'
 
 export interface PaymentAllocation {
@@ -15,25 +14,6 @@ export interface PaymentAllocation {
   surplus: number
   creditConsumed: number
   newPrepaidBalance: number
-}
-
-export interface ProcessPaymentInput {
-  loan: Loan
-  installment: Installment
-  amount: number
-  includeMora: boolean
-  paymentDate: string
-  method: string
-  notes: string | null
-  userId: string
-  lateInterestRate: number
-  graceDays?: number
-  prepaidBalance?: number
-}
-
-export interface ProcessPaymentResult {
-  payment: Payment
-  allocation: PaymentAllocation
 }
 
 export function calculatePaymentAllocation(
@@ -89,84 +69,6 @@ export function calculatePaymentAllocation(
   }
 }
 
-export async function processInstallmentPayment(
-  supabase: SupabaseClient,
-  input: ProcessPaymentInput,
-): Promise<ProcessPaymentResult> {
-  const { loan, installment, amount, includeMora, paymentDate, method, notes, userId, lateInterestRate } = input
-
-  const lateDays = calculateLateDays(installment.due_date, input.graceDays || 0)
-  const previouslyPaid = installment.paid_amount || 0
-  const previouslyPaidLate = installment.paid_late_amount || 0
-  const remaining = installment.amount - previouslyPaid
-  const totalLateAmount = calculateLateAmount(remaining > 0 ? remaining : installment.amount, lateDays, lateInterestRate)
-  const availableCredit = input.prepaidBalance ?? loan.prepaid_balance ?? 0
-
-  const allocation = calculatePaymentAllocation(
-    amount,
-    installment.amount,
-    previouslyPaid,
-    previouslyPaidLate,
-    totalLateAmount,
-    includeMora,
-    lateDays,
-    availableCredit,
-  )
-
-  const interestAmount = Math.min(allocation.paidToInstallment, installment.interest)
-  const capitalAmount = Math.max(0, allocation.paidToInstallment - interestAmount)
-
-  const { data: payment, error } = await supabase
-    .from('payments')
-    .insert({
-      loan_id: loan.id,
-      installment_id: installment.id,
-      client_id: loan.client_id,
-      user_id: userId,
-      amount,
-      capital_amount: capitalAmount,
-      interest_amount: interestAmount,
-      late_amount: allocation.paidToLate,
-      payment_date: paymentDate,
-      method,
-      notes: notes || null,
-    })
-    .select()
-    .single()
-
-  if (error || !payment) throw new Error(error?.message || 'Error creating payment')
-
-  const newStatus = allocation.isNowFullyPaid
-    ? 'paid'
-    : allocation.totalPaidOnInstallment > 0
-      ? 'partial'
-      : 'pending'
-
-  const { error: instError } = await supabase
-    .from('installments')
-    .update({
-      status: newStatus,
-      paid_amount: allocation.totalPaidOnInstallment,
-      paid_late_amount: allocation.newPaidLateAmount,
-      late_amount: totalLateAmount,
-      late_days: lateDays,
-      paid_at: allocation.isNowFullyPaid ? paymentDate : null,
-    })
-    .eq('id', installment.id)
-
-  if (instError) throw new Error(`Error updating installment: ${instError.message}`)
-
-  if (Math.abs(allocation.newPrepaidBalance - availableCredit) >= 0.005) {
-    const { error: balanceError } = await supabase
-      .from('loans')
-      .update({ prepaid_balance: allocation.newPrepaidBalance })
-      .eq('id', loan.id)
-    if (balanceError) throw new Error(`Error updating loan balance: ${balanceError.message}`)
-  }
-
-  return { payment, allocation }
-}
-
 export async function recalculateInstallment(
   supabase: SupabaseClient,
   installmentId: string,
@@ -178,7 +80,7 @@ export async function recalculateInstallment(
     .eq('status', 'paid')
     .order('payment_date', { ascending: false })
 
-  const totalPaid = payments?.reduce((s, p) => s + Number(p.amount), 0) || 0
+  const totalPaid = payments?.reduce((s, p) => s + Number(p.capital_amount || 0) + Number(p.interest_amount || 0), 0) || 0
   const totalLatePaid = payments?.reduce((s, p) => s + Number(p.late_amount), 0) || 0
 
   const { data: inst } = await supabase

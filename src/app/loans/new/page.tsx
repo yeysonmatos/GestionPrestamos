@@ -13,7 +13,6 @@ export default async function NewLoanPage({ searchParams }: Props) {
   const { data: clients } = await supabase
     .from('clients')
     .select('*')
-    .eq('status', 'active')
     .order('name')
 
   const { data: settings } = await supabase

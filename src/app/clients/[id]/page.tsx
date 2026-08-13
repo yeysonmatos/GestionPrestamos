@@ -23,6 +23,7 @@ export default async function ClientProfilePage({ params }: Props) {
     .from('loans')
     .select('*')
     .eq('client_id', id)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   const { data: payments } = await supabase

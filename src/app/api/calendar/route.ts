@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
+    .is('loan.deleted_at', null)
     .order('due_date', { ascending: true })
 
   if (month) {

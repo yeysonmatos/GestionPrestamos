@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, lateStatusLabel } from '@/lib/utils'
+import { paymentTypeColors, paymentMethodColor, loanStatusColors } from '@/lib/status-colors'
 import { buildReceiptMessage, buildQuickMessage, buildPaymentSummary } from '@/lib/messages'
 import { calculateProportionalInterest, calculateLateDays, calculateLateAmount, nextDueDateAfter } from '@/lib/calculations'
 import PaymentReceipt from '@/components/loans/PaymentReceipt'
@@ -15,12 +16,13 @@ import Input from '@/components/ui/Input'
 import MoneyInput from '@/components/ui/MoneyInput'
 import { Progress } from '@/components/ui/Progress'
 import BottomSheet from '@/components/ui/BottomSheet'
+import { Alert } from '@/components/ui/Alert'
 import {
-  ArrowLeft, ChatCircle, FileText, Scroll, ArrowCounterClockwise,
-  Check, FileArrowDown, ShareNetwork, Plus, Pencil,
+  ArrowLeft, WhatsappLogo, Files, Signature, ArrowCounterClockwise,
+  Check, FileArrowDown, ShareNetwork, Plus, PencilSimple, Receipt,
+  Bank, Money, DownloadSimple, MagnifyingGlass, TrashSimple,
 } from '@phosphor-icons/react'
-import NewLoanForm from '@/app/loans/new/NewLoanForm'
-import type { Loan, Installment, Payment, Setting, Client } from '@/types'
+import type { Loan, Installment, Payment, Setting } from '@/types'
 import { useFrenchLoan } from './useFrenchLoan'
 import { useInterestOnlyLoan } from './useInterestOnlyLoan'
 import type { LoanHandlerInput } from './loan-handler.types'
@@ -46,20 +48,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [showDocs, setShowDocs] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [successPayment, setSuccessPayment] = useState<Payment | null>(null)
+  const [successPayments, setSuccessPayments] = useState<Payment[]>([])
+  const [successCoveredCount, setSuccessCoveredCount] = useState(0)
   const [docs, setDocs] = useState<Array<{id: string; name: string; type: string; path: string}>>([])
   const [loading, setLoading] = useState(false)
   const [paymentError, setPaymentError] = useState('')
-
-  const [showEdit, setShowEdit] = useState(false)
-  const [editClients, setEditClients] = useState<Client[]>([])
-
-  async function openEdit() {
-    if (editClients.length === 0) {
-      const { data } = await supabase.from('clients').select('*').order('name')
-      if (data) setEditClients(data as Client[])
-    }
-    setShowEdit(true)
-  }
 
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
@@ -76,6 +69,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [showReversalModal, setShowReversalModal] = useState(false)
   const [reversalPaymentId, setReversalPaymentId] = useState<string | null>(null)
   const [reversalReason, setReversalReason] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [deleteReason, setDeleteReason] = useState('')
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -97,25 +93,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const isOpenEnded = loan.open_ended
   const isInterestOnly = loan.amortization_type === 'interest_only'
 
-  const statusVariant: Record<string, 'paid' | 'active' | 'late' | 'late_1_30' | 'late_31_60' | 'late_61_90' | 'default'> = {
-    active: 'active',
-    paid: 'paid',
-    late: 'late',
-    late_1_30: 'late_1_30',
-    late_31_60: 'late_31_60',
-    late_61_90: 'late_61_90',
-  }
-
-  const getStatusLabel = (status: string) => {
-    if (status === 'active') return 'Activo'
-    if (status === 'paid') return 'Pagado'
-    if (status.startsWith('late')) return `Atrasado ${status.split('_')[1] || ''}`.trim()
-    return status
-  }
-
   const calcPendingMora = () => {
     const graceDays = settings?.grace_days || 0
-    const lateRate = settings?.late_interest_rate || 0.5
+    const lateRate = settings?.late_interest_rate ?? 0
     let total = 0
     for (const inst of installments) {
       if (inst.status === 'paid') continue
@@ -137,6 +117,23 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     return Math.max(0, Number(loan.amount) - paidCapital)
   }
 
+  const openPayModal = (inst: Installment) => {
+    setPaymentInstallmentId(inst.id)
+    setSelectedPaymentInstallment(inst)
+    const remaining = inst.amount - (inst.paid_amount || 0)
+    const graceDays = settings?.grace_days || 0
+    const ld = calculateLateDays(inst.due_date, graceDays)
+    const totalLate = ld > 0
+      ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, ld, settings?.late_interest_rate ?? 0)
+      : 0
+    const paidLate = inst.paid_late_amount || 0
+    const remainingLateVal = Math.max(0, totalLate - paidLate)
+    setSelectedInstallmentMora(ld > 0 ? { lateDays: ld, lateAmount: remainingLateVal } : null)
+    setIncludeMora(true)
+    setPaymentAmount(String(remaining + remainingLateVal))
+    setShowPayment(true)
+  }
+
 
   const hookInput: LoanHandlerInput = {
     state: {
@@ -153,6 +150,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       selectedPaymentInstallment,
       capitalAbonoAmount,
       successPayment,
+      successPayments,
+      successCoveredCount,
       showPayment,
       showSuccess,
       showCapitalAbono,
@@ -176,6 +175,8 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       setSelectedPaymentInstallment,
       setCapitalAbonoAmount,
       setSuccessPayment,
+      setSuccessPayments,
+      setSuccessCoveredCount,
       setShowPayment,
       setShowSuccess,
       setShowCapitalAbono,
@@ -199,6 +200,31 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const handlers = loan.amortization_type === 'interest_only' ? interestOnlyHandlers : frenchHandlers
 
   const { handlePayInstallment, handleCapitalAbono, handleLiquidation, handleReversePayment } = handlers
+
+  const handleDeleteLoan = async () => {
+    if (loading) return
+    setLoading(true)
+    setDeleteError('')
+    try {
+      const res = await fetch(`/api/loans/${loan.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: deleteReason }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        setDeleteError(body?.error || 'No se pudo eliminar el préstamo')
+        setLoading(false)
+        return
+      }
+    } catch {
+      setDeleteError('Error de conexión al eliminar el préstamo')
+      setLoading(false)
+      return
+    }
+    router.push(`/loans?deleted=${encodeURIComponent(loan.loan_id)}&amount=${encodeURIComponent(String(loan.amount))}`)
+    router.refresh()
+  }
 
   const progressValue = isOpenEnded
     ? Math.round(((Number(loan.amount) - Number(loan.remaining_amount)) / Number(loan.amount)) * 100)
@@ -236,7 +262,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       </Link>
 
       <Card>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg flex-shrink-0">
               {loan.client?.name?.charAt(0)?.toUpperCase() || '?'}
@@ -244,7 +270,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-foreground">{formatCurrency(loan.amount)}</h1>
-                <Badge variant={statusVariant[loan.status] || 'default'}>{getStatusLabel(loan.status)}</Badge>
+                <Badge variant={loanStatusColors(loan.status).badgeVariant}>{lateStatusLabel(loan.status, loan.late_days || 0)}</Badge>
                 {loan.prepaid_balance > 0 && (
                   <Badge variant="success">Saldo a favor: {formatCurrency(loan.prepaid_balance)}</Badge>
                 )}
@@ -257,11 +283,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               </p>
             </div>
           </div>
-          <div className="flex gap-1 flex-shrink-0">
+          <div className="flex flex-wrap gap-1 flex-shrink-0">
             {loan.paid_installments === 0 && loan.paid_amount === 0 && (
-              <button type="button" onClick={openEdit} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors" title="Editar">
-                <Pencil className="h-5 w-5" />
-              </button>
+              <Link href={`/loans/${loan.id}/edit`} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors" title="Editar">
+                <PencilSimple className="h-5 w-5" />
+              </Link>
             )}
             <button type="button" onClick={() => {
               const phone = loan.client?.whatsapp || loan.client?.phone
@@ -269,13 +295,16 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildQuickMessage({ loanId: loan.loan_id, clientName: loan.client?.name || '' }))}`, '_blank')
               }
             }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="WhatsApp">
-              <ChatCircle className="h-5 w-5" />
+              <WhatsappLogo className="h-5 w-5" />
             </button>
-            <button type="button" onClick={() => { loadDocs(); setShowDocs(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Documentos">
-              <FileText className="h-5 w-5" />
+            <button type="button" onClick={() => { loadDocs(); setShowDocs(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors" title="Documentos">
+              <Files className="h-5 w-5" />
             </button>
-            <button type="button" onClick={() => setShowContract(true)} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-purple-600 hover:bg-purple-50 transition-colors" title="Contrato">
-              <Scroll className="h-5 w-5" />
+            <button type="button" onClick={() => setShowContract(true)} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors" title="Contrato">
+              <Signature className="h-5 w-5" />
+            </button>
+            <button type="button" onClick={() => { setDeleteError(''); setDeleteReason(''); setShowDeleteModal(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors" title="Eliminar préstamo">
+              <TrashSimple className="h-5 w-5" />
             </button>
           </div>
         </div>
@@ -386,107 +415,81 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 <p className="text-lg font-bold text-destructive">{formatCurrency(calcPendingMora())}</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {installments.map(inst => {
-                const remaining = inst.amount - (inst.paid_amount || 0)
-                const paidRatio = inst.paid_amount ? Math.round((inst.paid_amount / inst.amount) * 100) : 0
-                const now = new Date()
-                const dueDate = new Date(inst.due_date)
-                const daysLate = Math.max(0, Math.floor((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)))
-                const isLate = now > dueDate && inst.status !== 'paid'
-                const remainingLate = Math.max(0, (inst.late_amount || 0) - (inst.paid_late_amount || 0))
-                const cardBorder = inst.status === 'paid' ? 'border-success/30' :
-                  inst.status === 'partial' ? 'border-blue-300' :
-                  isLate ? 'border-red-300' : 'border-amber-200'
-                const cardBg = inst.status === 'paid' ? 'bg-gray-50' :
-                  isLate ? 'bg-red-50/40' : ''
-                const numBg = inst.status === 'paid' ? 'bg-success/10 text-success' :
-                  inst.status === 'partial' ? 'bg-blue-100 text-blue-700' :
-                  isLate ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                const badgeLabel = inst.status === 'paid' ? 'Pagado' :
-                  inst.status === 'partial' ? 'Parcial' :
-                  isLate ? 'Atrasado' : 'Pendiente'
-                const badgeVariant: 'paid' | 'active' | 'late' | 'default' = inst.status === 'paid' ? 'paid' :
-                  inst.status === 'partial' ? 'active' :
-                  isLate ? 'late' : 'active'
-                return (
-                  <div key={inst.number} className={`rounded-xl border-2 p-4 ${cardBorder} ${cardBg} transition-shadow hover:shadow-sm`}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${numBg}`}>
-                        {inst.number}
+            <div className="max-h-[55vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {installments.map(inst => {
+                  const remaining = inst.amount - (inst.paid_amount || 0)
+                  const now = new Date()
+                  const dueDate = new Date(inst.due_date)
+                  const isLate = now > dueDate && inst.status !== 'paid'
+                  const graceDays = settings?.grace_days || 0
+                  const lateDays = calculateLateDays(inst.due_date, graceDays)
+                  const totalLate = lateDays > 0
+                    ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate ?? 0)
+                    : 0
+                  const remainingLate = Math.max(0, totalLate - (inst.paid_late_amount || 0))
+                  const cardBorder = 'border-border'
+                  const numBg = inst.status === 'paid' ? 'bg-success/10 text-success' :
+                    inst.status === 'partial' ? 'bg-blue-100 text-blue-700' :
+                    isLate ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                  const badgeLabel = inst.status === 'paid' ? 'Pagada' :
+                    inst.status === 'partial' ? 'Parcial' :
+                    isLate ? 'Vencida' : 'Pendiente'
+                  const badgeVariant: 'paid' | 'active' | 'late' | 'default' = inst.status === 'paid' ? 'paid' :
+                    inst.status === 'partial' ? 'active' :
+                    isLate ? 'late' : 'active'
+                  return (
+                    <div key={inst.id} className={`rounded-xl border-2 p-4 ${cardBorder} transition-shadow hover:shadow-sm`}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${numBg}`}>
+                          {inst.number}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-foreground">{inst.status === 'paid' ? formatCurrency(inst.amount) : formatCurrency(remaining)}{inst.status === 'partial' && <span className="text-xs text-muted-foreground font-normal ml-1">restantes</span>}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(inst.due_date)}</p>
+                        </div>
+                        <Badge variant={badgeVariant}>{badgeLabel}</Badge>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-foreground">{inst.status === 'paid' ? formatCurrency(inst.amount) : formatCurrency(remaining)}{inst.status === 'partial' && <span className="text-xs text-muted-foreground font-normal ml-1">restantes</span>}</p>
-                        <p className="text-xs text-muted-foreground">Vence: {formatDate(inst.due_date)}</p>
-                      </div>
-                      <Badge variant={badgeVariant}>{badgeLabel}</Badge>
+                      {!isInterestOnly && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2 px-1">
+                          <span>Cap: <strong className="text-foreground">{formatCurrency(inst.capital)}</strong></span>
+                          <span>Int: <strong className="text-foreground">{formatCurrency(inst.interest)}</strong></span>
+                          {remainingLate > 0 && <span>Mora: <strong className="text-destructive">{formatCurrency(remainingLate)}</strong></span>}
+                          <span>Saldo: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
+                        </div>
+                      )}
+                      {isInterestOnly && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2 px-1">
+                          <span>Int: <strong className="text-foreground">{formatCurrency(inst.interest)}</strong></span>
+                          {remainingLate > 0 && <span>Mora: <strong className="text-destructive">{formatCurrency(remainingLate)}</strong></span>}
+                          <span>Bal: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
+                        </div>
+                      )}
+                      {inst.status !== 'paid' && (
+                        <button
+                          type="button"
+                          onClick={() => openPayModal(inst)}
+                          className="w-full py-2.5 rounded-lg border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors"
+                        >
+                          {`Pagar ${formatCurrency(remaining)}`}
+                        </button>
+                      )}
+                      {inst.status === 'paid' && (
+                        <div className="flex items-center gap-2 text-xs text-success font-medium px-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                          Cobrado {inst.paid_at ? formatDate(inst.paid_at) : ''}
+                        </div>
+                      )}
+                      {inst.status === 'partial' && (
+                        <div className="flex items-center gap-2 text-xs text-blue-600 font-medium px-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                          Pagado {formatCurrency(inst.paid_amount!)} de {formatCurrency(inst.amount)}
+                        </div>
+                      )}
                     </div>
-                    {!isInterestOnly && (
-                      <div className="flex gap-4 text-xs text-muted-foreground mb-2 px-1">
-                        <span>Capital: <strong className="text-foreground">{formatCurrency(inst.capital)}</strong></span>
-                        <span>Interés: <strong className="text-foreground">{formatCurrency(inst.interest)}</strong></span>
-                        <span>Saldo: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
-                      </div>
-                    )}
-                    {isInterestOnly && (
-                      <div className="flex gap-4 text-xs text-muted-foreground mb-2 px-1">
-                        <span>Interés: <strong className="text-foreground">{formatCurrency(inst.interest)}</strong></span>
-                        <span>Balance: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3 mb-3 px-1">
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${
-                          inst.status === 'paid' ? 'bg-success' :
-                          paidRatio > 0 ? 'bg-primary' : 'bg-muted'
-                        }`} style={{ width: `${paidRatio}%` }} />
-                      </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">{paidRatio}%</span>
-                    </div>
-                    {isLate && remainingLate > 0 && (
-                      <div className="flex items-center gap-2 text-xs text-destructive font-medium mb-3 px-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
-                        Mora: {formatCurrency(remainingLate)} ({daysLate} días)
-                      </div>
-                    )}
-                    {inst.status !== 'paid' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPaymentInstallmentId(inst.id)
-                          setPaymentAmount(String(remaining))
-                          setSelectedPaymentInstallment(inst)
-                          const graceDays = settings?.grace_days || 0
-                          const ld = calculateLateDays(inst.due_date, graceDays)
-                          const totalLate = ld > 0
-                            ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, ld, settings?.late_interest_rate || 0.5)
-                            : 0
-                          const paidLate = inst.paid_late_amount || 0
-                          const remainingLateVal = Math.max(0, totalLate - paidLate)
-                          setSelectedInstallmentMora(ld > 0 ? { lateDays: ld, lateAmount: remainingLateVal } : null)
-                          setIncludeMora(true)
-                          setShowPayment(true)
-                        }}
-                        className="w-full py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
-                      >
-                        {`Pagar ${formatCurrency(remaining)}`}
-                      </button>
-                    )}
-                    {inst.status === 'paid' && (
-                      <div className="flex items-center gap-2 text-xs text-success font-medium px-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-success" />
-                        Cobrado {inst.paid_at ? formatDate(inst.paid_at) : ''}
-                      </div>
-                    )}
-                    {inst.status === 'partial' && (
-                      <div className="flex items-center gap-2 text-xs text-blue-600 font-medium px-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                        Pagado {formatCurrency(inst.paid_amount!)} de {formatCurrency(inst.amount)}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           </>
         )}
@@ -520,22 +523,22 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         </div>
         {payments.length === 0 ? (
           <div className="text-center py-8">
-            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3 text-2xl">📭</div>
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+              <Receipt className="h-6 w-6 text-muted-foreground" />
+            </div>
             <p className="font-medium text-foreground">Sin pagos registrados</p>
             <p className="text-sm text-muted-foreground mt-1">Los pagos aparecerán aquí cuando se registren</p>
           </div>
         ) : (
           <div className="space-y-2">
             {payments.map(p => {
-              const methodIcon = p.method === 'cash' ? '💰' : p.method === 'transfer' ? '🏦' : p.method === 'deposit' ? '📥' : '💳'
+              const methodIcon = p.method === 'cash' ? <Money className="h-4 w-4" /> : p.method === 'transfer' ? <Bank className="h-4 w-4" /> : p.method === 'deposit' ? <DownloadSimple className="h-4 w-4" /> : <Receipt className="h-4 w-4" />
               const installmentNum = installments.find(i => i.id === p.installment_id)?.number
               const typeLabel = p.type === 'capital_abono' ? 'Abono a capital' : p.type === 'liquidation' ? 'Liquidación' : p.type === 'installment' ? (installmentNum ? `Cuota ${installmentNum}` : 'Interés') : 'Cuota'
-              const typeColor = p.type === 'capital_abono' ? 'bg-purple-100 text-purple-700' : p.type === 'liquidation' ? 'bg-green-100 text-green-700' : (p.type === 'installment' && installmentNum) ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'
+              const typeColor = paymentTypeColors(p.type)
               return (
                 <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 transition-all">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0 ${
-                    p.method === 'cash' ? 'bg-green-50' : p.method === 'transfer' ? 'bg-blue-50' : p.method === 'deposit' ? 'bg-amber-50' : 'bg-gray-50'
-                  }`}>
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${paymentMethodColor(p.method)}`}>
                     {methodIcon}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -576,7 +579,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                             } else {
                               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
                             }
-                          }} className="w-7 h-7 rounded-md hover:bg-emerald-50 hover:text-emerald-600 flex items-center justify-center transition-colors" title="WhatsApp"><ChatCircle className="h-3.5 w-3.5" /></button>
+                          }} className="w-7 h-7 rounded-md hover:bg-emerald-50 hover:text-emerald-600 flex items-center justify-center transition-colors" title="WhatsApp"><WhatsappLogo className="h-3.5 w-3.5" /></button>
                           <button onClick={() => { setReversalPaymentId(p.id); setReversalReason(''); setShowReversalModal(true) }} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
                             <ArrowCounterClockwise className="h-3.5 w-3.5 text-destructive" />
                           </button>
@@ -605,76 +608,95 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       <BottomSheet open={showPayment} onClose={() => { setShowPayment(false); setPaymentInstallmentId(''); setSelectedInstallmentMora(null) }} title={isInterestOnly ? 'Pagar intereses' : 'Realizar pago'}>
         <form onSubmit={handlePayInstallment} className="space-y-4">
         {paymentError && (
-          <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+          <Alert variant="danger">{paymentError}</Alert>
         )}
 
         {!isOpenEnded && (
           <div className="space-y-1 mb-4">
             <label className="block text-sm font-medium text-muted-foreground mb-2">{isInterestOnly ? 'Cuota de interés a pagar' : 'Seleccionar cuota'}</label>
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {installments.filter(i => i.status !== 'paid').map(inst => {
-                const remaining = inst.amount - (inst.paid_amount || 0)
-                const isPartial = (inst.paid_amount || 0) > 0
-                const graceDays = settings?.grace_days || 0
-                const lateDays = calculateLateDays(inst.due_date, graceDays)
-                const now = new Date()
-                const isLate = now > new Date(inst.due_date)
-                const isSelected = paymentInstallmentId === inst.id
-                let numBg = 'bg-amber-50 text-amber-700'
-                let badgeLabel = 'Pendiente'
-                let badgeBg = 'bg-amber-100 text-amber-700'
-                if (isPartial) { numBg = 'bg-blue-50 text-blue-700'; badgeLabel = 'Parcial'; badgeBg = 'bg-blue-100 text-blue-700' }
-                if (isLate && !isPartial) { numBg = 'bg-red-50 text-red-700'; badgeLabel = 'Atrasado'; badgeBg = 'bg-red-100 text-red-700' }
-                return (
-                  <label
-                    key={inst.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/40 hover:bg-muted'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="installment"
-                      value={inst.id}
-                      checked={isSelected}
-                      onChange={() => {
-                        setPaymentInstallmentId(inst.id)
-                        const totalLate = lateDays > 0
-                          ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate || 0.5)
-                          : 0
-                        const paidLate = inst.paid_late_amount || 0
-                        const remainingLate = Math.max(0, totalLate - paidLate)
-                        setPaymentAmount(String(remaining + (includeMora && remainingLate > 0 ? remainingLate : 0)))
-                        setSelectedPaymentInstallment(inst)
-                        setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount: remainingLate } : null)
-                      }}
-                      className="accent-primary h-4 w-4 flex-shrink-0"
-                    />
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${numBg}`}>
-                      {inst.number}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm text-foreground">
-                        {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
-                        {isPartial && <span className="text-xs text-muted-foreground font-normal ml-1">restantes</span>}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Vence: {formatDate(inst.due_date)}
-                        {isPartial && <> · Pagado {formatCurrency(inst.paid_amount!)}</>}
-                      </div>
-                    </div>
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${badgeBg}`}>
-                      {badgeLabel}
-                    </span>
-                  </label>
-                )
-              })}
-            </div>
-            {installments.filter(i => i.status !== 'paid').length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">Todas las cuotas están pagadas</p>
-            )}
+            {(() => {
+              const pendingList = installments.filter(i => i.status !== 'paid')
+              const firstPendingId = pendingList.length > 0 ? pendingList.reduce((a, b) => (a.number < b.number ? a : b)).id : null
+              return (
+                <>
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {pendingList.map(inst => {
+                      const isBlocked = firstPendingId !== null && inst.id !== firstPendingId
+                      const remaining = inst.amount - (inst.paid_amount || 0)
+                      const isPartial = (inst.paid_amount || 0) > 0
+                      const graceDays = settings?.grace_days || 0
+                      const lateDays = calculateLateDays(inst.due_date, graceDays)
+                      const now = new Date()
+                      const isLate = now > new Date(inst.due_date)
+                      const isSelected = paymentInstallmentId === inst.id
+                      let numBg = 'bg-warning-light text-warning'
+                      let badgeLabel = 'Pendiente'
+                      let badgeBg = 'bg-warning-light/60 text-warning'
+                      if (isPartial) { numBg = 'bg-primary-light/30 text-primary'; badgeLabel = 'Parcial'; badgeBg = 'bg-primary-light/40 text-primary' }
+                      if (isLate && !isPartial) { numBg = 'bg-destructive/10 text-destructive'; badgeLabel = 'Atrasado'; badgeBg = 'bg-destructive/10 text-destructive' }
+                      if (isBlocked) { numBg = 'bg-muted text-muted-foreground'; badgeBg = 'bg-muted text-muted-foreground' }
+                      return (
+                        <label
+                          key={inst.id}
+                          className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                            isBlocked
+                              ? 'border-dashed border-border opacity-60 cursor-not-allowed'
+                              : isSelected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/40 hover:bg-muted'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="installment"
+                            value={inst.id}
+                            checked={isSelected}
+                            disabled={isBlocked}
+                            onChange={() => {
+                              setPaymentInstallmentId(inst.id)
+                              const totalLate = lateDays > 0
+                                ? calculateLateAmount(remaining > 0 ? remaining : inst.amount, lateDays, settings?.late_interest_rate ?? 0)
+                                : 0
+                              const paidLate = inst.paid_late_amount || 0
+                              const remainingLate = Math.max(0, totalLate - paidLate)
+                              setPaymentAmount(String(remaining + (includeMora && remainingLate > 0 ? remainingLate : 0)))
+                              setSelectedPaymentInstallment(inst)
+                              setSelectedInstallmentMora(lateDays > 0 ? { lateDays, lateAmount: remainingLate } : null)
+                            }}
+                            className="accent-primary h-4 w-4 flex-shrink-0"
+                          />
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${numBg}`}>
+                            {inst.number}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm text-foreground">
+                              {isPartial ? formatCurrency(remaining) : formatCurrency(inst.amount)}
+                              {isPartial && <span className="text-xs text-muted-foreground font-normal ml-1">restantes</span>}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {isBlocked
+                                ? 'Primero paga la cuota #' + (inst.number - 1)
+                                : `Vence: ${formatDate(inst.due_date)}`}
+                              {isPartial && <> · Pagado {formatCurrency(inst.paid_amount!)}</>}
+                            </div>
+                          </div>
+                          {isBlocked ? (
+                            <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${badgeBg}`}>Bloqueada</span>
+                          ) : (
+                            <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${badgeBg}`}>
+                              {badgeLabel}
+                            </span>
+                          )}
+                        </label>
+                      )
+                    })}
+                  </div>
+                  {pendingList.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">Todas las cuotas están pagadas</p>
+                  )}
+                </>
+              )
+            })()}
           </div>
         )}
 
@@ -712,9 +734,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         </div>
 
         {loan.prepaid_balance > 0 && (
-          <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+          <Alert variant="success">
             Saldo a favor disponible: <strong>{formatCurrency(loan.prepaid_balance)}</strong>. Se aplicará automáticamente a esta cuota.
-          </div>
+          </Alert>
         )}
 
         {selectedInstallmentMora && selectedPaymentInstallment && (() => {
@@ -777,7 +799,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       <BottomSheet open={showCapitalAbono} onClose={() => setShowCapitalAbono(false)} title="Abonar al capital">
         <form onSubmit={handleCapitalAbono} className="space-y-4">
           {paymentError && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+            <Alert variant="danger">{paymentError}</Alert>
           )}
           {(() => {
             const capRemaining = calcCapitalRemaining()
@@ -857,7 +879,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       <BottomSheet open={showLiquidation} onClose={() => setShowLiquidation(false)} title="Liquidar préstamo">
         <div className="space-y-4">
           {paymentError && (
-            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-lg">{paymentError}</div>
+            <Alert variant="danger">{paymentError}</Alert>
           )}
           {(() => {
             const capRemaining = calcCapitalRemaining()
@@ -932,8 +954,52 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         </form>
       </BottomSheet>
 
+      <BottomSheet open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Eliminar préstamo">
+        <div className="space-y-3 text-sm text-foreground">
+          {deleteError && <Alert variant="danger">{deleteError}</Alert>}
+          <p className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+            <TrashSimple className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+            <span className="text-sm text-muted-foreground">
+              ¿Seguro que deseas eliminar el préstamo <strong>{loan.loan_id}</strong> de <strong>{formatCurrency(loan.amount)}</strong>?
+            </span>
+          </p>
+          <p className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <Check className="h-4 w-4 text-success flex-shrink-0 mt-0.5" />
+            <span>
+              Los <strong>pagos ya cobrados</strong> seguirán contando en tu Dashboard e historial y los <strong>documentos</strong>
+              seguirán guardados en el cliente.
+            </span>
+          </p>
+          {Number(loan.prepaid_balance) > 0 && (
+            <p className="flex items-start gap-2 rounded-lg bg-warning-light px-3 py-2 text-xs text-warning">
+              <Check className="h-4 w-4 text-warning flex-shrink-0 mt-0.5" />
+              <span>
+                El <strong>saldo a favor de {formatCurrency(loan.prepaid_balance)}</strong> se conserva junto al préstamo.
+              </span>
+            </p>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1.5">Motivo de eliminación (opcional)</label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              rows={2}
+              maxLength={300}
+              placeholder="Ej. Préstamo duplicado, error de captura..."
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="secondary" type="button" onClick={() => setShowDeleteModal(false)} className="flex-1">Cancelar</Button>
+            <Button variant="danger" type="button" loading={loading} onClick={handleDeleteLoan} className="flex-1">
+              {loading ? 'Eliminando...' : 'Sí, eliminar'}
+            </Button>
+          </div>
+        </div>
+      </BottomSheet>
+
       <BottomSheet open={showContract} onClose={() => setShowContract(false)} title="Contrato de préstamo">
-        <div className="text-sm text-gray-700 space-y-3">
+        <div className="text-sm text-foreground space-y-3">
           <p className="text-center font-bold text-base">CONTRATO DE PRÉSTAMO</p>
           <p>Por medio del presente contrato, se formaliza el préstamo entre:</p>
           <p><strong>PRESTAMISTA:</strong> {settings?.business_name || 'El Prestamista'}</p>
@@ -1020,23 +1086,10 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         </div>
       </BottomSheet>
 
-      <BottomSheet open={showEdit} onClose={() => setShowEdit(false)} title="Editar préstamo">
-        {editClients.length > 0 && (
-          <NewLoanForm
-            clients={editClients}
-            settings={settings}
-            initialData={loan}
-            isEditing={true}
-            loanId={loan.id}
-            onSaved={() => setShowEdit(false)}
-          />
-        )}
-      </BottomSheet>
-
       <BottomSheet open={showSuccess} onClose={() => setShowSuccess(false)} title="Pago exitoso">
         <div className="text-center space-y-5 py-2">
-          <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-            <Check className="h-8 w-8 text-green-600" />
+          <div className="mx-auto w-16 h-16 bg-success/15 rounded-full flex items-center justify-center">
+            <Check className="h-8 w-8 text-success" />
           </div>
           <p className="text-xl font-semibold text-foreground">Pago registrado correctamente</p>
 
@@ -1044,18 +1097,47 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             const prevBalance = Number(loan.remaining_amount) + Number(successPayment.amount)
             return (
               <>
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <PaymentReceipt
-                    payment={successPayment}
-                    loan={loan}
-                    settings={settings}
-                    previousBalance={prevBalance}
-                  />
-                </div>
-                {loan.prepaid_balance > 0 && (
-                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
-                    Saldo a favor actual del préstamo: <strong>{formatCurrency(loan.prepaid_balance)}</strong>. Se aplicará a la próxima cuota.
+                {successPayments.length > 1 ? (
+                  <>
+                    <div className="border border-border rounded-xl overflow-hidden">
+                      <div className="bg-primary/5 px-4 py-2 text-sm font-semibold text-foreground">
+                        Se pagaron {successCoveredCount} cuotas
+                      </div>
+                      <div className="divide-y divide-border">
+                        {successPayments.map(p => (
+                          <div key={p.id} className="px-4 py-2 flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">
+                              {p.installment_id
+                                ? `Cuota #${installments.find(i => i.id === p.installment_id)?.number ?? '—'}`
+                                : 'Abono'}
+                            </span>
+                            <span className="font-medium text-foreground">{formatCurrency(Number(p.amount))}</span>
+                          </div>
+                        ))}
+                        <div className="px-4 py-3 flex items-center justify-between text-sm font-bold border-t border-border">
+                          <span className="text-foreground">Total pagado</span>
+                          <span className="text-foreground">{formatCurrency(successPayments.reduce((s, p) => s + Number(p.amount), 0))}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-muted border border-border text-sm text-muted-foreground">
+                      Nuevo saldo: <strong className="text-foreground">{formatCurrency(loan.remaining_amount)}</strong>
+                    </div>
+                  </>
+                ) : (
+                  <div className="border border-border rounded-xl overflow-hidden">
+                    <PaymentReceipt
+                      payment={successPayment}
+                      loan={loan}
+                      settings={settings}
+                      previousBalance={prevBalance}
+                    />
                   </div>
+                )}
+                {loan.prepaid_balance > 0 && (
+                  <Alert variant="success">
+                    Saldo a favor actual del préstamo: <strong>{formatCurrency(loan.prepaid_balance)}</strong>. Se aplicará a la próxima cuota.
+                  </Alert>
                 )}
               </>
             )
@@ -1067,11 +1149,14 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               const actualDate = successPayment?.payment_date || paymentDate
+              const totalAmount = successPayments.length > 1
+                ? successPayments.reduce((s, p) => s + Number(p.amount), 0)
+                : (successPayment?.amount || 0)
               const payType = successPayment?.type === 'installment' ? 'Cuota' : successPayment?.type === 'capital_abono' ? 'Abono a capital' : successPayment?.type === 'liquidation' ? 'Liquidación' : 'Pago'
               const payMethod = paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'
               const msg = buildReceiptMessage({
-                amount: successPayment?.amount || 0,
-                payType,
+                amount: totalAmount,
+                payType: successPayments.length > 1 ? `Cuotas x${successPayments.length}` : payType,
                 payMethod,
                 clientName: loan.client?.name || '',
                 loanId: loan.loan_id,
@@ -1086,15 +1171,18 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                 navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
               }
             }}>
-              <ChatCircle className="h-4 w-4 mr-1" /> WhatsApp
+              <WhatsappLogo className="h-4 w-4 mr-1" /> WhatsApp
             </Button>
             <Button variant="secondary" className="flex-1" onClick={() => {
               const actualDate = successPayment?.payment_date || paymentDate
+              const totalAmount = successPayments.length > 1
+                ? successPayments.reduce((s, p) => s + Number(p.amount), 0)
+                : (successPayment?.amount || 0)
               const payType = successPayment?.type === 'installment' ? 'Cuota' : successPayment?.type === 'capital_abono' ? 'Abono a capital' : successPayment?.type === 'liquidation' ? 'Liquidación' : 'Pago'
               const payMethod = paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'deposit' ? 'Depósito' : 'Otro'
               const msg = buildReceiptMessage({
-                amount: successPayment?.amount || 0,
-                payType,
+                amount: totalAmount,
+                payType: successPayments.length > 1 ? `Cuotas x${successPayments.length}` : payType,
                 payMethod,
                 clientName: loan.client?.name || '',
                 loanId: loan.loan_id,
@@ -1104,7 +1192,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
               })
               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
             }}>
-              <ShareNetwork className="h-4 w-4 mr-1" /> Compartir
+            <ShareNetwork className="h-4 w-4 mr-1" /> Compartir
             </Button>
           </div>
           <Button className="w-full" onClick={() => setShowSuccess(false)}>Cerrar</Button>

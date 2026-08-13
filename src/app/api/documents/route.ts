@@ -15,13 +15,32 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  }
+
   const body = await request.json()
+
+  // Verificar que el cliente (si viene) pertenezca al usuario
+  if (body.client_id) {
+    const { data: client } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', body.client_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!client) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+    }
+  }
 
   const { data, error } = await supabase
     .from('documents')
     .insert({
       client_id: body.client_id || null,
       loan_id: body.loan_id || null,
+      user_id: user.id,
       name: body.name,
       type: body.type || 'note',
       path: body.path,

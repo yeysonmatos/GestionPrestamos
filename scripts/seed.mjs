@@ -1,4 +1,4 @@
-// Seed script — usa sesión existente de yeysonmatos@outlook.com
+// Seed script — usa sesión existente de yeysonmatos@gmail.com
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 
@@ -10,7 +10,7 @@ const supabase = createClient('https://snwwvvmszizarakrozah.supabase.co', anonKe
 async function seed() {
   // Sign in
   const { data: { session }, error: loginError } = await supabase.auth.signInWithPassword({
-    email: 'yeysonmatos@outlook.com',
+    email: 'yeysonmatos@gmail.com',
     password: 'admin123',
   })
   if (loginError) { console.error('Login error:', loginError.message); return }
@@ -159,7 +159,7 @@ async function seed() {
 
   console.log('\n✅ SEED COMPLETADO EXITOSAMENTE')
   console.log('   Abre http://localhost:3000/login')
-  console.log('   Email: yeysonmatos@outlook.com')
+  console.log('   Email: yeysonmatos@gmail.com')
   console.log('   Pass:  admin123')
   console.log('\n   Juan Pérez        → L-FR-001 (francés, activo, 1 reverso, 1 abono)')
   console.log('   María García      → L-IO-001 (interest-only, liquidado, 1 abono, 1 reverso)')

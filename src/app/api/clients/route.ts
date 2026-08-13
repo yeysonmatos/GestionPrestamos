@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     .from('clients')
     .insert({
       user_id: user.id,
+      status: 'inactive',
       name: fullName || body.name,
       first_name: body.first_name || null,
       last_name: body.last_name || null,

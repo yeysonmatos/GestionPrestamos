@@ -8,21 +8,24 @@ export async function GET(request: NextRequest) {
 
   const { data: todayInstallments, error: err1 } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
     .eq('due_date', today)
     .in('status', ['pending', 'partial', 'late'])
+    .is('loan.deleted_at', null)
 
   const { data: overdueInstallments, error: err2 } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
     .in('status', ['pending', 'partial', 'late'])
     .lt('due_date', today)
+    .is('loan.deleted_at', null)
 
   const { data: upcomingInstallments, error: err3 } = await supabase
     .from('installments')
-    .select('*, loan:loans(client:clients(*))')
+    .select('*, loan:loans!inner(client:clients(*))')
     .in('status', ['pending', 'partial', 'late'])
-    .gte('due_date', today)
+    .gt('due_date', today)
+    .is('loan.deleted_at', null)
 
   if (err1 || err2 || err3) {
     return NextResponse.json({ error: 'Failed to fetch collections' }, { status: 500 })
@@ -45,33 +48,75 @@ export async function POST(request: NextRequest) {
   }
 
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
-  const body = await request.json()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return addRateLimitHeaders(NextResponse.json({ error: 'No autenticado' }, { status: 401 }), rl)
+  }
 
+  const body = await request.json()
+  const { loan_id, installment_id, amount, include_mora, payment_date, method, notes } = body
+
+  if (!loan_id || !amount || Number(amount) <= 0) {
+    return addRateLimitHeaders(NextResponse.json({ error: 'Préstamo y monto son requeridos' }, { status: 400 }), rl)
+  }
+
+  // Verificar que el préstamo pertenezca al usuario
+  const { data: loan } = await supabase
+    .from('loans')
+    .select('id, client_id')
+    .eq('id', loan_id)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .maybeSingle()
+  if (!loan) {
+    return addRateLimitHeaders(NextResponse.json({ error: 'Préstamo no encontrado' }, { status: 404 }), rl)
+  }
+
+  // Pago de cuota (instalment): usar la función transaccional existente
+  if (installment_id) {
+    const { data: settings } = await supabase
+      .from('settings')
+      .select('late_interest_rate, grace_days')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('process_installment_payment', {
+      p_loan_id: loan_id,
+      p_installment_id: installment_id,
+      p_user_id: user.id,
+      p_amount: Number(amount),
+      p_include_mora: include_mora ?? true,
+      p_payment_date: payment_date || new Date().toISOString().split('T')[0],
+      p_method: method || 'cash',
+      p_notes: notes || null,
+      p_late_interest_rate: settings?.late_interest_rate ?? 0,
+      p_grace_days: settings?.grace_days ?? 0,
+    })
+    if (rpcError) return addRateLimitHeaders(NextResponse.json({ error: rpcError.message }, { status: 500 }), rl)
+    if (!rpcResult?.ok) return addRateLimitHeaders(NextResponse.json({ error: rpcResult?.error || 'Error al procesar el pago' }, { status: 400 }), rl)
+
+    return addRateLimitHeaders(NextResponse.json({ ok: true, payment: rpcResult.payment, allocation: rpcResult.allocation }, supabaseResponse), rl)
+  }
+
+  // Pago genérico sin cuota (ej. abono directo)
   const { data: payment, error } = await supabase
     .from('payments')
     .insert({
-      loan_id: body.loan_id,
-      installment_id: body.installment_id || null,
-      client_id: body.client_id,
-      amount: body.amount,
-      capital_amount: body.capital_amount || 0,
-      interest_amount: body.interest_amount || 0,
-      late_amount: body.late_amount || 0,
-      payment_date: body.payment_date,
-      method: body.method || 'cash',
-      notes: body.notes || null,
+      loan_id,
+      client_id: loan.client_id,
+      user_id: user.id,
+      amount: Number(amount),
+      capital_amount: Number(body.capital_amount || 0),
+      interest_amount: Number(body.interest_amount || 0),
+      late_amount: Number(body.late_amount || 0),
+      payment_date: payment_date || new Date().toISOString().split('T')[0],
+      method: method || 'cash',
+      notes: notes || null,
     })
     .select()
     .single()
 
   if (error) return addRateLimitHeaders(NextResponse.json({ error: error.message }, { status: 500 }), rl)
-
-  if (body.installment_id) {
-    await supabase
-      .from('installments')
-      .update({ status: 'paid', paid_at: body.payment_date, paid_amount: body.amount })
-      .eq('id', body.installment_id)
-  }
 
   return addRateLimitHeaders(NextResponse.json(payment, supabaseResponse), rl)
 }
