@@ -1,3 +1,4 @@
+import { getLocalDate } from './utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Error de negocio (validación / estado inconsistente) que debe mapearse a HTTP 400.
@@ -73,7 +74,7 @@ export async function recordSubscriptionPayment(
         subscription_id: subId,
         user_id,
         amount: params.amount,
-        payment_date: params.payment_date || new Date().toISOString().slice(0, 10),
+        payment_date: params.payment_date || getLocalDate(),
         method: params.method || 'cash',
         notes: params.notes || null,
         status: 'confirmed',

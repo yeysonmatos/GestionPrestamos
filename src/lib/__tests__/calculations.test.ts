@@ -8,6 +8,7 @@ import {
   recalculateFrenchSchedule,
   DAYS_IN_PERIOD,
 } from '../calculations'
+import { daysBetweenDateStrings, firstOfNextMonth, getLocalMonthStart } from '../utils'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -205,5 +206,32 @@ describe('recalculateFrenchSchedule', () => {
   it('sin cuotas o capital retorna vacío', () => {
     expect(recalculateFrenchSchedule(5000, 0, 0.05, '2026-01-05', 'monthly', 7).installments).toHaveLength(0)
     expect(recalculateFrenchSchedule(0, 6, 0.05, '2026-01-05', 'monthly', 7).installments).toHaveLength(0)
+  })
+})
+
+describe('daysBetweenDateStrings', () => {
+  it('calcula días calendario entre fechas (determinístico, sin zona)', () => {
+    expect(daysBetweenDateStrings('2026-07-10', '2026-07-20')).toBe(10)
+    expect(daysBetweenDateStrings('2026-07-20', '2026-07-10')).toBe(-10)
+    expect(daysBetweenDateStrings('2025-12-31', '2026-01-01')).toBe(1)
+    expect(daysBetweenDateStrings('2026-03-28', '2026-03-30')).toBe(2)
+  })
+})
+
+describe('firstOfNextMonth', () => {
+  it('calcula el primer día del mes siguiente (determinístico)', () => {
+    expect(firstOfNextMonth('2026-07')).toBe('2026-08-01')
+    expect(firstOfNextMonth('2026-12')).toBe('2027-01-01')
+    expect(firstOfNextMonth('2026-01')).toBe('2026-02-01')
+  })
+})
+
+describe('getLocalMonthStart', () => {
+  it('devuelve el primer día del mes actual/desplazado en RD', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-20T15:00:00Z'))
+    expect(getLocalMonthStart(0)).toBe('2026-07-01')
+    expect(getLocalMonthStart(3)).toBe('2026-04-01')
+    expect(getLocalMonthStart(11)).toBe('2025-08-01')
   })
 })

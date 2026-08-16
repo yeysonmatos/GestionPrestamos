@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { differenceInCalendarDays } from 'date-fns'
+import { daysBetweenDateStrings, getLocalDate } from './utils'
 
 export function computeLateStatus(dueDates: (string | Date)[]): { status: string; lateDays: number } | null {
-  const today = new Date()
-  const maxLateDays = Math.max(0, ...(dueDates || []).map(d => differenceInCalendarDays(today, new Date(d))))
+  const today = getLocalDate()
+  const asString = (d: string | Date) => (typeof d === 'string' ? d : getLocalDate(d))
+  const maxLateDays = Math.max(0, ...(dueDates || []).map(d => daysBetweenDateStrings(asString(d), today)))
   if (maxLateDays <= 0) return null
   const status = maxLateDays <= 30 ? 'late_1_30' : maxLateDays <= 60 ? 'late_31_60' : 'late_61_90'
   return { status, lateDays: maxLateDays }

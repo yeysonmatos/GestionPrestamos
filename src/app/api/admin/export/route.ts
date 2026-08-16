@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminApi } from '@/lib/admin'
-import { getLocalDate } from '@/lib/utils'
+import { getLocalDate, firstOfNextMonth } from '@/lib/utils'
 
 function csvEscape(v: unknown): string {
   if (v === null || v === undefined) return ''
@@ -36,9 +36,7 @@ export async function GET(request: NextRequest) {
         .order('payment_date', { ascending: false })
         .limit(1000)
       if (month && /^\d{4}-\d{2}$/.test(month)) {
-        const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)
-        endDate.setMonth(endDate.getMonth() + 1)
-        query = query.gte('payment_date', `${month}-01`).lt('payment_date', endDate.toISOString().slice(0, 10))
+        query = query.gte('payment_date', `${month}-01`).lt('payment_date', firstOfNextMonth(month))
       }
       if (userId) query = query.eq('user_id', userId)
       if (method) query = query.eq('method', method)

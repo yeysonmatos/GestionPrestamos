@@ -41,9 +41,51 @@ export function formatDateFull(date: string | Date): string {
   return formatDate(date, "d 'de' MMMM 'de' yyyy")
 }
 
+export const APP_TIME_ZONE = 'America/Santo_Domingo'
+
+let cachedFormat: Intl.DateTimeFormat | null = null
+function getLocalFormat(): Intl.DateTimeFormat {
+  if (!cachedFormat) {
+    cachedFormat = new Intl.DateTimeFormat('en-CA', {
+      timeZone: APP_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+  }
+  return cachedFormat
+}
+
 export function getLocalDate(date: Date = new Date()): string {
-  const d = date
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return getLocalFormat().format(date)
+}
+
+/** Días calendario entre dos fechas 'yyyy-MM-dd' (b - a), operación determinística (sin zona horaria). */
+export function daysBetweenDateStrings(a: string, b: string): number {
+  const parse = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number)
+    return Date.UTC(y, (m || 1) - 1, d || 1)
+  }
+  return Math.round((parse(b) - parse(a)) / 86400000)
+}
+
+/** Primer día del mes siguiente a 'yyyy-MM' (ej. '2026-07' → '2026-08-01'), determinístico. */
+export function firstOfNextMonth(month: string): string {
+  const y = Number(month.slice(0, 4))
+  const m = Number(month.slice(5, 7))
+  const next = new Date(Date.UTC(y, m, 1))
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-01`
+}
+
+/** Primer día del mes actual en RD, desplazado `monthsBack` meses hacia atrás (determinístico). */
+export function getLocalMonthStart(monthsBack = 0): string {
+  const today = getLocalDate()
+  const y = Number(today.slice(0, 4))
+  const m = Number(today.slice(5, 7))
+  const total = y * 12 + (m - 1) - monthsBack
+  const ty = Math.floor(total / 12)
+  const tm = (total % 12) + 1
+  return `${ty}-${String(tm).padStart(2, '0')}-01`
 }
 
 export function buildMonthlySeries(

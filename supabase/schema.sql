@@ -290,7 +290,7 @@ BEGIN
                       SELECT 1 FROM installments i
                       WHERE i.loan_id = l.id
                         AND i.status IN ('pending','partial','late')
-                        AND i.due_date < CURRENT_DATE
+                        AND i.due_date < public.today_rd()
                     ));
   v_paid_loans  := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status = 'paid' AND deleted_at IS NULL);
   v_total_loans := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND deleted_at IS NULL);
@@ -389,7 +389,7 @@ RETURNS INTEGER
 LANGUAGE sql
 STABLE
 AS $$
-  SELECT GREATEST(0, (CURRENT_DATE - p_due) - COALESCE(p_grace, 0))
+  SELECT GREATEST(0, (public.today_rd() - p_due) - COALESCE(p_grace, 0))
 $$;
 
 CREATE OR REPLACE FUNCTION public.calc_late_amount(p_amount DECIMAL, p_late_days INTEGER, p_rate DECIMAL)
@@ -656,7 +656,7 @@ BEGIN
     SELECT id FROM loans
     WHERE status IN ('active', 'late', 'late_1_30', 'late_31_60', 'late_61_90')
   LOOP
-    SELECT COALESCE(MAX(GREATEST(0, CURRENT_DATE - due_date)), 0)
+    SELECT COALESCE(MAX(GREATEST(0, public.today_rd() - due_date)), 0)
     INTO v_max_late_days
     FROM installments
     WHERE loan_id = v_loan.id

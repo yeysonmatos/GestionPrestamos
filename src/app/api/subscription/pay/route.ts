@@ -3,6 +3,7 @@ import { createApiRouteClient } from '@/lib/supabase-route'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { notifyPayRequest } from '@/lib/notify/actions'
 import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
+import { getLocalDate } from '@/lib/utils'
 
 // Solicitud de pago de suscripción (cliente).
 // Crea un registro 'pending' y notifica al admin. Fire-and-forget el email.
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
         subscription_id: subscription.id,
         user_id: user.id,
         amount: price,
-        payment_date: new Date().toISOString().slice(0, 10),
+        payment_date: getLocalDate(),
         method,
         notes: notes || null,
         status: 'pending',

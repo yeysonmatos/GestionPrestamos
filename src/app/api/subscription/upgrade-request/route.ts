@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase-admin'
 import { notifyUpgradeRequest } from '@/lib/notify/actions'
 import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
 import { computeUpgradeAmount, formatPlanAmount } from '@/lib/prorate'
+import { getLocalDate } from '@/lib/utils'
 
 // Solicitud de upgrade de plan (cliente cambia de Trial/Básico a otro plan).
 // Opción B: crea una solicitud de pago PENDIENTE por la diferencia prorrateada
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
         subscription_id: subscription.id,
         user_id: user.id,
         amount,
-        payment_date: new Date().toISOString().slice(0, 10),
+        payment_date: getLocalDate(),
         method: 'transfer',
         notes: body.notes || proratedNote || `Upgrade a ${targetPlan.name}`,
         status: 'pending',

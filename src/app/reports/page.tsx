@@ -1,5 +1,5 @@
 import { createServerSideClient } from '@/lib/supabase-server'
-import { getLocalDate } from '@/lib/utils'
+import { getLocalMonthStart } from '@/lib/utils'
 import MainLayout from '@/components/layout/MainLayout'
 import ReportsContent from './ReportsContent'
 import type { LoanStats } from '@/types'
@@ -9,7 +9,6 @@ export default async function ReportsPage(props: { searchParams: Promise<{ perio
   const supabase = await createServerSideClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  const now = new Date()
 
   // Reportes avanzados: Trial (gratis) y Pro (pago con límite NULL) los habilitan.
   // Básico (pago con límite numérico) ve reportes básicos.
@@ -25,11 +24,11 @@ export default async function ReportsPage(props: { searchParams: Promise<{ perio
   const advancedReports = sub ? (planPrice === 0 || planMaxClients === null) : true
   const effectivePeriod = advancedReports ? period : 'all'
   const effectiveFilterDate = effectivePeriod !== 'all' ? (effectivePeriod === 'month'
-    ? getLocalDate(new Date(now.getFullYear(), now.getMonth(), 1))
+    ? getLocalMonthStart(0)
     : effectivePeriod === 'quarter'
-    ? getLocalDate(new Date(now.getFullYear(), now.getMonth() - 3, 1))
+    ? getLocalMonthStart(3)
     : effectivePeriod === 'year'
-    ? getLocalDate(new Date(now.getFullYear(), 0, 1))
+    ? getLocalMonthStart(11)
     : '2000-01-01') : undefined
 
   let loansQuery = supabase.from('loans').select('*, client:clients(*)').is('deleted_at', null)

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminApi } from '@/lib/admin'
 import { recordSubscriptionPayment, BillingError } from '@/lib/billing'
 import { notifyPaymentApproved, notifyPlanUpdated } from '@/lib/notify/actions'
+import { firstOfNextMonth } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   const guard = await requireAdminApi(request)
@@ -19,11 +20,7 @@ export async function GET(request: NextRequest) {
   // Filtro por fecha compartido entre count y data
   const dateFilter = (query: any, col = 'payment_date') => {
     if (month && /^\d{4}-\d{2}$/.test(month)) {
-      const start = `${month}-01`
-      const endDate = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1)
-      endDate.setMonth(endDate.getMonth() + 1)
-      const end = endDate.toISOString().slice(0, 10)
-      query = query.gte(col, start).lt(col, end)
+      query = query.gte(col, `${month}-01`).lt(col, firstOfNextMonth(month))
     }
     return query
   }

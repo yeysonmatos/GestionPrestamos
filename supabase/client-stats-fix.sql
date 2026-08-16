@@ -1,6 +1,6 @@
 -- Fix del nivel de confianza y estadísticas del cliente.
 -- 1) update_client_stats contabiliza "mora real" por cuotas vencidas hoy
---    (instalments.status IN (pending,partial,late) AND due_date < CURRENT_DATE),
+--    (instalments.status IN (pending,partial,late) AND due_date < today_rd()),
 --    no por status='late' exacto (el cron usa late_1_30/31_60/61_90).
 -- 2) active_loans y balance incluyen los estados de mora late_*.
 -- Idempotente. Vía exec-client-stats-fix.mjs
@@ -36,7 +36,7 @@ BEGIN
                       SELECT 1 FROM installments i
                       WHERE i.loan_id = l.id
                         AND i.status IN ('pending','partial','late')
-                        AND i.due_date < CURRENT_DATE
+                        AND i.due_date < public.today_rd()
                     ));
   v_paid_loans  := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND status = 'paid' AND deleted_at IS NULL);
   v_total_loans := (SELECT COUNT(*) FROM loans WHERE client_id = p_client_id AND deleted_at IS NULL);

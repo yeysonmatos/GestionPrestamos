@@ -612,3 +612,26 @@ Inventario completo de los puntos auditados: Dashboard (8 tarjetas vía `get_loa
 ### Verificación
 - [x] `npx tsc --noEmit` OK, vitest 46/46, `npm run build` OK (página `/api/cron/backup` compilada).
 - [ ] **(Pendiente)** Deploy a staging/producción para activar el cron y probar el flujo real (generar → restore transaccional → purga)).
+
+## Hoy — 16 Ago 2026 (sesión 3) · Zona horaria única: America/Santo_Domingo
+
+### Problema (mezcla de 3 relojes)
+- [x] **Diagnóstico**: RD es UTC-4 fijo (sin DST). El sistema usaba 3 relojes: navegador (RD), servidor Vercel (UTC) y PostgreSQL `CURRENT_DATE` (UTC). Entre 20:00 y 00:00 hora RD (= 00:00–04:00 UTC del día siguiente) la mora se computaba con 1 día de más y los estados late/vencidos/próximos se pintaban antes de tiempo.
+
+### Fix JS determinístico (independiente de la zona del runtime)
+- [x] **getLocalDate()** (`src/lib/utils.ts`) → usa `Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santo_Domingo' })` (con caché) en vez de getFullYear()/getMonth()/getDate() (dependía de la zona del runtime). Server (UTC en Vercel) y browser producen la MISMA fecha RD.
+- [x] **daysBetweenDateStrings(a,b)** nuevo en utils.ts: días calendario entre fechas 'yyyy-MM-dd' vía Date.UTC (operación pura, sin zona) — usado por el cálculo de mora.
+- [x] **firstOfNextMonth(month)** nuevo: primer día del mes siguiente (filtros de pago admin determinísticos).
+- [x] **getLocalMonthStart(monthsBack=0)** nuevo: primer día del mes en RD, determinístico (props de monthsBack=1 mes, 3, 11…). Usado por los filtros de período de Reportes (`reports/page.tsx`) que antes hacían `new Date(y, m, 1)` (medianoche UTC del servidor → retrocedía 1 día en RD).
+- [x] **calculateLateDays** (`src/lib/calculations.ts`): ahora `daysBetweenDateStrings(due, getLocalDate()) - grace` (antes `differenceInCalendarDays(now, parseISO(due))` que variaba server vs browser).
+- [x] **computeLateStatus** (`src/lib/loan-status.ts`) y **POST /api/loan-status**: usan `daysBetweenDateStrings` + `getLocalDate()` (quitado `new Date(due)` que parseaba como UTC y `new Date()` local, ambos #N del runtime).
+- [x] **Pagos de suscripción**: `payment_date` por defecto pasa de `new Date().toISOString().slice(0,10)` (UTC) a `getLocalDate()` en `src/lib/billing.ts`, `/api/subscription/upgrade-request` y `/api/subscription/pay`.
+- [x] **Filtros admin por mes**: `/api/admin/payments` y `/api/admin/export` usan `firstOfNextMonth()` en vez de `new Date(y,m,1).toISOString()` (caso límite noche).
+- [x] **Vercel env TZ DESCARTADO**: `TZ` es nombre reservado por Vercel (400 `env_key_reserved`). El fix determinístico con Intl cubre el problema sin depender de la zona del runtime.
+
+### Fix SQL (migración aplicada en producción)
+- [x] **`supabase/timezone-rd.sql` + `scripts/exec-timezone-rd.mjs`** (APLICADO, 201 + backfill 28 clientes): helper `public.today_rd()` = `(now() AT TIME ZONE 'America/Santo_Domingo')::date`; `calc_late_days`, `update_client_stats`, `get_loan_stats` y `update_all_loan_statuses` re-creadas usando `today_rd()` en vez de `CURRENT_DATE`.
+- [x] `subscription_payments.payment_date` DEFAULT → `(now() AT TIME ZONE 'America/Santo_Domingo')::date`.
+- [x] Copias sincronizadas: schema.sql, client-status-fix2.sql, client-status-auto.sql, client-stats-fix.sql, delete-preserve-payments.sql, post-delete-review.sql, soft-delete-loans.sql, security-guards.sql, security-hardening.sql, security-hardening2.sql, loan-stats.sql, admin-schema.sql (dejado `rebuild-74f-payments.sql` como script one-off histórico).
+- [x] **Verificado**: `today_rd()` devuelve 2026-08-16 (igual que UTC ese día), `calc_late_days` 7/0 para ±7/±0 días vía query; `npx tsc --noEmit` OK, vitest 49/49 (tests nuevos determinísticos: `daysBetweenDateStrings`, `firstOfNextMonth`, `getLocalMonthStart`), `npm run build` OK.
+- [ ] **(Pendiente)** Deploy a producción (vercel --prod) y commit de todos los cambios de timezone + reports.

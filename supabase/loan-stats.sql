@@ -103,7 +103,7 @@ BEGIN
     WHERE l.user_id = p_user_id
       AND l.deleted_at IS NULL
       AND i.status IN ('pending', 'partial', 'late')
-      AND i.due_date < CURRENT_DATE
+      AND i.due_date < public.today_rd()
   )
   SELECT
     COALESCE(SUM(CASE WHEN li.id IS NULL THEN GREATEST(0, l.amount - COALESCE(pc.paid_capital, 0)) END), 0),

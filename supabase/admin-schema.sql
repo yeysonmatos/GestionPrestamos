@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS subscription_payments (
   subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   amount DECIMAL(12,2) NOT NULL,
-  payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  payment_date DATE NOT NULL DEFAULT (now() AT TIME ZONE 'America/Santo_Domingo')::date,
   method TEXT NOT NULL DEFAULT 'cash' CHECK (method IN ('cash', 'transfer', 'deposit', 'other')),
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()

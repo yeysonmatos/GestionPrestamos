@@ -1,4 +1,5 @@
-import { addDays, addWeeks, addMonths, format, parseISO, differenceInCalendarDays } from 'date-fns'
+import { addDays, addWeeks, addMonths, format, parseISO } from 'date-fns'
+import { getLocalDate, daysBetweenDateStrings } from './utils'
 
 interface CalculateLoanInput {
   amount: number
@@ -267,9 +268,7 @@ export function recalculateFrenchSchedule(
 }
 
 export function calculateLateDays(dueDate: string, graceDays: number = 0): number {
-  const due = parseISO(dueDate)
-  const now = new Date()
-  return Math.max(0, differenceInCalendarDays(now, due) - graceDays)
+  return Math.max(0, daysBetweenDateStrings(dueDate, getLocalDate()) - graceDays)
 }
 
 export function nextDueDateAfter(firstPaymentDate: string, paymentDay: number, from: Date): Date {

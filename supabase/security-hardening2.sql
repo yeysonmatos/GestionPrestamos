@@ -55,7 +55,7 @@ BEGIN
     SELECT id FROM loans
     WHERE status IN ('active', 'late', 'late_1_30', 'late_31_60', 'late_61_90')
   LOOP
-    SELECT COALESCE(MAX(GREATEST(0, CURRENT_DATE - due_date)), 0)
+    SELECT COALESCE(MAX(GREATEST(0, public.today_rd() - due_date)), 0)
     INTO v_max_late_days
     FROM installments
     WHERE loan_id = v_loan.id
