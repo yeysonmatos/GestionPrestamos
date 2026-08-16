@@ -1,10 +1,11 @@
 import { createServerSideClient } from '@/lib/supabase-server'
+import { getLocalDate } from '@/lib/utils'
 import MainLayout from '@/components/layout/MainLayout'
 import CollectionsContent from './CollectionsContent'
 
 export default async function CollectionsPage() {
   const supabase = await createServerSideClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
 
   const pendingStatuses = ['pending', 'partial', 'late']
 
@@ -44,10 +45,10 @@ export default async function CollectionsPage() {
 
   const { data: openEndedLoans } = await supabase
     .from('loans')
-    .select('id, loan_id, amount, installment_amount, remaining_amount, payment_day, first_payment_date, client:clients(id, name, phone)')
+    .select('id, loan_id, amount, installment_amount, remaining_amount, payment_day, first_payment_date, client:clients(id, name, phone, whatsapp)')
     .eq('open_ended', true)
     .eq('status', 'active')
-    .is('deleted_at', null) as { data: { id: string; loan_id: string; amount: number; installment_amount: number; remaining_amount: number; payment_day: number; first_payment_date: string; client: { id: string; name: string; phone: string | null } | null }[] | null }
+    .is('deleted_at', null) as { data: { id: string; loan_id: string; amount: number; installment_amount: number; remaining_amount: number; payment_day: number; first_payment_date: string; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null }[] | null }
 
   const { data: settings } = await supabase
     .from('settings')

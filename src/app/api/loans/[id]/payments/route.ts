@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { getLocalDate } from '@/lib/utils'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
   }
 
-  const body = await request.json()
+  const body = await request.json().catch(() => ({}))
   const amount = Number(body.amount)
   if (!amount || amount <= 0) {
     return NextResponse.json({ error: 'Monto es requerido' }, { status: 400 })
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       p_user_id: user.id,
       p_amount: amount,
       p_include_mora: body.include_mora ?? true,
-      p_payment_date: body.payment_date || new Date().toISOString().split('T')[0],
+      p_payment_date: body.payment_date || getLocalDate(),
       p_method: body.method || 'cash',
       p_notes: body.notes || null,
       p_late_interest_rate: settings?.late_interest_rate ?? 0,
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       amount,
       capital_amount: Number(body.capital_amount || 0),
       interest_amount: Number(body.interest_amount || amount),
-      payment_date: body.payment_date || new Date().toISOString().split('T')[0],
+      payment_date: body.payment_date || getLocalDate(),
       method: body.method || 'cash',
       notes: body.notes || null,
       type: 'installment',

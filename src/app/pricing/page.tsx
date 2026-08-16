@@ -110,6 +110,14 @@ export default async function PricingPage() {
             Inicia sesión
           </Link>
         </p>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Al registrarte aceptas nuestra{' '}
+          <Link href="/privacidad" className="text-primary hover:underline">
+            Política de Privacidad
+          </Link>
+          {' '}(Ley 172-13, República Dominicana)
+        </p>
       </main>
     </div>
   )

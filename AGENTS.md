@@ -415,3 +415,170 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 ### Deploy
 - [x] **Staging**: preview + alias (`staging-gestion-prestamos.vercel.app`), producción `gestion-prestamos-one.vercel.app` **intacta**. Verificado en staging: todo funciona.
 - [ ] **(Pendiente)** Producir: mismo build a `vercel --prod` cuando el usuario lo decida.
+
+## Hoy — 13 Ago 2026
+
+### Auditoría Financiera y Contable (Verificación + Corrección)
+**Contexto Fase A**: la BD de producción está vacía de dinero por diseño — el commit `0ca8d4e` aplicó `supabase/cleanup.sql` (DELETE payments/installments/loans/documents, conserva clients). Estado real: `clients=24` (todos de `user_id f4bebbc7-2ed5-4a07-a8c4-13d9ed9d4130`), `app_users=4`, `subscriptions=3`, `plans=3`, `settings=0`, `payments/loans/installments/audit_logs/subscription_payments=0`. Por eso las consultas A1-A8 devuelven vacío: la limpieza, no el código. Los bugs de Fase B son reales e independientes.
+
+- [x] **B1 · `/api/export` eliminado**: `src/app/api/export/route.ts` estaba roto (select `*, person:people(*), payments(*)` — tabla `people` inexistente; sumaba pagos `reversed`; `remaining = amount − totalPaid`). Sin referencias en código.
+
+### B2-B6 · Pagos, recibos y auditoría (código)
+- [x] **B2 · Liquidación sincroniza `paid_amount`**: `useSharedLoanHandlers.handleLiquidation` ahora llama `updateLoanAfterPayment` y luego persiste `loans.paid_amount = Σ payments.amount` (status paid) — antes quedaba `paid_amount` = monto original del préstamo sin actualizar.
+- [x] **B3 · Auditoría de pago usa efectivo real**: `CollectionsContent` loggea `payment.amount`/`late_amount`/`capital_amount`/`interest_amount` del payment devuelto por el RPC (antes `allocation.totalPaidOnInstallment`, que ignora crédito consumido/mora).
+- [x] **B4 · Recibo: "Nuevo balance" = `loan.remaining_amount` persistido** (PaymentReceipt) en vez de `previousBalance − amount` (frágil con crédito consumido/surplus). `previousBalance` queda como línea informativa.
+- [x] **B5 · Modal de éxito unificado**: `handleCapitalAbono` y `handleLiquidation` ahora abren el mismo modal de éxito con recibo (`setShowSuccess`), igual que el pago de cuota en `useSharedLoanHandlers` y `CollectionsContent`.
+- [x] **B6 · WhatsApp de Collections arreglado**: buscaba `successPayment.loan?.client` (el RPC no lo embebe) → nunca abría `wa.me`. Ahora `successLoanInfo` guarda `whatsapp`/`phone` desde `inst.loan?.client`/`openEndedLoan` (embed `client:clients(id, name, phone, whatsapp)` en la query open-ended de page.tsx) y el botón los usa.
+
+### B7 · Copias de RPC unificadas
+- [x] **`schema.sql`**: `process_installment_payment` no tenía la **guarda de orden** ("Debes pagar las cuotas anteriores primero") que sí tenían `security-guards.sql` y `cascade-guard.sql`. Agregada → las 3 copias ahora son idénticas (idempotente: CREATE OR REPLACE).
+
+### B8 · Open-ended excluido del balance del cliente (REVERTIDO)
+- [ ] ~~Decisión aprobada por el usuario~~ → **revertida a petición del usuario**: `clients.balance` vuelve a sumar `remaining_amount` de TODOS los préstamos activos/morosos no archivados, **incluyendo open-ended**, como estaba desde el principio. Eliminados: filtro `open_ended = false` de las 7 copias, columna `open_ended_balance`, línea "Solo interés" en tarjeta/perfil, campo `Client.open_ended_balance`, y los archivos `supabase/balance-open-ended.sql` + `scripts/exec-balance-open-ended.mjs`. `audit-reconcile.sql` (invariante 3) mide contra la misma fórmula original (sin filtro open-ended).
+
+### Fase C · Reconciliación contable
+- [x] **`supabase/audit-reconcile.sql` + `scripts/exec-audit-reconcile.mjs`**: RPC `public.reconcile_money(p_user_id DEFAULT NULL)` — verifica 3 invariantes: (1) identidad contable `amount = capital_paid + capital_pending` en préstamos activos no archivados (solo principal, excluye open-ended), (2) `payments.amount = Σ(capital+interés+mora)` por pago pagado, (3) `clients.balance == Σ remaining_amount` de sus préstamos activos/morosos no archivados no open-ended (misma fórmula de update_client_stats). Devuelve `{ ran, testable_loans, open_ended_skipped, payment_rows, clients_checked, error_count, errors[] }`. Con `p_user_id` NULL recorre toda la BD; con UUID valida una cuenta.
+
+### Denominadores (documentación)
+- [x] **`recovered_capital` (Dashboard/Reportes, vía `get_loan_stats`) = Σ `payments.capital_amount`** — SOLO principal cobrado, histórico (sin fecha) o por período.
+- [x] **`clients.total_paid` (perfil) = Σ `payments.amount`** — capital + interés + mora, todo lo que el cliente pagó. Dos métricas distintas a propósito.
+- [x] **Verificado**: `npx tsc --noEmit` OK, `npm run build` OK, vitest 46/46.
+- [x] **`audit-reconcile.sql` aplicado en BD** y correr `reconcile_money()`: 201 OK; reporte limpio (3 préstamos verificables, 1 open-ended omitido, 0 pagos, 25 clientes con balance OK, **0 errores**).
+- [x] **Fix "Por cobrar" en préstamos open-ended**
+- [x] **Bug**: en el detalle de un préstamo open-ended (solo interés) el header "Por cobrar" mostraba RD$0. Causa: `totalPorCobrar` se calculaba desde `installments` (cuotas) — un préstamo abierto **no genera cuotas**, así que la suma daba 0 aunque quedara capital. Corregido en `LoanDetail.tsx`: para `isOpenEnded`, `capitalPorCobrar = loan.remaining_amount` e `interesPorCobrar = 0` (el capital pendiente real, ej. RD$50,000). La barra de progreso y el resumen ya usaban `remaining_amount` y eran correctos.
+
+## Hoy — 13 Ago 2026 (sesión 2) · Auditoría 7 — Reportes y Documentación (verificación + fixes)
+
+### Auditoría 7 (verificación amplia)
+Inventario completo de los puntos auditados: Dashboard (8 tarjetas vía `get_loan_stats` + gráfica 6 meses), Reportes (filtro período, plan avanzado Pro), Recibos (PaymentReceipt imprimible), Contrato (modal lectura), WhatsApp (wa.me texto en 4 botones), CSV (solo admin), Historial (8 listados), Documentos (Storage). Denominadores ya documentados en sesión anterior.
+
+### Fixes aplicados
+- [x] **A1 · Botón "Ver todos" engañoso** (`LoanDetail.tsx`): copiaba un resumen de pagos al portapapeles en silencio (y solo si existía teléfono). Reemplazado por botón honesto **"Copiar resumen"** con feedback visual ("¡Resumen copiado!") vía estado `summaryCopied` y `tooltip` explícito.
+- [x] **A2 · Impresión multi-cuota rota** (`LoanDetail.tsx`): cuando un pago cubría varias cuotas el modal de éxito no incluía ningún `#payment-receipt`, así que `window.print()` imprimía la página completa. Ahora el bloque multi-cuota es un recibo imprimible dedicado (mismo `id="payment-receipt"` + `@media print` inline) con desglose por cuota, total, capital/interés/mora y nuevo balance.
+- [x] **A3 · Recibo de Cobros frágil** (`CollectionsContent.tsx` + `PaymentReceipt.tsx`): se construía un objeto `Loan` de 40 campos con `as Loan` (cualquier campo faltante rompería el recibo). `PaymentReceipt` ahora acepta una interfaz mínima `ReceiptLoan { loan_id, remaining_amount, client?.name }`; Collections pasa solo esos 3 campos tipados.
+- [x] **A4 · CSV admin omitía filtros activos** (`api/admin/export/route.ts` + `AdminPayments.tsx`): ahora el export de pagos acepta y filtra por `method` y `status` (además de `month`/`user_id`), y el botón los envía. Columna "Estado" añadida al CSV.
+- [x] **A5 · Código muerto** (`AccountContent.tsx`): eliminado `whatsappUrl()` (definido pero sin referencia).
+- [x] **Verificado**: `npx tsc --noEmit` OK, `npm run build` OK (Next 16.2.10, 46 rutas), vitest 46/46.
+
+## Hoy — 13 Ago 2026 (sesión 3) · Nuevas características (1, 2, 4 de Auditoría 7)
+
+### 1 · Contrato imprimible + lugar de firma
+- [x] **`LoanDetail.tsx`**: el modal de contrato ahora es un **recibo imprimible** (`id="loan-contract"` + `@media print` inline, mismo patrón que PaymentReceipt): número del préstamo, datos, y **líneas de firma** ("Firma del prestamista" / "Firma del cliente"). Botón **"Imprimir / PDF"** (`window.print()`) en el modal.
+
+### 2 · Export CSV para el prestamista (préstamos + cobros)
+- [x] **`src/lib/csv.ts` (nuevo)**: `buildCsv()` (escape de comillas) + `downloadCsv(fileName, csv)` con BOM UTF-8 (abre correctamente en Excel).
+- [x] **Listado de préstamos** (`LoansClientUnified.tsx`): botón **"Exportar CSV"** en el header — exporta los préstamos **filtrados** (No., Cliente, Teléfono, Monto, Por cobrar, Tipo, Frecuencia, Cuotas pagadas/totales, Estado, Inicio, Próximo vencimiento). Archivo `prestamos-YYYY-MM-DD.csv`.
+- [x] **Cobros** (`CollectionsContent.tsx`): botón **"Exportar CSV"** en el header. En pestaña **Historial** exporta los pagos (No., Cliente, Monto, Capital, Interés, Mora, Tipo, Método, Estado, Fecha, Notas) → `cobros-historial-*.csv`. En Hoy/Vencidos/Próximos exporta la lista filtrada actual (cuotas: No., Cliente, Teléfono, Cuota #, Monto, Frecuencia, Vence, Estado) → `cobros-<tab>-*.csv`.
+
+### 4 · Botón WhatsApp en clientes (lista + perfil)
+- [x] **`src/lib/messages.ts`**: nuevo `buildClientMessage()` — "Hola {nombre}, saludos de {negocio}." + línea de saldo por cobrar/próxima cuota si hay préstamos activos, o "no tiene préstamos pendientes".
+- [x] **Lista de clientes** (`ClientsClient.tsx`): botón verde WhatsApp en cada card (usa `whatsapp || phone`, `preventDefault`/`stopPropagation` para no navegar) que abre `wa.me` con el mensaje.
+- [x] **Perfil del cliente** (`ClientProfile.tsx`): botón WhatsApp en el header (junto a Editar) que abre `wa.me` con mensaje que incluye saldo por cobrar y próxima fecha de pago. Eliminado `createClient` no usado.
+- [x] **Verificado**: `npx tsc --noEmit` OK, `npm run build` OK, vitest 46/46.
+
+### Deploy (13 Ago 2026)
+- [x] **Característica 3 (antigüedad de mora / envejecimiento en Dashboard) DESCARTADA** por decisión del usuario — no se implementará.
+- [x] **Staging** (`staging-gestion-prestamos.vercel.app`): preview `gestion-prestamos-pfg1vobtu` + alias → HTTP 200. Build OK (46 rutas).
+- [x] **Producción** (`gestion-prestamos-one.vercel.app`): `vercel --prod` → deployment `gestion-prestamos-mmt7ols6n` (alias automático). HTTP 200.
+- [x] Incluye todas las sesiones del 13 Ago: Auditoría 7 (A1-A5), contrato imprimible+firma, exports CSV (ExportPanel en Configuración), WhatsApp en préstamos, refinamientos contrato/exports/WhatsApp.
+
+## Hoy — 13 Ago 2026 (sesión 3 ajustes) · Refinamientos de Contrato, Exports y WhatsApp
+
+### 1 · Contrato imprimible + firma — fix de impresión
+- [x] **`LoanDetail.tsx`**: `#loan-contract` ahora imprime en **una sola página** (antes salía partido a la mitad de dos páginas). Se compactó a `max-w-xs`, `@media print` con `max-width: 380px`, `page-break-inside: avoid` + `break-inside` en p y div, `@page a4 portrait` con margen 8mm.
+
+### 2 · Exports CSV — movidos a Configuración + botones de página abreviados
+- [x] **`src/components/settings/ExportPanel.tsx` (nuevo)**: pestaña **"Exportar datos"** en `/settings` con lista de las 3 exportaciones posibles (Préstamos, Historial de cobros, Cobros pendientes). Cada una consulta con RLS del usuario y descarga CSV con BOM UTF-8.
+- [x] **Botones de página abreviados**: en `LoansClientUnified` y `CollectionsContent` el botón "Exportar CSV" pasa a **icono solo** (`FileCsv` + `title`/`aria-label`), para no estorbar en móvil — la lista completa está en Configuración.
+- [x] `ExportPanel` reusa `buildCsv`/`downloadCsv` de `src/lib/csv.ts` e iconos `FileCsv`/`Export` (existen en esta versión de Phosphor).
+
+### 3 · WhatsApp en clientes → movido al botón de préstamos
+- [x] **`LoanDetail.tsx`**: el botón WhatsApp del header ahora usa `buildClientMessage` (saludo + saldo por cobrar + próxima cuota) **en vez de** `buildQuickMessage` (solo "⚡ L-xxx · nombre"). El mensaje rico se movió del cliente al préstamo.
+- [x] **Eliminados** los botones WhatsApp de clientes: `ClientsClient.tsx` (lista) y `ClientProfile.tsx` (perfil); se quitaron handlers e imports (`WhatsappLogo`, `buildClientMessage`, `openWhatsApp`).
+- [x] **`src/lib/messages.ts`**: eliminado `buildQuickMessage` (sin uso); se conservan `buildReceiptMessage`, `buildPaymentSummary`, `buildClientMessage`.
+- [x] **Verificado**: `npx tsc --noEmit` OK, `npm run build` OK, vitest 46/46.
+
+## Hoy — 13 Ago 2026 (sesión 4) · Hardening de seguridad — Auditorías 8 + 4 aplicadas
+
+### Auditorías
+- [x] **Auditoría 8 (Go Live)**: `docs/AUDITORIA-8-GO-LIVE.md` — 62/100, no listo (seguridad 35).
+- [x] **Auditoría 4 (Seguridad)**: `docs/AUDITORIA-4-SEGURIDAD.md` — 4 áreas (Auth, Autorización, APIs, Datos sensibles) + verificación en vivo en la BD.
+- [x] **Confirmado en producción** (anon key): `reconcile_money`/`admin_list_users`/`admin_usage_stats`/`update_all_loan_statuses` expuestos; bucket `documents` abierto cross-tenant; `subscription_payments.status` default `confirmed`.
+
+### SQL aplicado a producción
+- [x] **`supabase/security-hardening.sql` + `scripts/exec-security-hardening.mjs`** (aplicado, 201): guarda interna en `reconcile_money` (solo dueño/postgres/service_role) + REVOKE PUBLIC/anon + GRANT authenticated/service_role; `update_all_loan_statuses` REVOKE PUBLIC/authenticated + guarda con `session_user`; followers flocking REVOKE anon en `process_installment_payment`/`process_cascade_payment` (firma `p_loan_id, p_user_id, p_amount, p_include_mora, p_payment_date, p_method, p_notes, p_late_interest_rate, p_grace_days`); `update_client_stats` REVOKE anon; `is_admin`/`calc_late_*` REVOKE anon; **bucket `documents` aislado por prefijo** `(storage.foldername(name))[1] = 'user_' || auth.uid()` (SELECT/INSERT/DELETE); `subscription_payments.status` default → `'pending'` + política INSERT con `status='pending' AND amount>0`; índice `idx_payments_user_status ON payments(user_id, status)`; cron `cleanup-audit-logs-weekly` activado.
+- [x] **`supabase/security-hardening2.sql` + `scripts/exec-security-hardening2.mjs`** (aplicado, 201): REVOKE PUBLIC/anon en `admin_list_users()`, `admin_usage_stats(text)`, `admin_usage_by_user()` (firmas reales verificadas) + GRANT service_role; guarda con `session_user` en `update_all_loan_statuses`.
+- [x] **Re-verificado**: 5 RPCs sensibles → **401 permission denied** con anon key; service_role sigue funcionando (reconcile_money 0 errores, admin_list_users OK); `get_loan_stats` devuelve null a ajenos; `subscription_payments.status` default `pending` confirmado en schema cache.
+
+### Código Next.js (todos verificados: tsc OK, vitest 46/46, build OK)
+- [x] **`next.config.ts`**: headers de seguridad (X-Frame-Options DENY, nosniff, HSTS, Referrer-Policy, Permissions-Policy, X-Powered-By personalizado) + CSP pragmática.
+- [x] **`rate-limit.ts`**: key solo por IP real del proxy (x-forwarded-for/cf-connecting-ip/x-real-ip); eliminada confianza en header client-controlable `x-user-id`.
+- [x] **`supabase-client.ts`**: `cookieOptions sameSite:'lax'` + `secure` en producción.
+- [x] **`auth/callback/route.ts`**: open redirect cerrado — `safeNext()` solo permite pathnames locales whitelisteados.
+- [x] **`backup/setup/route.ts`**: exige `requireAdminApi` (antes usaba service role sin auth).
+- [x] **`clients/[id]/route.ts` + `settings/route.ts`**: whitelist de columnas actualizables (anti mass-assignment).
+- [x] **`smtp-config/route.ts`**: GET ya no devuelve `pass` (solo `configured`).
+- [x] **`support/notify/route.ts`**: valida que el ticket pertenezca al usuario (`.eq('user_id', user.id)`).
+- [x] **`loans/route.ts` POST**: valida `amount > 0` finito; `calculations.ts` guard `n <= 0` en `calculateFlatRate` (evita Infinity/NaN).
+- [x] **`request.json().catch(() => ({}))`** en las 7 rutas de negocio que no lo tenían (collections, clients, clients/[id], loans, loans/[id], loans/[id]/payments).
+- [x] **`audit.ts`**: `sanitizeAuditDetails()` redacta PII (document, gps_*, phones, address, references) en `audit_logs.details`.
+- [x] **`global-error.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`**: boundaries de error/carga añadidos al app router.
+- [x] **`getLocalDate()`** reemplaza `new Date().toISOString().split('T')[0]` en los **21 sitios** (fix del bug UTC vs hora local RD 20:00-24:00).
+- [x] **`public/sw.js`** (cache v4): excluye del cache-first las URLs de Supabase (`/rest|auth|storage/v1`) y `/api/` — evita servir datos obsoletos/otra sesión.
+
+### Pendiente (decisión del usuario)
+- Falta desplegar esta sesión a staging/producción (build ya verificado localmente).
+- Confirm email / MFA del panel de Supabase (config de dashboard, no código).
+- Política de privacidad (Ley 172-13 RD) — no implementada aún.
+
+### Deploy (13 Ago 2026)
+- [x] **Producción** (`gestion-prestamos-one.vercel.app`): `vercel --prod` → deployment `gestion-prestamos-5yok5axl3`. **Verificado**: HTTP 200 + headers de seguridad activos (X-Frame-Options DENY, nosniff, HSTS, Referrer-Policy, Permissions-Policy, CSP con frame-ancestors, X-Powered-By personalizado). Incluye toda la sesión 4 (hardening código + whitelists + getLocalDate + error boundaries + SW v4).
+- [x] **Staging**: preview `gestion-prestamos-fmry60s35` desplegado en el mismo paso.
+- [x] Nota: `next.config.ts`/`rate-limit.ts`/`supabase-client.ts` no persistieron en el primer intento; se re-aplicaron y redeployó con éxito.
+
+## Hoy — 15 Ago 2026
+
+### Política de privacidad pública (Ley 172-13 RD)
+- [x] **`src/app/privacidad/page.tsx`**: página pública con 11 secciones (responsable Gestor de Prestamos · gestordprestamo@gmail.com, datos recopilados, finalidad, conservación, consentimiento, transferencias, seguridad, derechos ARCO, datos de terceros, menores, cambios). Server component, mismo estilo que `/pricing`.
+- [x] **`src/middleware.ts`**: `/privacidad` agregado a `isPublic`.
+- [x] **Enlaces**: en Login (`/login`, "Al continuar aceptas nuestra Política de Privacidad") y en Pricing (`/pricing`, con mención a la Ley 172-13). Decisión del usuario: SOLO en login y pricing.
+- [x] Verificado: tsc OK, build OK (`/privacidad` compila).
+
+### Confirmar correo + SMTP propio (Supabase Auth)
+- [x] **Configuración verificada en Supabase**: `mailer_autoconfirm=false` (confirmación de correo requerida) + `mailer_allow_unverified_email_sign_ins=false` ya estaban activos.
+- [x] **SMTP de Gmail conectado a Supabase** (vía Management API, opción A elegida por el usuario): `smtp.gmail.com:587`, user `gestordprestamo@gmail.com`, contraseña de aplicación del usuario, `smtp_sender_name="Gestor de Prestamos"`. Las confirmaciones/recuperaciones salen del propio Gmail del negocio.
+- [x] Mismo patrón de la app: Gmail + contraseña de aplicación (sin servicios técnicos adicionales).
+
+### MFA (doble verificación) — Activada en Supabase + UI en la app
+- [x] Config Supabase ya activa: `mfa_totp_enroll_enabled=true`, `mfa_totp_verify_enabled=true`, `mfa_allow_low_aal=false`.
+- [x] **`src/components/auth/MfaSetup.tsx`**: inscripción TOTP (QR + secreto manual + copiar), verificación con código, desactivación. Estado "Activa/Inactiva" con Badge.
+- [x] **Login** (`src/app/login/page.tsx`): tras `signInWithPassword`, si `nextLevel=='aal2'` muestra paso de código de 6 dígitos → `challengeAndVerify` → redirige a `/dashboard`.
+- [x] **Middleware** (`src/middleware.ts`): sesión aal1 con MFA activa en ruta protegida → redirige a `/mfa-verify?next=…`; `/mfa-verify` agregado a `isPublic`.
+- [x] **`src/app/mfa-verify/`**: página+client de verificación (Suspense en page por searchParams).
+- [x] **`/account`** (AccountContent): tarjeta MFA bajo "Cambiar contraseña" (clientes). **`/admin/seguridad`**: página nueva + item "Seguridad" (icono `ShieldCheck`) en AdminSidebar para el admin (el middleware redirige admins fuera de `/account`).
+- [x] Verificado: tsc OK, vitest 46/46, build OK (rutas `/privacidad`, `/mfa-verify`, `/admin/seguridad`).
+- [ ] **(Pendiente)** Desplegar a staging/producción y probar flujo completo MFA (inscribir autenticador → cerrar sesión → login pide código).
+
+## Hoy — 15 Ago 2026 (sesión 2)
+
+### Fix MFA post-prueba
+- [x] **QR no cargaba** (`MfaSetup.tsx`): el SDK `@supabase/auth-js` en esta versión YA devuelve `qr_code` con prefijo `data:image/svg+xml;utf-8,` (GoTrueClient.js:4760). El código agregaba el prefijo + `encodeURIComponent` otra vez → imagen rota. Fix: `src={pending.qr_code}` directo.
+- [x] **"factor Autenticador ya existe"** (`MfaSetup.tsx`): un intento previo dejó un factor `unverified` en Supabase (invisible porque `enrolled` filtra `status==='verified'`), y `enroll({ friendlyName:'Autenticador' })` falla por nombre repetido (`mfa_factor_name_conflict`). Fix: `startEnroll()` primero `unenroll` de todos los factores `status !== 'verified'` antes de reinscribir.
+
+### Ajustes de producto (4 tareas)
+- [x] **T1 · CSV fuera de Préstamos/Cobros + .xlsx solo en Configuración**:
+  - Eliminados botones FileCsv + handlers `exportCsv`: `src/app/loans/LoansClientUnified.tsx` y `src/app/collections/CollectionsContent.tsx` (imports, handler, botón header). Los 3 exports admin (audit/users/payments, flujo `DownloadSimple` + `/api/admin/export`) NO se tocan.
+  - **`xlsx` (SheetJS 0.18.5) instalado** (npm). `src/lib/csv.ts` agrega `downloadXlsx(headers, rows, fileName)` con import dinámico (solo se carga al exportar).
+  - **`ExportPanel.tsx`** (Configuración → Exportar datos): las 3 exportaciones generan `.xlsx` (`prestamos-*.xlsx`, `cobros-historial-*.xlsx`, `cobros-pendientes-*.xlsx`); subtítulo "Descarga tus datos en Excel (.xlsx)"; icono `FileXls`.
+- [x] **T2 · Favicon**: eliminado `src/app/favicon.ico` (ícono stock de Create Next App que Next auto-inyectaba y ganaba en el `<head>` sobre el `<link rel="icon" href="/gp-icon-opaque.png">` de `layout.tsx:29`). Ahora el GP icon queda único. `public/sw.js` cache `v4 → v5` para purgar el `/favicon.ico` cacheado en PWA ya instaladas.
+- [x] **T3 · Clientes sin préstamos no salían en "Inactivos"** — causa raíz: el `CREATE OR REPLACE` de `update_client_stats` aplicado en `security-hardening.sql` (13 Ago) SOLO actualizaba trust (perdió `status`, balance, métricas). Fix aplicado:
+  - **`supabase/client-status-fix2.sql` + `scripts/exec-client-status-fix2.mjs`** (aplicado en producción, 201): restaura la función completa (cuerpo de `schema.sql` con `status=CASE…`, todas las métricas + guarda `service_role`) + **backfill** `SELECT public.update_client_stats(id) FROM clients;` (28 clientes recalculados → 27 inactivos, 1 activo = el único con préstamos, verificado en BD).
+  - **`security-hardening.sql` sincronizado** con el cuerpo completo (para que re-aplicarlo no vuelva a romper status).
+  - **`ClientForm.tsx`**: inserta con `status: 'inactive'` (cliente nuevo nace inactivo).
+  - **`clients/page.tsx`**: `.limit(100)` → `.limit(1000)` en clients y loans (evita cortar listados).
+- [x] **Verificado**: `npx tsc --noEmit` OK, vitest 46/46, `npm run build` OK.
+
+### Pendiente
+- [ ] **T4 · N° Documento "000000000" da error**: NO hay validación en código ni BD (columna TEXT sin CHECK/UNIQUE/trigger, 0 clientes con ese valor, plan Pro sin `max_clients`). El usuario va a reproducir y reportar el mensaje exacto antes de corregir.
+- [ ] Desplegar sesión (MFA fix + los ajustes de producto) a staging/producción.
+- [ ] Probar flujo completo MFA (inscribir autenticador → cerrar sesión → login pide código).

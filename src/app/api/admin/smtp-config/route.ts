@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
           port: data.port,
           secure: data.secure,
           username: data.username,
-          pass: data.pass,
+          // La contraseña NUNCA se devuelve por API (securidad). El client la
+          // manda vacía y solo se actualiza si escribe una nueva.
+          pass: '',
           from_name: data.from_name,
           from_email: data.from_email,
           enabled: data.enabled,

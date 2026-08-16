@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
+import { requireAdminApi } from '@/lib/admin'
 
 export async function POST(request: NextRequest) {
   const rl = rateLimitByIp(request, 'backup:setup', 3, 10 * 60 * 1000)
   if (!rl.allowed) {
     return addRateLimitHeaders(
       NextResponse.json({ error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' }, { status: 429 }),
+      rl
+    )
+  }
+
+  // Seguridad: este endpoint dispara operaciones con service role.
+  // Solo un administrador autenticado puede invocarlo.
+  const authResult = await requireAdminApi(request)
+  if (!authResult) {
+    return addRateLimitHeaders(
+      NextResponse.json({ error: 'No autorizado' }, { status: 401 }),
       rl
     )
   }

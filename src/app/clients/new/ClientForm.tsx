@@ -144,7 +144,7 @@ export default function ClientForm({ initialData, isEditing = false, clientId }:
 
     const { data, error: insertError } = await supabase
       .from('clients')
-      .insert({ ...payload, user_id: user.id })
+      .insert({ ...payload, user_id: user.id, status: 'inactive' })
       .select()
       .single()
     if (insertError) {

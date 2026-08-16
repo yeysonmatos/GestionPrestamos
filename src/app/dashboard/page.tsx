@@ -2,6 +2,7 @@ import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import DashboardContent from './DashboardContent'
 import type { LoanStats } from '@/types'
+import { getLocalDate } from '@/lib/utils'
 
 export default async function DashboardPage() {
   const supabase = await createServerSideClient()
@@ -22,11 +23,11 @@ export default async function DashboardPage() {
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
 
   const sixMonthsAgo = new Date()
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-  const sixMonthsAgoStr = sixMonthsAgo.toISOString().split('T')[0]
+  const sixMonthsAgoStr = getLocalDate(sixMonthsAgo)
 
   const { data: chartPayments } = await supabase
     .from('payments')

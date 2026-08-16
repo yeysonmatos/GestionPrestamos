@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
         .from('support_tickets')
         .select('subject, priority, user_id')
         .eq('id', ticketId)
+        .eq('user_id', user.id)
         .single()
       if (!ticket) {
         return NextResponse.json({ ok: true, skipped: true }, { headers: supabaseResponse.headers })
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
         .from('support_tickets')
         .select('user_id, subject')
         .eq('id', ticketId)
+        .eq('user_id', user.id)
         .single()
       if (!ticket) {
         return NextResponse.json({ ok: true, skipped: true }, { headers: supabaseResponse.headers })

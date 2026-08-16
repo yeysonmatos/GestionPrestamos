@@ -1,11 +1,17 @@
 'use client'
 
 import { formatCurrency, formatDate } from '@/lib/utils'
-import type { Payment, Loan, Setting } from '@/types'
+import type { Payment, Setting } from '@/types'
+
+interface ReceiptLoan {
+  loan_id: string
+  remaining_amount: number
+  client?: { name?: string } | null
+}
 
 interface Props {
   payment: Payment
-  loan: Loan
+  loan: ReceiptLoan
   settings: Setting | null
   previousBalance?: number
   typeLabel?: string
@@ -15,9 +21,7 @@ export default function PaymentReceipt({ payment, loan, settings, previousBalanc
   const businessName = settings?.business_name || 'Gestor de Prestamos'
   const receiptNumber = payment.id?.slice(0, 8).toUpperCase() || 'N/A'
   const clientName = loan.client?.name || '—'
-  const newBalance = previousBalance !== undefined
-    ? Math.max(0, previousBalance - payment.amount)
-    : loan.remaining_amount
+  const newBalance = loan.remaining_amount ?? Math.max(0, (previousBalance ?? loan.remaining_amount) - payment.amount)
   const hasMora = Number(payment.late_amount) > 0
 
   return (

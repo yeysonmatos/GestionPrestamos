@@ -11,13 +11,13 @@ export default async function ClientsPage() {
     .from('clients')
     .select('*')
     .order('name')
-    .limit(100)
+    .limit(1000)
 
   const { data: loans } = await supabase
     .from('loans')
     .select('*')
     .is('deleted_at', null)
-    .limit(100)
+    .limit(1000)
 
   return (
     <MainLayout>

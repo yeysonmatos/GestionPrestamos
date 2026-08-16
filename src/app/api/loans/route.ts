@@ -16,10 +16,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const { supabase } = await createRouteHandlerClient(request)
-  const body = await request.json()
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  // Validación de entrada: montos deben ser números positivos finitos.
+  const amount = Number(body.amount)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return NextResponse.json({ error: 'Monto inválido' }, { status: 400 })
+  }
+  const totalAmount = Number.isFinite(Number(body.total_amount)) ? Number(body.total_amount) : amount
+  const totalInterest = Number.isFinite(Number(body.total_interest)) ? Number(body.total_interest) : 0
+  const installmentAmount = Number.isFinite(Number(body.installment_amount)) ? Number(body.installment_amount) : 0
 
   // Validar que el cliente pertenezca al usuario (evita asociar préstamos a clientes ajenos)
   const { data: client } = await supabase
@@ -38,14 +47,14 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       client_id: body.client_id,
       loan_id: body.loan_id,
-      amount: body.amount,
+      amount,
       interest_type: body.interest_type || 'percentage',
-      interest_rate: body.interest_rate || 0,
-      total_amount: body.total_amount,
-      total_interest: body.total_interest,
-      installment_amount: body.installment_amount,
-      remaining_amount: body.amount,
-      installments: body.installments || 0,
+      interest_rate: Number.isFinite(Number(body.interest_rate)) ? Number(body.interest_rate) : 0,
+      total_amount: totalAmount,
+      total_interest: totalInterest,
+      installment_amount: installmentAmount,
+      remaining_amount: amount,
+      installments: Number.isFinite(Number(body.installments)) ? Number(body.installments) : 0,
       frequency: body.frequency || 'monthly',
       start_date: body.start_date,
       first_payment_date: body.first_payment_date,

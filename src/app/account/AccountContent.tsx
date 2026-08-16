@@ -12,6 +12,7 @@ import { formatNumber, formatDate } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import { computeUpgradeAmount, formatPlanAmount } from '@/lib/prorate'
 import ChangePasswordForm from './ChangePasswordForm'
+import MfaSetup from '@/components/auth/MfaSetup'
 import { CreditCard, Clock, CalendarCheck, Receipt, HandCoins, PaperPlaneTilt, ArrowRight, Copy } from '@phosphor-icons/react'
 import type { Setting } from '@/types'
 
@@ -131,13 +132,6 @@ export default function AccountContent({ showHeader = true }: { showHeader?: boo
       setPayError(err instanceof Error ? err.message : 'Error de conexión')
     }
     setSending(false)
-  }
-
-  function whatsappUrl() {
-    const businessPhone = (paymentInfo?.payment_phone || settings?.business_phone)?.replace(/[^\d]/g, '')
-    if (!businessPhone) return ''
-    const text = `Hola ${paymentInfo?.account_name || 'Gestor de Préstamos'}, quiero renovar mi plan ${subscription?.plan_name || ''} (RD$${formatNumber(subscription?.plan_price || 0)}).`
-    return `https://wa.me/${businessPhone}?text=${encodeURIComponent(text)}`
   }
 
   async function copyTransferData() {
@@ -373,6 +367,10 @@ export default function AccountContent({ showHeader = true }: { showHeader?: boo
 
       <Card className="lg:col-span-3">
         <ChangePasswordForm />
+      </Card>
+
+      <Card className="lg:col-span-3">
+        <MfaSetup />
       </Card>
 
       <Modal open={payModal} onClose={() => { setPayModal(false); setPayError('') }} title="Pagar / Renovar">

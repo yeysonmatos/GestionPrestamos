@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 import { formatCurrency, formatDate, lateStatusLabel } from '@/lib/utils'
 import { paymentTypeColors, paymentMethodColor, loanStatusColors } from '@/lib/status-colors'
-import { buildReceiptMessage, buildQuickMessage, buildPaymentSummary } from '@/lib/messages'
+import { buildReceiptMessage, buildClientMessage, buildPaymentSummary } from '@/lib/messages'
 import { calculateProportionalInterest, calculateLateDays, calculateLateAmount, nextDueDateAfter } from '@/lib/calculations'
 import PaymentReceipt from '@/components/loans/PaymentReceipt'
 import { Card } from '@/components/ui/Card'
@@ -72,6 +72,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteError, setDeleteError] = useState('')
   const [deleteReason, setDeleteReason] = useState('')
+  const [summaryCopied, setSummaryCopied] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -230,12 +231,16 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
     ? Math.round(((Number(loan.amount) - Number(loan.remaining_amount)) / Number(loan.amount)) * 100)
     : (loan.progress > 0 ? loan.progress : (installments.length > 0 ? Math.round((installments.filter(i => i.status === 'paid').length / installments.length) * 100) : 0))
 
-  const capitalPorCobrar = installments
-    .filter(i => i.status !== 'paid')
-    .reduce((s, i) => s + Number(i.capital), 0)
-  const interesPorCobrar = installments
-    .filter(i => i.status !== 'paid')
-    .reduce((s, i) => s + Number(i.interest), 0)
+  const capitalPorCobrar = isOpenEnded
+    ? Number(loan.remaining_amount)
+    : installments
+      .filter(i => i.status !== 'paid')
+      .reduce((s, i) => s + Number(i.capital), 0)
+  const interesPorCobrar = isOpenEnded
+    ? 0
+    : installments
+      .filter(i => i.status !== 'paid')
+      .reduce((s, i) => s + Number(i.interest), 0)
   const totalPorCobrar = capitalPorCobrar + interesPorCobrar
 
   const balanceAfterPayment = useMemo(() => {
@@ -292,7 +297,17 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <button type="button" onClick={() => {
               const phone = loan.client?.whatsapp || loan.client?.phone
               if (phone) {
-                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(buildQuickMessage({ loanId: loan.loan_id, clientName: loan.client?.name || '' }))}`, '_blank')
+                const nextPending = installments
+                  .filter(i => i.status !== 'paid' && i.due_date && i.due_date >= paymentDate)
+                  .sort((a, b) => a.due_date.localeCompare(b.due_date))[0]
+                const msg = buildClientMessage({
+                  clientName: loan.client?.name || 'cliente',
+                  businessName: settings?.business_name || '',
+                  activeLoans: 1,
+                  balance: loan.remaining_amount,
+                  nextDue: nextPending ? formatDate(nextPending.due_date) : undefined,
+                })
+                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
               }
             }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors" title="WhatsApp">
               <WhatsappLogo className="h-5 w-5" />
@@ -510,14 +525,15 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                   remaining: loan.remaining_amount,
                   businessName: settings?.business_name || 'Gestor de Prestamos',
                 })
-                const phone = loan.client?.whatsapp || loan.client?.phone
-                if (phone) {
-                  navigator.clipboard.writeText(msg).then(() => {})
-                }
+                navigator.clipboard.writeText(msg).then(() => {
+                  setSummaryCopied(true)
+                  setTimeout(() => setSummaryCopied(false), 2000)
+                })
               }}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              title="Copia un resumen de los pagos del préstamo para poder enviarlo"
             >
-              Ver todos
+              {summaryCopied ? '¡Resumen copiado!' : 'Copiar resumen'}
             </button>
           )}
         </div>
@@ -999,8 +1015,9 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
       </BottomSheet>
 
       <BottomSheet open={showContract} onClose={() => setShowContract(false)} title="Contrato de préstamo">
-        <div className="text-sm text-foreground space-y-3">
+        <div id="loan-contract" className="receipt bg-white p-5 max-w-xs text-sm text-foreground space-y-2">
           <p className="text-center font-bold text-base">CONTRATO DE PRÉSTAMO</p>
+          <p className="text-center text-xs text-muted-foreground">No. {loan.loan_id}</p>
           <p>Por medio del presente contrato, se formaliza el préstamo entre:</p>
           <p><strong>PRESTAMISTA:</strong> {settings?.business_name || 'El Prestamista'}</p>
           <p><strong>CLIENTE:</strong> {loan.client?.name}</p>
@@ -1023,7 +1040,34 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           <p><strong>FECHA DE INICIO:</strong> {formatDate(loan.start_date)}</p>
           <p><strong>PRIMER PAGO:</strong> {formatDate(loan.first_payment_date)}</p>
           {loan.guarantee && <p><strong>GARANTÍA:</strong> {loan.guarantee}</p>}
-          <p className="pt-4 text-xs text-muted-foreground">Documento generado el {formatDate(new Date().toISOString())}</p>
+          <p className="pt-3 text-xs text-muted-foreground">Documento generado el {formatDate(new Date().toISOString())}</p>
+          <div className="grid grid-cols-2 gap-6 pt-8 pb-2">
+            <div>
+              <div className="border-t-2 border-foreground pt-1 text-center text-xs text-muted-foreground">Firma del prestamista</div>
+            </div>
+            <div>
+              <div className="border-t-2 border-foreground pt-1 text-center text-xs text-muted-foreground">Firma del cliente</div>
+            </div>
+          </div>
+          <style>{`
+            @media print {
+              body * { visibility: hidden; }
+              #loan-contract, #loan-contract * { visibility: visible; }
+              #loan-contract {
+                position: fixed; top: 0; left: 0; right: 0;
+                max-width: 380px; margin: 0 auto;
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+              #loan-contract p, #loan-contract div { break-inside: avoid; }
+              @page { margin: 8mm; size: a4 portrait; }
+            }
+          `}</style>
+        </div>
+        <div className="flex gap-2 pt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => window.print()}>
+            <FileArrowDown className="h-4 w-4 mr-1" /> Imprimir / PDF
+          </Button>
         </div>
       </BottomSheet>
 
@@ -1098,32 +1142,81 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             return (
               <>
                 {successPayments.length > 1 ? (
-                  <>
-                    <div className="border border-border rounded-xl overflow-hidden">
-                      <div className="bg-primary/5 px-4 py-2 text-sm font-semibold text-foreground">
-                        Se pagaron {successCoveredCount} cuotas
+                  <div id="payment-receipt" className="receipt bg-white p-5 max-w-sm mx-auto">
+                    <div className="text-center mb-4">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{settings?.business_name || 'Gestor de Prestamos'}</p>
+                      <h2 className="text-lg font-bold text-foreground mt-1">RECIBO DE PAGO</h2>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">No. {successPayments[0]?.id?.slice(0, 8).toUpperCase() || 'N/A'}</p>
+                    </div>
+                    <div className="text-center mb-4">
+                      <p className="text-3xl font-bold text-foreground">{formatCurrency(successPayments.reduce((s, p) => s + Number(p.amount), 0))}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Se pagaron {successCoveredCount} cuotas{paymentMethod === 'cash' ? ' · Efectivo' : paymentMethod === 'transfer' ? ' · Transferencia' : paymentMethod === 'deposit' ? ' · Depósito' : ''}
+                      </p>
+                    </div>
+                    <div className="border-t border-border pt-3 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Cliente</span>
+                        <span className="font-medium text-foreground">{loan.client?.name || '—'}</span>
                       </div>
-                      <div className="divide-y divide-border">
-                        {successPayments.map(p => (
-                          <div key={p.id} className="px-4 py-2 flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              {p.installment_id
-                                ? `Cuota #${installments.find(i => i.id === p.installment_id)?.number ?? '—'}`
-                                : 'Abono'}
-                            </span>
-                            <span className="font-medium text-foreground">{formatCurrency(Number(p.amount))}</span>
-                          </div>
-                        ))}
-                        <div className="px-4 py-3 flex items-center justify-between text-sm font-bold border-t border-border">
-                          <span className="text-foreground">Total pagado</span>
-                          <span className="text-foreground">{formatCurrency(successPayments.reduce((s, p) => s + Number(p.amount), 0))}</span>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Préstamo</span>
+                        <span className="font-medium text-foreground">{loan.loan_id}</span>
+                      </div>
+                    </div>
+                    <div className="border-t border-border mt-3 pt-3 space-y-2 text-sm">
+                      {successPayments.map(p => (
+                        <div key={p.id} className="flex justify-between">
+                          <span className="text-muted-foreground">Cuota #{(p.installment_id ? installments.find(i => i.id === p.installment_id)?.number : undefined) ?? '—'}</span>
+                          <span className="font-medium text-foreground">{formatCurrency(Number(p.amount))}</span>
                         </div>
+                      ))}
+                      <div className="flex justify-between font-bold text-foreground border-t border-border pt-2">
+                        <span>Total pagado</span>
+                        <span>{formatCurrency(successPayments.reduce((s, p) => s + Number(p.amount), 0))}</span>
+                      </div>
+                      {successPayment && (
+                        <>
+                          {Number(successPayment.capital_amount) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Capital</span>
+                              <span className="font-medium text-foreground">{formatCurrency(successPayment.capital_amount)}</span>
+                            </div>
+                          )}
+                          {Number(successPayment.interest_amount) > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Interés</span>
+                              <span className="font-medium text-foreground">{formatCurrency(successPayment.interest_amount)}</span>
+                            </div>
+                          )}
+                          {Number(successPayment.late_amount) > 0 && (
+                            <div className="flex justify-between text-destructive">
+                              <span>Mora</span>
+                              <span className="font-medium">{formatCurrency(successPayment.late_amount)}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <div className="flex justify-between font-bold text-foreground border-t border-border pt-2">
+                        <span>Nuevo balance</span>
+                        <span>{formatCurrency(loan.remaining_amount)}</span>
                       </div>
                     </div>
-                    <div className="p-3 rounded-lg bg-muted border border-border text-sm text-muted-foreground">
-                      Nuevo saldo: <strong className="text-foreground">{formatCurrency(loan.remaining_amount)}</strong>
-                    </div>
-                  </>
+                    <p className="text-center text-xs text-muted-foreground mt-4">¡Gracias por su pago!</p>
+                    <style>{`
+                      @media print {
+                        body * { visibility: hidden; }
+                        #payment-receipt, #payment-receipt * { visibility: visible; }
+                        #payment-receipt {
+                          position: fixed; top: 0; left: 0; right: 0;
+                          max-width: 380px; margin: 0 auto;
+                          page-break-inside: avoid;
+                          break-inside: avoid;
+                        }
+                        @page { margin: 10mm; size: auto; }
+                      }
+                    `}</style>
+                  </div>
                 ) : (
                   <div className="border border-border rounded-xl overflow-hidden">
                     <PaymentReceipt

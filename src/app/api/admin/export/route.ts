@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdminApi } from '@/lib/admin'
+import { getLocalDate } from '@/lib/utils'
 
 function csvEscape(v: unknown): string {
   if (v === null || v === undefined) return ''
@@ -24,12 +25,14 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get('from') || ''
   const to = searchParams.get('to') || ''
   const userId = searchParams.get('user_id') || ''
+  const method = searchParams.get('method') || ''
+  const status = searchParams.get('status') || ''
 
   try {
     if (type === 'payments') {
       let query = adminClient
         .from('subscription_payments')
-        .select('id, user_id, amount, payment_date, method, notes, created_at')
+        .select('id, user_id, amount, payment_date, method, status, notes, created_at')
         .order('payment_date', { ascending: false })
         .limit(1000)
       if (month && /^\d{4}-\d{2}$/.test(month)) {
@@ -38,6 +41,8 @@ export async function GET(request: NextRequest) {
         query = query.gte('payment_date', `${month}-01`).lt('payment_date', endDate.toISOString().slice(0, 10))
       }
       if (userId) query = query.eq('user_id', userId)
+      if (method) query = query.eq('method', method)
+      if (status) query = query.eq('status', status)
 
       const { data: payments, error } = await query
       if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: supabaseResponse.headers })
@@ -49,10 +54,10 @@ export async function GET(request: NextRequest) {
       const nameMap = new Map((appUsers || []).map(u => [u.id, u.display_name || '—']))
 
       const csv = buildCsv(
-        ['Fecha', 'Usuario', 'Monto (RD$)', 'Método', 'Notas'],
-        (payments || []).map(p => [p.payment_date, nameMap.get(p.user_id) || '—', Number(p.amount), p.method, p.notes])
+        ['Fecha', 'Usuario', 'Monto (RD$)', 'Método', 'Estado', 'Notas'],
+        (payments || []).map(p => [p.payment_date, nameMap.get(p.user_id) || '—', Number(p.amount), p.method, p.status, p.notes])
       )
-      const fileName = `pagos-suscripcion-${new Date().toISOString().split('T')[0]}.csv`
+      const fileName = `pagos-suscripcion-${getLocalDate()}.csv`
       return new NextResponse('\uFEFF' + csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
@@ -90,7 +95,7 @@ export async function GET(request: NextRequest) {
           JSON.stringify(l.details || {}),
         ])
       )
-      const fileName = `auditoria-${new Date().toISOString().split('T')[0]}.csv`
+      const fileName = `auditoria-${getLocalDate()}.csv`
       return new NextResponse('\uFEFF' + csv, {
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
@@ -130,7 +135,7 @@ export async function GET(request: NextRequest) {
         ]
       })
     )
-    const fileName = `usuarios-${new Date().toISOString().split('T')[0]}.csv`
+    const fileName = `usuarios-${getLocalDate()}.csv`
     return new NextResponse('\uFEFF' + csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',

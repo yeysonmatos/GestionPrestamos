@@ -1,4 +1,4 @@
-const CACHE = 'mis-prestamos-v3'
+const CACHE = 'mis-prestamos-v5'
 const STATIC_ASSETS = [
   '/manifest.json',
   '/gp-icon-opaque.png',
@@ -6,6 +6,20 @@ const STATIC_ASSETS = [
   '/apple-touch-icon.png',
   '/offline.html',
 ]
+
+// URLs que NUNCA se cachean: datos autenticados de Supabase y APIs propias.
+// Cachearlas puede servir datos obsoletos o de otra sesión (fuga entre cuentas).
+const NO_CACHE_PATTERNS = [
+  /^https?:\/\/[^/]*supabase\.co\//,
+  /^\/rest\/v1\//,
+  /^\/auth\/v1\//,
+  /^\/storage\/v1\//,
+  /^\/api\//,
+]
+
+function shouldSkipCache(url) {
+  return NO_CACHE_PATTERNS.some((re) => re.test(url))
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -34,6 +48,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (event.request.method !== 'GET') return
+  if (shouldSkipCache(event.request.url)) return
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

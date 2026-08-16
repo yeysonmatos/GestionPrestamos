@@ -10,7 +10,7 @@ import MoneyInput from '@/components/ui/MoneyInput'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase-client'
 import { logAuditEvent } from '@/lib/audit'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, getLocalDate } from '@/lib/utils'
 import { calculateLoan } from '@/lib/calculations'
 import { computeLateStatus } from '@/lib/loan-status'
 import { FREQUENCIES } from '@/types'
@@ -65,8 +65,8 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
       frequency: settings?.default_frequency || 'weekly',
       amortization_type: 'interest_only' as 'interest_only' | 'french',
       open_ended: false,
-      start_date: new Date().toISOString().split('T')[0],
-      first_payment_date: defaultFirstPaymentDate(new Date().toISOString().split('T')[0], settings?.default_frequency || 'weekly'),
+      start_date: getLocalDate(),
+      first_payment_date: defaultFirstPaymentDate(getLocalDate(), settings?.default_frequency || 'weekly'),
       guarantee: '',
       notes: '',
     }

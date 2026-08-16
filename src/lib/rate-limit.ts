@@ -38,12 +38,16 @@ function pruneExpired(now: number) {
 export function getClientIp(request: Request): string {
   const xff = request.headers.get('x-forwarded-for')
   if (xff) return xff.split(',')[0].trim()
+  const cf = request.headers.get('cf-connecting-ip')
+  if (cf) return cf.trim()
+  const real = request.headers.get('x-real-ip')
+  if (real) return real.trim()
   return 'unknown'
 }
 
 export function getRateLimitKey(request: Request, scope: string): string {
-  const userId = request.headers.get('x-user-id')
-  if (userId) return `${scope}:user:${userId}`
+  // Solo IP real del proxy inverso (Vercel/Cloudflare). NO se confía en
+  // headers controlables por el cliente (x-user-id) porque es bypasseable.
   return `${scope}:ip:${getClientIp(request)}`
 }
 

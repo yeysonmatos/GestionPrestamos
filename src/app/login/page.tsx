@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Eye, EyeSlash } from '@phosphor-icons/react'
 import { createClient } from '@/lib/supabase-client'
@@ -16,7 +16,22 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [mode, setMode] = useState<'login' | 'reset'>('login')
   const [message, setMessage] = useState('')
+  const [mfaStep, setMfaStep] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
   const supabase = createClient()
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const err = params.get('error')
+    const desc = params.get('error_description')
+    if (err) setError(desc || err)
+  }, [])
+
+  function handleMode(next: 'login' | 'reset') {
+    setMode(next)
+    setError('')
+    setMessage('')
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,15 +42,53 @@ export default function LoginPage() {
     if (mode === 'login') {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError(error.message)
-      else window.location.href = '/dashboard'
+      else {
+        // Verificar AAL: si la cuenta tiene MFA activa, pedir el código antes de redirigir
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        const needsMfa = aal?.nextLevel === 'aal2'
+        if (needsMfa) {
+          setMfaStep(true)
+          setMfaCode('')
+          setLoading(false)
+          return
+        }
+        window.location.href = '/dashboard'
+      }
     } else if (mode === 'reset') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
+        redirectTo: `${window.location.origin}/auth/reset-password`,
       })
       if (error) setError(error.message)
       else setMessage('Revisa tu correo para restablecer tu contraseña.')
     }
 
+    setLoading(false)
+  }
+
+  async function handleMfaSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (mfaCode.trim().length < 6) {
+      setError('Ingresa el código de 6 dígitos de tu autenticador.')
+      return
+    }
+    setLoading(true)
+    setError('')
+
+    try {
+      const { data: factorsData } = await supabase.auth.mfa.listFactors()
+      const totpFactor = (factorsData?.all || []).find(f => f.factor_type === 'totp' && f.status === 'verified')
+      if (!totpFactor) throw new Error('No hay un autenticador verificado en esta cuenta.')
+
+      const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: totpFactor.id,
+        code: mfaCode.trim(),
+      })
+      if (verifyError) throw new Error(verifyError.message)
+
+      window.location.href = '/dashboard'
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'El código no es válido o expiró.')
+    }
     setLoading(false)
   }
 
@@ -48,13 +101,42 @@ export default function LoginPage() {
           <p className="text-muted-foreground mt-1">Controla tus préstamos personales</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-4">
+        <form onSubmit={mfaStep ? handleMfaSubmit : handleSubmit} className="bg-card rounded-xl shadow-sm border border-border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-foreground">
-            {mode === 'login' ? 'Iniciar sesión' : 'Restablecer contraseña'}
+            {mfaStep ? 'Verificación en dos pasos' : mode === 'login' ? 'Iniciar sesión' : 'Restablecer contraseña'}
           </h2>
 
           {error && <Alert variant="danger">{error}</Alert>}
           {message && <Alert variant="success">{message}</Alert>}
+
+          {mfaStep ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Tu cuenta está protegida con doble verificación. Ingresa el código de 6 dígitos de tu app de
+                autenticación (Google Authenticator, Authy, etc.).
+              </p>
+              <Input
+                label="Código de autenticación"
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={e => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+              />
+              <Button type="submit" loading={loading} className="w-full">
+                Verificar e iniciar sesión
+              </Button>
+              <button
+                type="button"
+                onClick={() => { setMfaStep(false); setError('') }}
+                className="text-sm text-muted-foreground hover:underline self-center"
+              >
+                Volver e iniciar sesión de nuevo
+              </button>
+            </>
+          ) : (
+            <>
 
           <Input label="Correo electrónico" type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@correo.com" />
 
@@ -87,7 +169,7 @@ export default function LoginPage() {
           )}
 
           {mode === 'login' && (
-            <button type="button" onClick={() => setMode('reset')} className="text-sm text-primary hover:underline self-start">
+            <button type="button" onClick={() => handleMode('reset')} className="text-sm text-primary hover:underline self-start">
               ¿Olvidaste tu contraseña?
             </button>
           )}
@@ -95,26 +177,37 @@ export default function LoginPage() {
           <Button type="submit" loading={loading} className="w-full">
             {mode === 'login' ? 'Entrar' : 'Enviar enlace'}
           </Button>
+            </>
+          )}
+          </form>
 
-          <p className="text-sm text-center text-muted-foreground">
-            {mode === 'login' ? (
-              <>
-                ¿No tienes cuenta?{' '}
-                <Link href="/register" className="text-primary hover:underline">
-                  Regístrate
-                </Link>{' '}
-                ·{' '}
-                <Link href="/pricing" className="text-primary hover:underline">
-                  Ver planes
-                </Link>
-              </>
-            ) : (
-              <button type="button" onClick={() => setMode('login')} className="text-primary hover:underline">
-                Volver a inicio de sesión
-              </button>
-            )}
-          </p>
-        </form>
+          {!mfaStep && (
+            <p className="text-sm text-center text-muted-foreground">
+              {mode === 'login' ? (
+                <>
+                  ¿No tienes cuenta?{' '}
+                  <Link href="/register" className="text-primary hover:underline">
+                    Regístrate
+                  </Link>{' '}
+                  ·{' '}
+                  <Link href="/pricing" className="text-primary hover:underline">
+                    Ver planes
+                  </Link>
+                </>
+              ) : (
+                <button type="button" onClick={() => handleMode('login')} className="text-primary hover:underline">
+                  Volver a inicio de sesión
+                </button>
+              )}
+            </p>
+          )}
+
+        <p className="text-center text-xs text-muted-foreground">
+          Al continuar aceptas nuestra{' '}
+          <Link href="/privacidad" className="text-primary hover:underline">
+            Política de Privacidad
+          </Link>
+        </p>
       </div>
     </div>
   )

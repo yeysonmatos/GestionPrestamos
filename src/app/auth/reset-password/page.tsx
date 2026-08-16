@@ -18,9 +18,57 @@ export default function ResetPasswordPage() {
   const supabase = createClient()
 
   useEffect(() => {
+    let active = true
+    let unsub: (() => void) | null = null
+
+    const setFromSession = (session: { access_token: string } | null | undefined) => {
+      if (active && session?.access_token) setSeed(session.access_token)
+    }
+
+    const handleUrlAuth = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('code')
+
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error && data.session) setFromSession(data.session)
+      }
+
+      const hash = window.location.hash
+      if (hash.includes('access_token')) {
+        const hp = new URLSearchParams(hash.replace(/^#/, ''))
+        const accessToken = hp.get('access_token')
+        const refreshToken = hp.get('refresh_token')
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (!error) {
+            const { data } = await supabase.auth.getSession()
+            setFromSession(data.session)
+          }
+        }
+      }
+    }
+
+    handleUrlAuth()
+
     supabase.auth.getSession().then(({ data }) => {
-      setSeed(data.session?.access_token || '')
+      setFromSession(data.session)
     })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        if (session) setFromSession(session)
+      }
+    })
+    unsub = () => sub.subscription.unsubscribe()
+
+    return () => {
+      active = false
+      if (unsub) unsub()
+    }
   }, [supabase])
 
   async function handleSubmit(e: React.FormEvent) {

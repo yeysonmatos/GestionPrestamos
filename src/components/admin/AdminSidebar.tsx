@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-client'
 import {
   Layout, Users, CreditCard, HandCoins, ChatCircle, EnvelopeSimple,
-  SignOut, ArrowLeft, List, X, Fingerprint, BuildingOffice,
+  SignOut, ArrowLeft, List, X, Fingerprint, BuildingOffice, ShieldCheck,
 } from '@phosphor-icons/react'
 import { useState, useEffect } from 'react'
 
@@ -19,6 +19,7 @@ const menuItems = [
   { href: '/admin/support', label: 'Soporte', icon: ChatCircle },
   { href: '/admin/comunicaciones', label: 'Comunicaciones', icon: EnvelopeSimple },
   { href: '/admin/audit', label: 'Auditoría', icon: Fingerprint },
+  { href: '/admin/seguridad', label: 'Seguridad', icon: ShieldCheck },
 ]
 
 export default function AdminSidebar() {

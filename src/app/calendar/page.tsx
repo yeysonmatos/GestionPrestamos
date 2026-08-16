@@ -1,13 +1,14 @@
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import CalendarContent, { type OpenEndedLoan } from './CalendarContent'
+import { getLocalDate } from '@/lib/utils'
 
 export default async function CalendarPage() {
   const supabase = await createServerSideClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
   const yearAgo = new Date()
   yearAgo.setFullYear(yearAgo.getFullYear() - 1)
-  const yearAgoStr = yearAgo.toISOString().split('T')[0]
+  const yearAgoStr = getLocalDate(yearAgo)
 
   const { data: installments } = await supabase
     .from('installments')

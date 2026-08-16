@@ -33,13 +33,31 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/')
-  const isPublic = pathname === '/login' || pathname === '/register' || pathname === '/pricing' || pathname.startsWith('/auth/') || pathname.startsWith('/_next/') || pathname.startsWith('/api/') || pathname === '/' || pathname === '/favicon.ico' || pathname.startsWith('/gp-icon.png') || pathname === '/manifest.json' || pathname === '/offline.html' || pathname === '/suspended'
+  const isPublic = pathname === '/login' || pathname === '/register' || pathname === '/pricing' || pathname === '/privacidad' || pathname === '/mfa-verify' || pathname.startsWith('/auth/') || pathname.startsWith('/_next/') || pathname.startsWith('/api/') || pathname === '/' || pathname === '/favicon.ico' || pathname.startsWith('/gp-icon.png') || pathname.startsWith('/gp-icon-opaque.png') || pathname.startsWith('/gp-icon-maskable.png') || pathname === '/apple-touch-icon.png' || pathname === '/manifest.json' || pathname === '/offline.html' || pathname === '/suspended'
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
+  }
+
+  // Rutas protegidas: si la cuenta tiene MFA activa pero la sesión es aal1, obligar a verificar
+  if (user && !isPublic && pathname !== '/mfa-verify') {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
+        if (aal?.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+          const url = request.nextUrl.clone()
+          url.pathname = '/mfa-verify'
+          url.searchParams.set('next', pathname)
+          return NextResponse.redirect(url)
+        }
+      }
+    } catch {
+      // Si no se puede determinar el nivel, dejarlo pasar (el login ya lo exige)
+    }
   }
 
   // Rutas de administración: requieren rol admin
@@ -146,6 +164,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|sw.js|gp-icon.png|manifest.json|offline.html).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw.js|gp-icon.png|gp-icon-opaque.png|gp-icon-maskable.png|apple-touch-icon.png|manifest.json|offline.html).*)',
   ],
 }

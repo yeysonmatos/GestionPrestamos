@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
+import { getLocalDate } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDate()
 
   const { data: todayInstallments, error: err1 } = await supabase
     .from('installments')
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     return addRateLimitHeaders(NextResponse.json({ error: 'No autenticado' }, { status: 401 }), rl)
   }
 
-  const body = await request.json()
+  const body = await request.json().catch(() => ({}))
   const { loan_id, installment_id, amount, include_mora, payment_date, method, notes } = body
 
   if (!loan_id || !amount || Number(amount) <= 0) {
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
       p_user_id: user.id,
       p_amount: Number(amount),
       p_include_mora: include_mora ?? true,
-      p_payment_date: payment_date || new Date().toISOString().split('T')[0],
+      p_payment_date: payment_date || getLocalDate(),
       p_method: method || 'cash',
       p_notes: notes || null,
       p_late_interest_rate: settings?.late_interest_rate ?? 0,
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
       capital_amount: Number(body.capital_amount || 0),
       interest_amount: Number(body.interest_amount || 0),
       late_amount: Number(body.late_amount || 0),
-      payment_date: payment_date || new Date().toISOString().split('T')[0],
+      payment_date: payment_date || getLocalDate(),
       method: method || 'cash',
       notes: notes || null,
     })

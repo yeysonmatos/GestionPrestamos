@@ -1,4 +1,5 @@
 import { createServerSideClient } from '@/lib/supabase-server'
+import { getLocalDate } from '@/lib/utils'
 import MainLayout from '@/components/layout/MainLayout'
 import ReportsContent from './ReportsContent'
 import type { LoanStats } from '@/types'
@@ -24,11 +25,11 @@ export default async function ReportsPage(props: { searchParams: Promise<{ perio
   const advancedReports = sub ? (planPrice === 0 || planMaxClients === null) : true
   const effectivePeriod = advancedReports ? period : 'all'
   const effectiveFilterDate = effectivePeriod !== 'all' ? (effectivePeriod === 'month'
-    ? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    ? getLocalDate(new Date(now.getFullYear(), now.getMonth(), 1))
     : effectivePeriod === 'quarter'
-    ? new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().split('T')[0]
+    ? getLocalDate(new Date(now.getFullYear(), now.getMonth() - 3, 1))
     : effectivePeriod === 'year'
-    ? new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0]
+    ? getLocalDate(new Date(now.getFullYear(), 0, 1))
     : '2000-01-01') : undefined
 
   let loansQuery = supabase.from('loans').select('*, client:clients(*)').is('deleted_at', null)

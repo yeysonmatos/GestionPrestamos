@@ -24,13 +24,25 @@ export async function PUT(request: NextRequest) {
   }
 
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
-  const body = await request.json()
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>
+
+  // Whitelist de columnas: evita que el cliente escriba campos gestionados por
+  // el sistema (onboarding_completed, related user_id, plan/suscripción, etc.).
+  const ALLOWED = [
+    'business_name', 'currency', 'loan_id_prefix', 'late_interest_rate',
+    'notify_upcoming_days', 'default_installments', 'default_interest_rate',
+    'default_frequency', 'grace_days', 'phone', 'email', 'address',
+  ]
+  const patch: Record<string, unknown> = {}
+  for (const key of ALLOWED) {
+    if (key in body) patch[key] = body[key]
+  }
 
   const numericKeys = ['late_interest_rate', 'notify_upcoming_days', 'default_installments', 'grace_days']
   for (const key of numericKeys) {
-    if (key in body) {
-      const value = Number(body[key])
-      body[key] = Number.isFinite(value) ? Math.max(0, value) : 0
+    if (key in patch) {
+      const value = Number(patch[key])
+      patch[key] = Number.isFinite(value) ? Math.max(0, value) : 0
     }
   }
 
@@ -43,7 +55,7 @@ export async function PUT(request: NextRequest) {
   if (existing) {
     const { data, error } = await supabase
       .from('settings')
-      .update(body)
+      .update(patch)
       .eq('id', existing.id)
       .select()
       .single()
@@ -53,7 +65,7 @@ export async function PUT(request: NextRequest) {
   } else {
     const { data, error } = await supabase
       .from('settings')
-      .insert(body)
+      .insert(patch)
       .select()
       .single()
 

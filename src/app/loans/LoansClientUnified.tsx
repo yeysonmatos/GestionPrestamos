@@ -11,7 +11,7 @@ import { Alert } from '@/components/ui/Alert'
 import { formatCurrency, formatDate, lateStatusLabel } from '@/lib/utils'
 import { loanStatusColors } from '@/lib/status-colors'
 import Link from 'next/link'
-import { Plus, Calendar, SquaresFour, Table, ArrowsClockwise, MagnifyingGlass, Check } from '@phosphor-icons/react'
+import { Plus, Calendar, SquaresFour, Table, ArrowsClockwise, MagnifyingGlass } from '@phosphor-icons/react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -186,16 +186,8 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2 }}
         >
-          <Alert variant="success" className="flex items-start gap-3 p-4 rounded-xl">
-            <div className="w-9 h-9 rounded-lg bg-success-light flex items-center justify-center shrink-0">
-              <Check className="h-5 w-5 text-success" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-success">
-                El préstamo <strong>{deletedBanner.loanId}</strong> de <strong>{deletedBanner.amount ? formatCurrency(Number(deletedBanner.amount)) : formatCurrency(0)}</strong> fue eliminado.
-              </p>
-              <p className="text-xs text-success/80 mt-0.5">Los pagos ya cobrados siguen contando en tu Dashboard e historial y los documentos siguen guardados en el cliente.</p>
-            </div>
+          <Alert variant="success" className="mb-4">
+            El préstamo <strong>{deletedBanner.loanId}</strong> de <strong>{deletedBanner.amount ? formatCurrency(Number(deletedBanner.amount)) : formatCurrency(0)}</strong> fue eliminado. Los pagos ya cobrados siguen contando en tu Dashboard e historial y los documentos siguen guardados en el cliente.
           </Alert>
         </motion.div>
       )}

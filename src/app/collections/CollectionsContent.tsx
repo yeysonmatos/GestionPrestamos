@@ -35,7 +35,7 @@ interface OpenEndedLoan {
   remaining_amount: number
   payment_day: number
   first_payment_date: string
-  client: { id: string; name: string; phone: string | null } | null
+  client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null
 }
 
 interface SyntheticInstallment {
@@ -117,7 +117,7 @@ export default function CollectionsContent({
   const [showSuccess, setShowSuccess] = useState(false)
   const [successPayment, setSuccessPayment] = useState<Payment | null>(null)
   const [successPrepaidBalance, setSuccessPrepaidBalance] = useState(0)
-  const [successLoanInfo, setSuccessLoanInfo] = useState<{ loan_id: string; clientName: string; amount: number; remaining_amount: number; amortization_type: string; frequency: string; open_ended: boolean } | null>(null)
+  const [successLoanInfo, setSuccessLoanInfo] = useState<{ loan_id: string; clientName: string; whatsapp: string | null; phone: string | null; amount: number; remaining_amount: number; amortization_type: string; frequency: string; open_ended: boolean } | null>(null)
 
   const lateInterestRate = settings?.late_interest_rate ?? 0
   const graceDays = settings?.grace_days || 0
@@ -226,6 +226,8 @@ export default function CollectionsContent({
         setSuccessLoanInfo({
           loan_id: inst.loan?.loan_id || inst.loan_id,
           clientName: inst.loan?.client?.name || openEndedLoan?.client?.name || '—',
+          whatsapp: (inst.loan?.client?.whatsapp || openEndedLoan?.client?.whatsapp) || null,
+          phone: (inst.loan?.client?.phone || openEndedLoan?.client?.phone) || null,
           amount: Number(inst.amount),
           remaining_amount: openEndedLoan?.remaining_amount ?? 0,
           amortization_type: 'interest_only' as const,
@@ -270,7 +272,7 @@ export default function CollectionsContent({
       const allocation = rpcResult.allocation
       const loanUpdates = rpcResult.loan
 
-      logAuditEvent(supabase, { userId, action: 'payment.recorded', entityType: 'payment', entityId: payment.id, details: { loan_id: inst.loan?.loan_id || inst.loan_id, client_name: inst.loan?.client?.name, installment_id: realInst.id, amount: allocation.totalPaidOnInstallment, late_amount: allocation.newPaidLateAmount } })
+      logAuditEvent(supabase, { userId, action: 'payment.recorded', entityType: 'payment', entityId: payment.id, details: { loan_id: inst.loan?.loan_id || inst.loan_id, client_name: inst.loan?.client?.name, installment_id: realInst.id, amount: Number(payment.amount), late_amount: Number(payment.late_amount ?? 0), capital_amount: Number(payment.capital_amount ?? 0), interest_amount: Number(payment.interest_amount ?? 0) } })
 
       const newStatus = allocation.isNowFullyPaid ? 'paid' as const : allocation.totalPaidOnInstallment > 0 ? 'partial' as const : 'pending' as const
       const updatedInstallment: Installment = {
@@ -291,6 +293,8 @@ export default function CollectionsContent({
       setSuccessLoanInfo({
         loan_id: inst.loan?.loan_id || inst.loan_id,
         clientName: inst.loan?.client?.name || ('isOpenEnded' in inst && inst.isOpenEnded ? (inst as SyntheticInstallment).openEndedLoan?.client?.name : undefined) || '—',
+        whatsapp: inst.loan?.client?.whatsapp || ('isOpenEnded' in inst && inst.isOpenEnded ? (inst as SyntheticInstallment).openEndedLoan?.client?.whatsapp : undefined) || null,
+        phone: inst.loan?.client?.phone || ('isOpenEnded' in inst && inst.isOpenEnded ? (inst as SyntheticInstallment).openEndedLoan?.client?.phone : undefined) || null,
         amount: Number(inst.loan?.total_amount || inst.amount),
         remaining_amount: loanUpdates?.remaining_amount ?? inst.loan?.remaining_amount ?? 0,
         amortization_type: inst.loan?.amortization_type || 'french',
@@ -352,7 +356,7 @@ export default function CollectionsContent({
       <PageHeader
         title="Cobros"
         description="Gestiona los pagos y cobros diarios"
-        action={<Button variant="secondary" size="sm" aria-label="Actualizar" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button>}
+        action={<div className="flex gap-2"><Button variant="secondary" size="sm" aria-label="Actualizar" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button></div>}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -623,7 +627,11 @@ export default function CollectionsContent({
             <div className="border border-border rounded-xl overflow-hidden">
               <PaymentReceipt
                 payment={successPayment}
-                loan={{ ...{ id: '', user_id: '', client_id: '', installment_amount: 0, paid_amount: 0, paid_installments: 0, installments: 0, progress: 0, prepaid_balance: 0, interest_type: 'percentage', interest_rate: 0, total_interest: 0, start_date: '', first_payment_date: '', end_date: null, payment_day: null, status: 'active', late_days: 0, late_interest_rate: 0, guarantee: null, notes: null, paid_at: null, cancelled_at: null, deleted_at: null, deleted_reason: null, created_at: '', updated_at: '', planned_end_date: null, late_amount: 0, payments: undefined, client: { name: successLoanInfo.clientName } as import('@/types').Client, loan_id: successLoanInfo.loan_id, amount: successLoanInfo.amount, total_amount: successLoanInfo.amount, remaining_amount: successLoanInfo.remaining_amount, amortization_type: successLoanInfo.amortization_type, open_ended: successLoanInfo.open_ended, frequency: successLoanInfo.frequency } as import('@/types').Loan}}
+                loan={{
+                  loan_id: successLoanInfo.loan_id,
+                  remaining_amount: successLoanInfo.remaining_amount,
+                  client: { name: successLoanInfo.clientName },
+                }}
                 settings={settings}
               />
             </div>
@@ -653,7 +661,7 @@ export default function CollectionsContent({
                 remaining: successLoanInfo.remaining_amount,
                 businessName: settings?.business_name || 'Gestor de Prestamos',
               })
-              const phone = successPayment.loan?.client?.whatsapp || successPayment.loan?.client?.phone
+              const phone = successLoanInfo.whatsapp || successLoanInfo.phone
               if (phone) {
                 window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
               } else {

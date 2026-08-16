@@ -150,10 +150,22 @@ function calculateFlatRate(
   startDate: string,
   frequency: string,
 ): CalculateLoanResult {
+  // Guarda división por cero: sin cuotas no hay cronograma (mismo patrón de
+  // la francesa con n<=0), evita installment==Infinity/NaN.
+  if (n <= 0) {
+    const totalInterest = interestRate
+    const totalAmount = amount + totalInterest
+    return {
+      total_amount: round(totalAmount),
+      total_interest: round(totalInterest),
+      installment_amount: 0,
+      installments: [],
+    }
+  }
   const totalInterest = interestRate
   const totalAmount = amount + totalInterest
   const installmentAmount = totalAmount / n
-  const capitalRatio = amount / totalAmount
+  const capitalRatio = totalAmount > 0 ? amount / totalAmount : 0
 
   const schedule: AmortizationRow[] = []
   let remainingBalance = totalAmount

@@ -146,6 +146,8 @@ export default function AdminPayments() {
         <Button variant="ghost" onClick={() => {
           const params = new URLSearchParams()
           if (month) params.set('month', month)
+          if (method) params.set('method', method)
+          if (status) params.set('status', status)
           window.location.href = `/api/admin/export?type=payments${params.toString() ? `&${params.toString()}` : ''}`
         }}>
           <DownloadSimple className="h-4 w-4 mr-1" /> Exportar CSV

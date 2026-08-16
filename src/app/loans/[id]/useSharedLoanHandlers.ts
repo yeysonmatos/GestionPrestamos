@@ -141,17 +141,29 @@ export function useSharedLoanHandlers(input: LoanHandlerInput, strategies: LoanR
     }).select().single()
     if (error) { setters.setPaymentError('Error al liquidar: ' + error.message); setters.setLoading(false); return }
     logAuditEvent(supabase, { userId, action: 'loan.liquidated', entityType: 'loan', entityId: state.loan.id, details: { loan_id: state.loan.loan_id, client_id: state.loan.client_id, client_name: state.loan.client?.name, amount: total, capital_amount: capRemaining, interest_amount: propInterest, late_amount: totalMora } })
-    await supabase.from('loans').update({ status: 'paid', paid_amount: Number(state.loan.amount), remaining_amount: 0, paid_installments: state.loan.installments, progress: 100 }).eq('id', state.loan.id)
     for (const inst of state.installments) {
       if (inst.status !== 'paid') {
         await supabase.from('installments').update({ status: 'paid', paid_amount: inst.amount, paid_late_amount: inst.late_amount || 0, paid_at: state.paymentDate }).eq('id', inst.id)
       }
     }
-    await supabase.rpc('update_client_stats', { p_client_id: state.loan.client_id })
+    const loanUpdates = await updateLoanAfterPayment(supabase, state.loan.id, state.loan.client_id)
+    const { data: liquidatedPayments } = await supabase.from('payments').select('amount').eq('loan_id', state.loan.id).eq('status', 'paid')
+    const totalReceived = liquidatedPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
+    await supabase.from('loans').update({ paid_amount: totalReceived }).eq('id', state.loan.id)
     setters.setPayments(prev => [payment, ...prev])
-    setters.setLoan(prev => ({ ...prev, status: 'paid', paid_amount: Number(state.loan.amount), remaining_amount: 0, progress: 100 }))
+    setters.setLoan(prev => ({
+      ...prev,
+      status: 'paid',
+      paid_amount: totalReceived,
+      remaining_amount: Math.max(0, Number(loanUpdates.remaining_amount ?? prev.remaining_amount)),
+      progress: 100,
+    }))
     setters.setInstallments(prev => prev.map(i => i.status !== 'paid' ? { ...i, status: 'paid', paid_amount: i.amount, paid_at: state.paymentDate } : i))
+    setters.setSuccessPayment(payment)
+    setters.setSuccessPayments([payment])
+    setters.setSuccessCoveredCount(1)
     setters.setShowLiquidation(false)
+    setters.setShowSuccess(true)
     router.refresh()
     setters.setLoading(false)
   }
@@ -202,6 +214,10 @@ export function useSharedLoanHandlers(input: LoanHandlerInput, strategies: LoanR
     else if (result.fallbackInstallments) setters.setInstallments(result.fallbackInstallments)
     setters.setShowCapitalAbono(false)
     setters.setCapitalAbonoAmount('')
+    setters.setSuccessPayment(payment)
+    setters.setSuccessPayments([payment])
+    setters.setSuccessCoveredCount(1)
+    setters.setShowSuccess(true)
     router.refresh()
     setters.setLoading(false)
   }

@@ -471,6 +471,16 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'Cuota no encontrada');
   END IF;
 
+  -- Guarda de orden: no permitir pagar una cuota si hay una anterior con saldo pendiente
+  IF EXISTS (
+    SELECT 1 FROM installments i
+    WHERE i.loan_id = p_loan_id
+      AND i.number < v_inst.number
+      AND (i.amount - COALESCE(i.paid_amount, 0)) > 0.005
+  ) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'Debes pagar las cuotas anteriores primero');
+  END IF;
+
   v_late_days := public.calc_late_days(v_inst.due_date, p_grace_days);
   v_previously_paid := COALESCE(v_inst.paid_amount, 0);
   v_previously_paid_late := COALESCE(v_inst.paid_late_amount, 0);
