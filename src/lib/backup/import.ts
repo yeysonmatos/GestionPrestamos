@@ -1,5 +1,15 @@
+import { createHash } from 'crypto'
 import { BACKUP_TABLES, getBackupFolder, RESTORE_ORDER } from './tables'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
+interface RestoreManifest {
+  userId: string
+  timestamp: string
+  tables: string
+  totalCount: number
+  checksums?: Record<string, string>
+  exportedAt?: string
+}
 
 function parseCSV(csv: string): Record<string, any>[] {
   if (!csv.trim()) return []
@@ -71,11 +81,39 @@ export async function restoreBackup(
   userId: string,
   folder: string,
 ): Promise<{ tables: string[]; count: number } | { error: string }> {
+  const prefix = getBackupFolder(userId)
+
+  // 1. Validar estructura del folder (anti path traversal)
+  if (!/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/.test(folder)) {
+    return { error: 'Folder de backup inválido' }
+  }
+
+  // 2. Descargar y validar manifest (pertenencia + checksums)
+  const { data: manifestData, error: manifestError } = await supabase.storage
+    .from('backups')
+    .download(`${prefix}/${folder}/manifest.json`)
+  if (manifestError || !manifestData) {
+    return { error: 'No se encontró el manifest del backup' }
+  }
+
+  let manifest: RestoreManifest
+  try {
+    manifest = JSON.parse(await manifestData.text())
+  } catch {
+    return { error: 'Manifest corrupto' }
+  }
+
+  if (manifest.userId !== userId) {
+    return { error: 'Este backup pertenece a otra cuenta' }
+  }
+
+  // 3. Descargar todos los CSV y verificar checksums ANTES de tocar datos.
+  const payload: Record<string, Record<string, any>[]> = {}
   const tables: string[] = []
   let totalCount = 0
 
   for (const tableName of RESTORE_ORDER) {
-    const url = `${getBackupFolder(userId)}/${folder}/${tableName}.csv`
+    const url = `${prefix}/${folder}/${tableName}.csv`
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('backups')
       .download(url)
@@ -86,29 +124,21 @@ export async function restoreBackup(
     }
 
     const csv = await fileData.text()
+
+    // Integridad: si el manifest guarda checksum, debe coincidir.
+    const expected = manifest.checksums?.[tableName]
+    if (expected) {
+      const actual = createHash('sha256').update(csv).digest('hex')
+      if (actual !== expected) {
+        return { error: `El archivo ${tableName}.csv está corrupto o fue alterado. Restaurado cancelado.` }
+      }
+    }
+
     const rows = parseCSV(csv)
     if (rows.length === 0) continue
 
     const tableConfig = BACKUP_TABLES.find(t => t.name === tableName)
     if (!tableConfig) continue
-
-    let deleteError: { message: string } | null = null
-
-    if (tableName === 'installments') {
-      const { data: loanRows } = await supabase.from('loans').select('id').eq('user_id', userId)
-      const loanIds = (loanRows || []).map(l => l.id)
-      if (loanIds.length > 0) {
-        const { error: err } = await supabase.from('installments').delete().in('loan_id', loanIds)
-        deleteError = err
-      }
-    } else {
-      let deleteQuery = supabase.from(tableName).delete()
-      if (tableConfig.filterColumn) deleteQuery = deleteQuery.eq(tableConfig.filterColumn, userId)
-      const { error: err } = await deleteQuery
-      deleteError = err
-    }
-
-    if (deleteError) return { error: `Error al limpiar ${tableName}: ${deleteError.message}` }
 
     const typedRows = rows.map(row => {
       const typed: Record<string, any> = {}
@@ -122,18 +152,31 @@ export async function restoreBackup(
       return typed
     })
 
-    const batchSize = 50
-    for (let i = 0; i < typedRows.length; i += batchSize) {
-      const batch = typedRows.slice(i, i + batchSize)
-      const { error: insertError } = await supabase
-        .from(tableName)
-        .insert(batch)
-
-      if (insertError) return { error: `Error al restaurar ${tableName}: ${insertError.message}` }
-    }
-
+    payload[tableName] = typedRows
     tables.push(tableName)
     totalCount += typedRows.length
+  }
+
+  if (!payload.clients && !payload.loans && !payload.payments) {
+    return { error: 'El backup no contiene datos para restaurar' }
+  }
+
+  // 4. Restaurar TODO en UNA transacción (RPC SECURITY DEFINER).
+  const { data: result, error: rpcError } = await supabase.rpc('restore_user_backup', {
+    p_user_id: userId,
+    p_settings: payload.settings ?? [],
+    p_clients: payload.clients ?? [],
+    p_loans: payload.loans ?? [],
+    p_installments: payload.installments ?? [],
+    p_payments: payload.payments ?? [],
+    p_documents: payload.documents ?? [],
+  })
+
+  if (rpcError) {
+    return { error: `Error al restaurar: ${rpcError.message}` }
+  }
+  if (!result || result.ok === false) {
+    return { error: (result && result.error) || 'La restauración falló y no se aplicaron cambios' }
   }
 
   return { tables, count: totalCount }

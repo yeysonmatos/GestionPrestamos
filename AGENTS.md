@@ -582,3 +582,33 @@ Inventario completo de los puntos auditados: Dashboard (8 tarjetas vía `get_loa
 - [ ] **T4 · N° Documento "000000000" da error**: NO hay validación en código ni BD (columna TEXT sin CHECK/UNIQUE/trigger, 0 clientes con ese valor, plan Pro sin `max_clients`). El usuario va a reproducir y reportar el mensaje exacto antes de corregir.
 - [ ] Desplegar sesión (MFA fix + los ajustes de producto) a staging/producción.
 - [ ] Probar flujo completo MFA (inscribir autenticador → cerrar sesión → login pide código).
+
+## Hoy — 16 Ago 2026 · Email de recuperación
+
+### Correo de recuperación roto → modo integrado Supabase
+- [x] **Síntoma**: al pulsar "¿Olvidaste tu contraseña?" el login mostraba `{}`; `POST /auth/v1/recover` devolvía **HTTP 500 `{\"error_code\":\"unexpected_failure\",\"msg\":\"Error sending recovery email\"}`**.
+- [x] **Causa raíz**: el SMTP custom de Gmail (`gestordprestamo@gmail.com`) rechazaba **todas** las contraseñas de aplicación probadas (`kpqm jnvi wsxl zlmo`, `rjqz zytm ucnm ciwh`, `yewa bcge fiyu sejf`) con `535 5.7.8 BadCredentials`, incluso probado con `nodemailer` directo y tras 12 h de espera (descartado bloqueo temporal). El pass quedaba inválido/revocado en la cuenta.
+- [x] **Solución aplicada (Management API, `PATCH /config/auth`)**: se limpió el SMTP custom (`smtp_host/port/user/pass/admin_email/sender_name = null`) → el correo de recuperación sale por el **correo integrado de Supabase** (`no-reply@supabase.co`). `POST /auth/v1/recover` → **HTTP 200** verificado.
+- [x] **Límite**: el correo integrado está fijo en **2 emails/hora** (`rate_limit_email_sent`) y la API **no permite subirlo sin SMTP custom** (`401: Custom SMTP required to configure RATE_LIMIT_EMAIL_SENT`). El usuario verá "email rate limit exceeded" al superarlo — aceptado por ahora.
+- [x] **Plan B probado (a medias)**: Resend SMTP (`smtp.resend.com:587`, user `resend`, pass = API key) **sí autentica** con `nodemailer` verify, pero `onboarding@resend.dev` solo envía al correo dueño (550). Para usarlo como SMTP de Supabase falta **verificar `gestiondeprestamos.com`** en Resend (registros DNS pendientes: TXT `resend._domainkey`, MX `send → feedback-smtp.us-east-1.amazonses.com` prio 10, TXT `send → v=spf1 include:amazonses.com ~all`). Dominio Resend: `3959c216-a749-4f8e-9818-8786cd7f0627`.
+- [ ] **(Pendiente, decisión del usuario)** Dejarlo en modo integrado por ahora, o retomar luego: verificar dominio Resend (DNS) o arreglar la app password de Gmail.
+
+## Hoy — 16 Ago 2026 (sesión 2) · Go-Live A1+A2 (consolidación AUDITORIA-8)
+
+### Auditoría consolidada
+- [x] **`docs/AUDITORIA-8-GO-LIVE.md` re-puntuada**: 62 → **69/100**, LISTO PARA GO-LIVE CONDICIONADO. Re-verificadas en código/BD: S1 (RPCs revocados + guardas, 401 anon), S2 (bucket documents por prefijo usuario), S3 (setup requiere requireAdminApi), A3/A4/A6/A7/A10 y M1/M2/M5/M7/M8/M10/M11 resueltos. Quedan como **condición de go-live** A1 (restore transaccional) y A2 (backup automático).
+
+### A1 · Restore transaccional
+- [x] **`supabase/backup-restore-transactional.sql` + `scripts/exec-backup-restore-transactional.mjs`** (APLICADO en producción, 201): RPC `public.restore_user_backup(p_user_id, p_settings, p_clients, p_loans, p_installments, p_payments, p_documents)` SECURITY DEFINER que borra + inserta TODO el backup en **UNA sola transacción PostgreSQL** (rollback automático si algo falla → nunca tablas vacías/parciales). Guarda (dueño o postgres/service_role), desactiva `trg_enforce_client_limit` durante el restore, valida tipos vía `jsonb_populate_record` (uuid/timestamp corruptos revierten), y recalcula `update_client_stats` de cada cliente restaurado. REVOKE PUBLIC/anon.
+- [x] **`src/lib/backup/export.ts`**: manifest ahora guarda `checksums` sha256 por tabla.
+- [x] **`src/lib/backup/import.ts` reescrito**: valida folder (regex anti traversal), descarga+valida manifest (`userId` debe coincidir), **verifica checksums de cada CSV ANTES de tocar datos**, parsea todo, y delega el borrado+inserción al RPC transaccional (antes: borra-inserta por tabla vía REST, frágil).
+- [x] **`src/lib/backup/export.ts`**: `pruneOldBackups(supabase, userId, retentionDays)` elimina backups por usuario más viejos que N días.
+
+### A2 · Backup automático diario
+- [x] **`src/app/api/cron/backup/route.ts`**: GET+POST protegido con `Authorization: Bearer $CRON_SECRET` → usa service role para respaldar a TODOS los `app_users` + purga (`BACKUP_RETENTION_DAYS`, default 30). Devuelve `{ok, backups, purged, users, errors}`.
+- [x] **`vercel.json`**: cron diario `0 4 * * *` → `/api/cron/backup`.
+- [x] **Env Vercel** (production+preview+development): `CRON_SECRET` (encrypted) y `BACKUP_RETENTION_DAYS=30` creados vía API (201). En `.env.local` + `.env.production` también.
+
+### Verificación
+- [x] `npx tsc --noEmit` OK, vitest 46/46, `npm run build` OK (página `/api/cron/backup` compilada).
+- [ ] **(Pendiente)** Deploy a staging/producción para activar el cron y probar el flujo real (generar → restore transaccional → purga)).
