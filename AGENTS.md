@@ -647,3 +647,24 @@ Inventario completo de los puntos auditados: Dashboard (8 tarjetas vía `get_loa
 - [x] **`src/lib/backup/import.ts`**: `restoreDocumentFiles()` re-sube los blobs al bucket `documents` en sus rutas originales tras el RPC, validando que la ruta pertenezca al usuario.
 - [x] **Verificado end-to-end**: blob de prueba (`test-blob.txt`) → cron lo respaldó (`files/0-...`) → borrado del original → restore re-subió el archivo con contenido idéntico (`"TEST DOC BLOB..."`). Datos de prueba limpiados después (docs count: 0).
 - [x] **Verificado**: `npx tsc --noEmit` OK, vitest 49/49, `npm run build` OK, desplegado a producción (3 deploys en el proceso: purge fix + blob export + confirmación).
+
+## Hoy — 17 Ago 2026 (sesión 2) · Primer pago automático + limpieza de código muerto + limpieza raíz
+
+### Feature: primer pago alineado a la frecuencia
+- [x] **`firstPaymentDateFor(startDate, frequency)`** (`src/lib/calculations.ts`): fecha del primer pago = un período después de `start_date`, reutilizando `calcDueDate` (mensual con `addMonths`, NO 30 días planos) → coincide exactamente con el vencimiento de la cuota #2 del cronograma real.
+- [x] **`NewLoanForm.tsx`**: default del campo "Fecha primer pago" usa `firstPaymentDateFor(getLocalDate(), default_frequency)`; el auto-sync se dispara ahora al cambiar `start_date` **o** `frequency` (antes solo start_date), y solo si el usuario no editó la fecha a mano. Eliminados `PERIOD_DAYS` y `defaultFirstPaymentDate`.
+- [x] **Tests** (5 nuevos en `calculations.test.ts`): mensual 16/08→16/09, ±7/14/1 días en las demás frecuencias, meses cortos (31/01→29/02 2028), fecha vacía → '', y coincidencia con due_date de la cuota #2. Verificado: tsc OK, vitest 54/54, build OK.
+
+### Limpieza de código muerto (0 errores `no-unused-vars`)
+- [x] **Tier 1 borrados**: `src/lib/email.ts`, `src/lib/auth-utils.ts`, `src/components/ui/{Skeleton,ActionSheet,UnifiedFilterSheet,index}.tsx`, `filter-alternatives.html` (raíz). `src/components/ui/` restante: Alert, Avatar, Badge, BottomSheet, Button, Card, EmptyState, Input, Modal, MoneyInput, PageHeader, Progress, SearchInput, StatCard, Tabs, ViewTabs.
+- [x] **Cascada Collections**: eliminados `activeLoans`/`ActiveLoanBrief` de `CollectionsContent.tsx` y la query de `collections/page.tsx`; `avatarColor`, `moraAmount` sin uso.
+- [x] **Cascada AdminUserDetail**: eliminado código muerto de upgrades/tickets (`upgradeRequests`, `upgradeProcessing`, `handleAssignPlanFromUpgrade`, imports `ACTION_LABELS`+`ArrowRight`).
+- [x] **~25 imports/estado/vars muertos** en: payments.ts, supabase-route.ts, useFrenchLoan.ts, LoansClientUnified, LoanDetail, ClientProfile, ClientsClient, DocumentsContent, ReportsContent, AuditLogsContent (prop `showHeader` sin uso), SettingsTabs, SupportContent, AccountContent (estado `settings` que nunca se leía), AdminEmails, calendar/page, MfaSetup, upgrade-request/route (`formatNumber`).
+- [x] **Se conservan por decisión del usuario**: las 12 rutas API sin llamador; los 29 `no-explicit-any`; `set-state-in-effect` (23); `prefer-const`; `LoanFilters.tsx` SÍ se usa (dynamic import en LoansClientUnified).
+
+### Limpieza de raíz del proyecto
+- [x] Borrados: `auditoria.html` + `auditoria-resumen.html` (reportes HTML one-off), `fix-client-status.mjs` (one-off superado por scripts/), carpeta `Auditoria del Sistema/` (8 TXT; los .md de auditorías 4 y 8 quedan en `docs/`), y en disco: `cookies.txt`, `ngrok-url.txt`, `docs/conversation-2026-08-05.json`, `tsconfig.tsbuildinfo`.
+
+### Deploy (17 Ago 2026)
+- [x] Commits `d16e282` (feature + limpieza) y `0703285` (limpieza raíz) pusheados a `main`.
+- [x] **Producción** `gestion-prestamos-one.vercel.app` (deployment `gestion-prestamos-nvk5zre4b`, HTTP 200) y **staging** `staging-gestion-prestamos.vercel.app` (preview `gestion-prestamos-aw32fjo2j`, HTTP 200).
