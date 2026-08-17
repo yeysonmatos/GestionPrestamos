@@ -66,7 +66,63 @@ export async function exportBackup(
     return { error: `Error al subir manifest.json: ${manifestError.message}` }
   }
 
+  // Archivos de documentos (bytes del bucket 'documents'), no solo metadata.
+  const filesError = await exportDocumentFiles(supabase, userId, folder)
+  if (filesError) {
+    return { error: filesError }
+  }
+
   return { path: folder, tables, count: totalCount }
+}
+
+/**
+ * Respalda los BLOBS de documentos del usuario: descarga cada archivo del
+ * bucket 'documents' y lo sube al folder de backup bajo `files/N-<name>`,
+ * guardando un manifest con el mapeo ruta-original → ruta-backup.
+ */
+async function exportDocumentFiles(
+  supabase: SupabaseClient,
+  userId: string,
+  folder: string,
+): Promise<string | null> {
+  const { data: docRows, error } = await supabase
+    .from('documents')
+    .select('path')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+
+  if (error) return `Error al listar documentos: ${error.message}`
+  if (!docRows?.length) return null
+
+  const mapping: { original: string; backup: string }[] = []
+  let idx = 0
+  for (const doc of docRows) {
+    const original = doc.path
+    if (!original) continue
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from('documents')
+      .download(original)
+    if (dlErr || !blob) {
+      return `Error al descargar ${original}: ${dlErr?.message || 'sin datos'}`
+    }
+    const base = (original.split('/').pop() || `doc-${idx}`).replace(/[^\w.\-]+/g, '_')
+    const backup = `${folder}/files/${idx}-${base}`
+    const { error: upErr } = await supabase.storage
+      .from('backups')
+      .upload(backup, blob, { contentType: blob.type || 'application/octet-stream', upsert: false })
+    if (upErr) return `Error al subir ${backup}: ${upErr.message}`
+    mapping.push({ original, backup })
+    idx++
+  }
+
+  if (mapping.length > 0) {
+    const { error: mapErr } = await supabase.storage
+      .from('backups')
+      .upload(`${folder}/files-manifest.json`, JSON.stringify(mapping), { contentType: 'application/json', upsert: false })
+    if (mapErr) return `Error al subir files-manifest.json: ${mapErr.message}`
+  }
+
+  return null
 }
 
 /**
@@ -88,7 +144,7 @@ export async function pruneOldBackups(
   if (error) return { deleted: 0, error: error.message }
   if (!folders?.length) return { deleted: 0 }
 
-  const toDelete: string[] = []
+  const oldFolderTimestamps: string[] = []
   for (const item of folders) {
     if (!item.name || !/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/.test(item.name)) continue
     const folderDate = new Date(
@@ -100,13 +156,34 @@ export async function pruneOldBackups(
       Number(item.name.slice(17, 19)),
     ).getTime()
     if (folderDate < cutoff) {
-      toDelete.push(`${prefix}/${item.name}`)
+      oldFolderTimestamps.push(item.name)
     }
   }
 
-  if (toDelete.length === 0) return { deleted: 0 }
+  if (oldFolderTimestamps.length === 0) return { deleted: 0 }
 
-  const { error: delError } = await supabase.storage.from('backups').remove(toDelete)
+  // remove() solo borra por RUTA EXACTA de objeto (no por prefijo de carpeta).
+  // Hay que listar los archivos de cada carpeta vieja y borrarlos uno a uno.
+  const filePaths: string[] = []
+  for (const ts of oldFolderTimestamps) {
+    const folderPrefix = `${prefix}/${ts}`
+    let at = 0
+    for (;;) {
+      const { data: files, error: listErr } = await supabase.storage
+        .from('backups')
+        .list(folderPrefix, { limit: 200, offset: at })
+      if (listErr || !files) break
+      for (const f of files) {
+        if (f.name) filePaths.push(`${folderPrefix}/${f.name}`)
+      }
+      if (files.length < 200) break
+      at += files.length
+    }
+  }
+
+  if (filePaths.length === 0) return { deleted: 0, error: 'Carpetas viejas sin archivos' }
+
+  const { error: delError } = await supabase.storage.from('backups').remove(filePaths)
   if (delError) return { deleted: 0, error: delError.message }
-  return { deleted: toDelete.length }
+  return { deleted: oldFolderTimestamps.length }
 }

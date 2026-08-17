@@ -45,3 +45,8 @@ next-env.d.ts
 
 # data backups (customer PII)
 /scripts/backups/
+
+# local-only developer files (no commits)
+cookies.txt
+ngrok-url.txt
+docs/conversation-2026-08-05.json

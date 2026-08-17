@@ -380,16 +380,11 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 
 ## Hoy — 10 Ago 2026 (sesión 8)
 
-### Rediseño "Calendario de pagos" como lista financiera compacta (estilo ERP/financiero)
-- [x] **`src/components/loans/InstallmentRows.tsx` (componente nuevo, genérico y reutilizable)**: lista de filas compactas de 2 líneas con separación sutil (`divide-y`) — reemplaza el grid de cards grandes del detalle de préstamo y se reutiliza en Calendar y Collections.
-  - **Línea 1**: `leading` (`#03` o nombre de cliente) · fecha `formatDate(due_date,'dd MMM yyyy').toUpperCase()` → "04 NOV 2026" · monto (`remaining` o completo si pagada) · badge estado con emoji · botón "Pagar" discreto (solo si saldo>0 y se pasa `onPay`; `stopPropagation`) · chevron `›` rotativo si `showDetail`.
-  - **Línea 2** (estado): pagada → "Cobrado {fecha}" (success); parcial → "Pagado {X} de {Y}"; pendiente → "Pendiente {X} · Mora {Y} ({días} días)" (mora solo si >0). `subtitle` opcional añade texto extra (ej. `Cuota #N · L-xxx`); `statusLine={false}` la oculta.
-  - **Estados con emoji**: `✓ Pagado`, `◐ Parcial`, `⚠ Vencida` (nomenclatura nueva, antes "Atrasado"), `⏳ Pendiente`. Mapeo a variantes Badge paid/active/late.
-  - **Expandible** (`showDetail`): click en fila → detalle Capital/Interés/Saldo (o Interés/Balance si `interestOnly`) + barra de progreso con %.
-  - **Props**: `installments`, `leading`, `subtitle`, `onPay`, `payLabel` (default "Pagar", Collections usa "Cobrar"), `interestOnly`, `showDetail`, `statusLine`. Componente genérico `<T extends InstallmentRowData>` → sin casts en los consumidores.
-- [x] **`LoanDetail.tsx`**: grid de cards reemplazado por `<InstallmentRows installments onPay interestOnly showDetail />`; el handler de pago extraído a `openPayModal(inst)` (setPaymentInstallmentId + mora con `calculateLateDays`/`calculateLateAmount` + includeMora + paymentAmount + showPayment). Las 4 tarjetas resumen (Pendientes/Pagadas/Por cobrar/Mora total) se conservan.
-- [x] **`CalendarContent.tsx`**: filas compactas viejas reemplazadas por `<InstallmentRows installments={[inst]} leading={cliente} subtitle="Cuota #N | mensual" statusLine={false} />` (solo lectura). Import `Badge` eliminado.
-- [x] **`CollectionsContent.tsx`**: cards del listado (avatar + badges Hoy/Atrasado + botón Cobrar ancho) reemplazadas por `<InstallmentRows leading={cliente} subtitle="Cuota #N · L-xxx" onPay={openPayment} payLabel="Cobrar" />`. Imports `Badge` y `CurrencyDollar` eliminados.
+### Rediseño de listados de cuotas (estilo compacto)
+- [x] **Nota de trazabilidad**: NO existe `src/components/loans/InstallmentRows.tsx`. La sesión original la documentó como componente nuevo, pero el render quedó **inline en cada pantalla** (verificado en git: nunca se commiteó tal archivo). Lo que sigue describe el estado real del código.
+- [x] **`LoanDetail.tsx`**: grid de cards de cuota inline con `installments.map(inst => …)` (líneas ~435-506): número en caja de color por estado (paid success / partial azul / vencida rojo / pendiente ámbar), monto restante (o completo si pagada), fecha, Badge (Pagada/Parcial/Vencida/Pendiente), detalle Cap/Int/Mora/Saldo (o Int/Mora/Bal en interest-only), botón "Pagar {restante}" (o línea "Cobrado {fecha}" / "Pagado X de Y"). Handler de pago extraído a `openPayModal(inst)` (setPaymentInstallmentId + mora con `calculateLateDays`/`calculateLateAmount` + includeMora + paymentAmount + showPayment). Las 4 tarjetas resumen (Pendientes/Pagadas/Por cobrar/Mora total) se conservan.
+- [x] **`CollectionsContent.tsx`**: listado de cobros inline con `filteredList.map(inst => …)` (líneas ~472-523): avatar con inicial, nombre, Badges (Hoy / {días}d atrasado / Parcial), "Cuota #N · L-xxx" (o "Interés · L-xxx" en open-ended), monto (+mora), botón "Cobrar".
+- [x] **`CalendarContent.tsx`**: vista mensual (grid 7 columnas) + lista de cuotas diarias inline con `filtered.slice(0, listLimit).map(inst => …)` (líneas ~271+). Los open-ended generan 12 vencimientos sintéticos (`buildSynthetic`).
 - [x] **Verificado**: `npx tsc --noEmit` OK, vitest 41/41, `npm run build` OK (Next 16.2.10, 45 rutas).
 - [ ] **(Pendiente)** Desplegar sesión 8 a staging (`vercel --prod` con token vcp_...).
 
@@ -635,3 +630,20 @@ Inventario completo de los puntos auditados: Dashboard (8 tarjetas vía `get_loa
 - [x] Copias sincronizadas: schema.sql, client-status-fix2.sql, client-status-auto.sql, client-stats-fix.sql, delete-preserve-payments.sql, post-delete-review.sql, soft-delete-loans.sql, security-guards.sql, security-hardening.sql, security-hardening2.sql, loan-stats.sql, admin-schema.sql (dejado `rebuild-74f-payments.sql` como script one-off histórico).
 - [x] **Verificado**: `today_rd()` devuelve 2026-08-16 (igual que UTC ese día), `calc_late_days` 7/0 para ±7/±0 días vía query; `npx tsc --noEmit` OK, vitest 49/49 (tests nuevos determinísticos: `daysBetweenDateStrings`, `firstOfNextMonth`, `getLocalMonthStart`), `npm run build` OK.
 - [x] **(Hecho, 16 Ago)** Commit `e98946e` pusheado y deploy a producción `gestion-prestamos-one.vercel.app` (build 27s, alias Ready). Verificado: login HTTP 200, `/api/cron/backup` sin auth → 401 y con Bearer → `{"ok":true,"backups":4,"purged":0,"users":4,"errors":[]}`.
+
+## Hoy — 17 Ago 2026 · Pendientes: limpieza repo, purga de backups y blobs de documentos
+
+### Limpieza del repo
+- [x] **`cookies.txt`, `ngrok-url.txt` y `docs/conversation-2026-08-05.json`** salieron del tracking (`git rm --cached`) y ahora están en `.gitignore`. Ninguno tiene credenciales vivas (cookies vacío, túnel ngrok muerto, resumen sin tokens) → no se reescribe historial (repo privado, contenido inocuo). Sin cambio de código.
+- [x] **AGENTS.md sesión 8 corregida**: la entrada documentaba un componente `InstallmentRows.tsx` que **nunca existió** en git. Reescrita describiendo la realidad: render inline en `LoanDetail.tsx`, `CollectionsContent.tsx` y `CalendarContent.tsx`. `docs/AUDITORIA-8-GO-LIVE.md` M15 actualizado.
+
+### Backup/Restore/Purga — prueba real + bug fix
+- [x] **Restore transaccional probado en producción** con datos reales del usuario `babfefb8` (4 clientes, 3 préstamos, 20 cuotas, 3 pagos, 1 setting): `restore_user_backup` devolvió `{ok:true,...}` dentro de una transacción que luego hizo **ROLLBACK** → los conteos quedaron intactos (4/3/20/3/1). El borrar+reinsertar completo revierte si algo falla.
+- [x] **BUG de purga encontrado**: `supabase.storage.remove()` con **path de carpeta** devuelve `200 []` pero **no borra nada** (los objetos internos quedan). El cron reportaba `purged:1` falsamente. **Fix en `src/lib/backup/export.ts`**: `pruneOldBackups` ahora lista los archivos dentro de cada carpeta vieja (`list` paginado por 200) y los borra por ruta exacta. Verificado con carpeta sintética `2026-06-01_00-00-00` → el cron la purgó (desapareció) y los backups reales quedaron intactos.
+
+### Backup de documentos (blobs de Storage) — nueva capacidad
+- [x] **Antes**: el backup respaldaba solo la tabla `documents` (metadata con `path`), no los bytes. Un restore dejaría filas apuntando a objetos inexistentes.
+- [x] **`src/lib/backup/export.ts`**: `exportDocumentFiles()` descarga cada blob del bucket `documents` y lo sube al backup como `files/N-<name>` + `files-manifest.json` (mapeo ruta-original → ruta-backup).
+- [x] **`src/lib/backup/import.ts`**: `restoreDocumentFiles()` re-sube los blobs al bucket `documents` en sus rutas originales tras el RPC, validando que la ruta pertenezca al usuario.
+- [x] **Verificado end-to-end**: blob de prueba (`test-blob.txt`) → cron lo respaldó (`files/0-...`) → borrado del original → restore re-subió el archivo con contenido idéntico (`"TEST DOC BLOB..."`). Datos de prueba limpiados después (docs count: 0).
+- [x] **Verificado**: `npx tsc --noEmit` OK, vitest 49/49, `npm run build` OK, desplegado a producción (3 deploys en el proceso: purge fix + blob export + confirmación).

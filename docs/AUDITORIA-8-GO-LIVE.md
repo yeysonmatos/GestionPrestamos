@@ -97,9 +97,9 @@ Las vulnerabilidades críticas/explotables (S1-S3) fueron **corregidas y re-veri
 
 - **M9.** Sin Sentry / Vercel Analytics / uptime checks / alertas en ningún canal. Respaldo y monitoreo quedan para la semana 1.
 - **M13.** `sendEmail` de Resend (`src/lib/email.ts`) **no tiene llamadores reales** (Grep: solo definición). Los correos reales salen por nodemailer/SMTP custom (hoy: correo integrado de Supabase tras el fix de recovery del 16 Ago). Limpiar o conectar.
-- **M15.** AGENTS.md desincronizado: documenta `InstallmentRows.tsx` (sesión 8) que **no existe** (LoanDetail/Collections usan render inline) y no registra los ajustes del 16 Ago (T1-T4, favicon) en el cuerpo histórico. Favor de corregir.
+- **M15.** AGENTS.md desincronizado: documenta `InstallmentRows.tsx` (sesión 8) que **no existe** (LoanDetail/Collections usan render inline) y no registra los ajustes del 16 Ago (T1-T4, favicon) en el cuerpo histórico. Favor de corregir. **CORREGIDO (16 Ago):** entrada de la sesión 8 reescrita con la realidad (render inline en `LoanDetail`, `CollectionsContent` y `CalendarContent`); los ajustes T1-T4/favicon ya están registrados.
 - **M12.** **Antes**: tras restore no se recalcula `update_client_stats`. **RESTAURADO**: el RPC `restore_user_backup` recalcula `update_client_stats` por cada cliente restaurado dentro de la transacción. ✅
-- **Sensible en git:** `cookies.txt`, `ngrok-url.txt`, `docs/conversation-2026-08-05.json` siguen trackeados → `git rm --cached` + `.gitignore`.
+- **Sensible en git:** `cookies.txt`, `ngrok-url.txt`, `docs/conversation-2026-08-05.json` seguían trackeados → **CORREGIDO (16 Ago):** `git rm --cached` + `.gitignore`. Sin credenciales vivas (cookies vacío, túnel muerto, resumen sin tokens). Quedan en el historial de git; sin reescribir (repo privado, contenido inocuo).
 - **Baja:** `aria-label` faltante en algunos botones icon-only; `confirm()` nativo en DocumentsContent; `toLocaleString('en-US')` en /pricing; mensajes de error en inglés en algunas vistas.
 - **Correo de recuperación:** operativo vía correo integrado de Supabase (`no-reply@supabase.co`), pero con **tope de 2 emails/hora** (fijo sin SMTP custom). SMTP Gmail rechazado (`535 BadCredentials`); plan B pendiente: verificar dominio Resend `gestiondeprestamos.com` (DNS TXT `resend._domainkey`, MX `send`, TXT SPF) para levantar el tope.
 
@@ -120,7 +120,7 @@ Las vulnerabilidades críticas/explotables (S1-S3) fueron **corregidas y re-veri
 6. **Paginación real** en clientes/préstamos (M4).
 7. **Headless**: Vercel Web Analytics + Speed Insights + uptime checks (M9).
 8. **Tracked files sensibles**: `git rm --cached cookies.txt ngrok-url.txt docs/conversation-2026-08-05.json` + `.gitignore` (M-baja).
-9. **Limpiar código muerto**: `sendEmail`/Resend (M13), `Skeleton`/`InstallmentRows` documentado pero inexistente (M15 → corregir AGENTS.md).
+9. **Limpiar código muerto**: `sendEmail`/Resend (M13), `Skeleton` (M15 — AGENTS.md ya corregido).
 
 ### Pulido
 11. `aria-label` en botones icon-only; `confirm()` nativo; `en-US` en /pricing; mensajes ES en collections/calendar.

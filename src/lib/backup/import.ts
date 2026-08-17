@@ -179,7 +179,57 @@ export async function restoreBackup(
     return { error: (result && result.error) || 'La restauración falló y no se aplicaron cambios' }
   }
 
+  // Restaurar bloBs (bytes) de documentos: las filas ya quedaron insertadas
+  // por el RPC; ahora re-subimos los archivos reales al bucket 'documents'.
+  const filesError = await restoreDocumentFiles(supabase, userId, folder)
+  if (filesError) {
+    return { error: filesError }
+  }
+
   return { tables, count: totalCount }
+}
+
+/**
+ * Re-upload de los BLOBS de documentos desde el backup (folder/files-Manifest.json)
+ * hacia el bucket 'documents', en sus rutas originales.
+ */
+async function restoreDocumentFiles(
+  supabase: SupabaseClient,
+  userId: string,
+  folder: string,
+): Promise<string | null> {
+  const prefix = getBackupFolder(userId)
+  const { data: manifestData, error: manifestError } = await supabase.storage
+    .from('backups')
+    .download(`${prefix}/${folder}/files-manifest.json`)
+  if (manifestError) return null // backup sin archivos → OK
+
+  let mapping: { original: string; backup: string }[]
+  try {
+    mapping = JSON.parse(await manifestData.text())
+  } catch {
+    return 'files-manifest.json corrupto'
+  }
+  if (!Array.isArray(mapping)) return 'files-manifest.json inválido'
+
+  for (const entry of mapping) {
+    if (!entry?.original || !entry?.backup) continue
+    // Seguridad: la ruta original debe pertenecer a este usuario.
+    if (!entry.original.startsWith(`${userId}/`)) {
+      return `La ruta del documento no pertenece al usuario: ${entry.original}`
+    }
+    const { data: blob, error: dlErr } = await supabase.storage
+      .from('backups')
+      .download(entry.backup)
+    if (dlErr || !blob) return `Error al descargar blob de backup: ${entry.backup}`
+
+    const { error: upErr } = await supabase.storage
+      .from('documents')
+      .upload(entry.original, blob, { upsert: true })
+    if (upErr) return `Error al restaurar archivo ${entry.original}: ${upErr.message}`
+  }
+
+  return null
 }
 
 export async function listBackups(
