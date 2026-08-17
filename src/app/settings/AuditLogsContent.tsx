@@ -19,7 +19,7 @@ interface AuditLog {
   created_at: string
 }
 
-export default function AuditLogsContent({ showHeader = true }: { showHeader?: boolean }) {
+export default function AuditLogsContent() {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

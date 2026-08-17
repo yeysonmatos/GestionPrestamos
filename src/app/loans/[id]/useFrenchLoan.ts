@@ -56,7 +56,7 @@ export function useFrenchLoan(input: LoanHandlerInput) {
   }
 
   const rebalanceReverseAbono: LoanRebalanceStrategies['rebalanceReverseAbono'] = async ({
-    payment, newRemaining, newPaid, loan, installments, payments,
+    payment, loan, installments, payments,
   }) => {
     const installmentsToWrite: ScheduleRowWrite[] = []
     const loanUpdates: Record<string, string | number | boolean | null> = {}

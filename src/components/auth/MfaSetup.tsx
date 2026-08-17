@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { ShieldCheck, ShieldWarning, QrCode, Copy, Trash, Key } from '@phosphor-icons/react'
+import { ShieldCheck, QrCode, Copy, Trash, Key } from '@phosphor-icons/react'
 import { createClient } from '@/lib/supabase-client'
 import { Alert } from '@/components/ui/Alert'
 import Badge from '@/components/ui/Badge'

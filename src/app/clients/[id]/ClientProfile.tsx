@@ -6,7 +6,7 @@ import Badge from '@/components/ui/Badge'
 import { Progress } from '@/components/ui/Progress'
 import ViewTabs from '@/components/ui/ViewTabs'
 import { formatCurrency, formatDate, getTrustLevelColor, getStatusLabel, lateStatusLabel } from '@/lib/utils'
-import { loanStatusColors, paymentTypeColors, paymentMethodColor } from '@/lib/status-colors'
+import { loanStatusColors, paymentMethodColor } from '@/lib/status-colors'
 import Link from 'next/link'
 import { ArrowLeft, Pencil, Phone, Envelope, MapPin, FileText, Wallet, CreditCard, Receipt, Bank, Money, DownloadSimple } from '@phosphor-icons/react'
 import type { Client, Loan, Payment, Document } from '@/types'
@@ -18,8 +18,7 @@ interface Props {
   documents: Document[]
 }
 
-export default function ClientProfile({ client: initialClient, loans, payments, documents }: Props) {
-  const [client, setClient] = useState(initialClient)
+export default function ClientProfile({ client, loans, payments, documents }: Props) {
   const [tab, setTab] = useState('loans')
 
   const clientLoans = useMemo(() =>
@@ -29,7 +28,6 @@ export default function ClientProfile({ client: initialClient, loans, payments, 
 
   const initials = (client.first_name?.charAt(0) || client.name.charAt(0)) +
     (client.last_name?.charAt(0) || client.name.split(' ')[1]?.charAt(0) || '')
-  const avatarBg = client.status === 'active' ? 'bg-primary' : 'bg-muted-foreground'
 
   return (
     <div className="space-y-6">

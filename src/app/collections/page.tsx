@@ -55,19 +55,6 @@ export default async function CollectionsPage() {
     .select('*')
     .single()
 
-  const { data: activeLoansRaw } = await supabase
-    .from('loans')
-    .select('id, loan_id, amount, remaining_amount, installment_amount, amortization_type, open_ended, client:clients(id, name, phone, whatsapp)')
-    .in('status', ['active', 'late'])
-    .is('deleted_at', null)
-    .order('loan_id')
-
-  type ActiveLoanRaw = { id: string; loan_id: string; amount: number; remaining_amount: number; installment_amount: number; amortization_type: string; open_ended: boolean; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | { id: string; name: string; phone: string | null; whatsapp: string | null }[] | null }
-  const activeLoans: { id: string; loan_id: string; amount: number; remaining_amount: number; installment_amount: number; amortization_type: string; open_ended: boolean; client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null }[] = (activeLoansRaw || []).map((r: ActiveLoanRaw) => ({
-    ...r,
-    client: Array.isArray(r.client) ? r.client[0] || null : r.client || null,
-  }))
-
   return (
     <MainLayout>
       <CollectionsContent
@@ -77,7 +64,6 @@ export default async function CollectionsPage() {
         recentPayments={recentPayments || []}
         openEndedLoans={openEndedLoans || []}
         settings={settings}
-        activeLoans={activeLoans || []}
       />
     </MainLayout>
   )

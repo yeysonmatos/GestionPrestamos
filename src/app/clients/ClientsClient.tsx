@@ -14,7 +14,7 @@ import ViewTabs from '@/components/ui/ViewTabs'
 import { Alert } from '@/components/ui/Alert'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Phone, FileText, ArrowsClockwise, MagnifyingGlass, User } from '@phosphor-icons/react'
+import { Plus, Phone, FileText, ArrowsClockwise, MagnifyingGlass } from '@phosphor-icons/react'
 import type { Client, Loan } from '@/types'
 
 interface Props {
@@ -29,7 +29,7 @@ const avatarColorMap: Record<string, string> = {
 }
 
 export default function ClientsClient({ clients: initialClients, loans }: Props) {
-  const [clients, setClients] = useState(initialClients)
+  const [clients] = useState(initialClients)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [planLimit, setPlanLimit] = useState<number | null>(null)

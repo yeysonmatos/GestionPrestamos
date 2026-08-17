@@ -6,6 +6,7 @@ import {
   calculateLateAmount,
   nextDueDateAfter,
   recalculateFrenchSchedule,
+  firstPaymentDateFor,
   DAYS_IN_PERIOD,
 } from '../calculations'
 import { daysBetweenDateStrings, firstOfNextMonth, getLocalMonthStart } from '../utils'
@@ -17,6 +18,34 @@ afterEach(() => {
 describe('DAYS_IN_PERIOD', () => {
   it('mapea frecuencias a días', () => {
     expect(DAYS_IN_PERIOD).toEqual({ daily: 1, weekly: 7, biweekly: 14, monthly: 30 })
+  })
+})
+
+describe('firstPaymentDateFor', () => {
+  it('mensual avanza un mes calendario (16/08 → 16/09)', () => {
+    expect(firstPaymentDateFor('2026-08-16', 'monthly')).toBe('2026-09-16')
+  })
+
+  it('semanal +7 días, quincenal +14 días, diario +1 día', () => {
+    expect(firstPaymentDateFor('2026-08-16', 'weekly')).toBe('2026-08-23')
+    expect(firstPaymentDateFor('2026-08-16', 'biweekly')).toBe('2026-08-30')
+    expect(firstPaymentDateFor('2026-08-16', 'daily')).toBe('2026-08-17')
+  })
+
+  it('mensual respeta meses cortos (31/01 → 29/02 en 2028)', () => {
+    expect(firstPaymentDateFor('2028-01-31', 'monthly')).toBe('2028-02-29')
+  })
+
+  it('fecha vacía → cadena vacía', () => {
+    expect(firstPaymentDateFor('', 'monthly')).toBe('')
+  })
+
+  it('coincide con el vencimiento de la cuota #2 del cronograma', () => {
+    const loan = calculateLoan({
+      amount: 100, interest_type: 'percentage', interest_rate: 1, installments: 3,
+      frequency: 'monthly', start_date: '2026-01-31', amortization_type: 'french',
+    })
+    expect(firstPaymentDateFor('2026-01-31', 'monthly')).toBe(loan.installments[1].due_date)
   })
 })
 

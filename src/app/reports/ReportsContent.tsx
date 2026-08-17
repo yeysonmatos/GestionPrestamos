@@ -7,10 +7,10 @@ import PageHeader from '@/components/ui/PageHeader'
 import ViewTabs from '@/components/ui/ViewTabs'
 import StatCard from '@/components/ui/StatCard'
 import { Alert } from '@/components/ui/Alert'
-import { formatNumber, formatDate, buildMonthlySeries } from '@/lib/utils'
+import { formatNumber, buildMonthlySeries } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import {
-  TrendUp, CurrencyDollar, Users, Handshake, Percent,
+  TrendUp, CurrencyDollar, Handshake, Percent,
 } from '@phosphor-icons/react'
 import type { Loan, Payment, LoanStats } from '@/types'
 

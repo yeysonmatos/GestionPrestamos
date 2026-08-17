@@ -14,7 +14,6 @@ import { computeUpgradeAmount, formatPlanAmount } from '@/lib/prorate'
 import ChangePasswordForm from './ChangePasswordForm'
 import MfaSetup from '@/components/auth/MfaSetup'
 import { CreditCard, Clock, CalendarCheck, Receipt, HandCoins, PaperPlaneTilt, ArrowRight, Copy } from '@phosphor-icons/react'
-import type { Setting } from '@/types'
 
 interface SubscriptionInfo {
   status: string
@@ -44,7 +43,6 @@ const METHOD_LABELS: Record<string, string> = {
 export default function AccountContent({ showHeader = true }: { showHeader?: boolean }) {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
   const [payments, setPayments] = useState<PaymentRow[]>([])
-  const [settings, setSettings] = useState<Setting | null>(null)
   const [paymentInfo, setPaymentInfo] = useState<{ bank_name: string; account_name: string; account_number: string; payment_phone: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [payModal, setPayModal] = useState(false)
@@ -66,7 +64,7 @@ export default function AccountContent({ showHeader = true }: { showHeader?: boo
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [subRes, payRes, settingsRes, plansRes, payInfo] = await Promise.all([
+      const [subRes, payRes, plansRes, payInfo] = await Promise.all([
         supabase
           .from('subscriptions')
           .select('status, starts_at, ends_at, plan:plans(name, price, billing_cycle)')
@@ -80,7 +78,6 @@ export default function AccountContent({ showHeader = true }: { showHeader?: boo
           .eq('user_id', user.id)
           .order('payment_date', { ascending: false })
           .limit(50),
-        supabase.from('settings').select('*').single(),
         supabase.from('plans').select('id, name, price, billing_cycle').eq('is_active', true).order('price'),
         supabase.from('platform_config').select('bank_name, account_name, account_number, payment_phone').eq('id', '00000000-0000-0000-0000-000000000001').maybeSingle(),
       ])
@@ -97,7 +94,6 @@ export default function AccountContent({ showHeader = true }: { showHeader?: boo
         })
       }
       setPayments((payRes.data || []) as PaymentRow[])
-      setSettings(settingsRes.data as Setting | null)
       setPaymentInfo(payInfo.data as { bank_name: string; account_name: string; account_number: string; payment_phone: string } | null)
       setPlans((plansRes.data || []) as { id: string; name: string; price: number; billing_cycle: string }[])
     } catch {

@@ -104,7 +104,6 @@ export default function SupportContent({ showHeader = true }: { showHeader?: boo
 
       // Subir capturas adjuntas y asociarlas al ticket
       if (files.length > 0) {
-        const { data: { user } } = await supabase.auth.getUser()
         const attachments: { path: string; name: string; mime_type?: string; size?: number }[] = []
         for (const file of files) {
           const path = getFilePath('support', ticket.id, file.name)

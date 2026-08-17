@@ -217,6 +217,16 @@ function calcDueDate(startDate: string, frequency: string, installmentNumber: nu
   }
 }
 
+/**
+ * Fecha del PRIMER pago sugerida al abrir un préstamo: un período después de la
+ * fecha de inicio, con el mismo criterio calendario del cronograma (mensual avanza
+ * un mes calendario con `addMonths`, no 30 días planos).
+ */
+export function firstPaymentDateFor(startDate: string, frequency: string): string {
+  if (!startDate) return ''
+  return format(calcDueDate(startDate, frequency, 2), 'yyyy-MM-dd')
+}
+
 export function recalculateFrenchSchedule(
   remainingCapital: number,
   remainingInstallments: number,

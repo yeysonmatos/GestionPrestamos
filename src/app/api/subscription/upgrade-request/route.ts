@@ -146,10 +146,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function formatNumber(n: number) {
-  return n.toLocaleString('en-US', { maximumFractionDigits: 0 })
-}
-
 export async function GET() {
   return NextResponse.json({ message: 'POST /api/subscription/upgrade-request — Solicita upgrade de plan (pago por diferencia)' })
 }

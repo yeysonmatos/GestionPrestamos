@@ -67,17 +67,6 @@ function getNextDueDate(loan: OpenEndedLoan): string {
   return `${y}-${m}-${d}`
 }
 
-interface ActiveLoanBrief {
-  id: string
-  loan_id: string
-  amount: number
-  remaining_amount: number
-  installment_amount: number
-  amortization_type: string
-  open_ended: boolean
-  client: { id: string; name: string; phone: string | null; whatsapp: string | null } | null
-}
-
 interface Props {
   todayInstallments: Installment[]
   overdueInstallments: Installment[]
@@ -85,11 +74,10 @@ interface Props {
   recentPayments: Payment[]
   openEndedLoans: OpenEndedLoan[]
   settings: Setting | null
-  activeLoans: ActiveLoanBrief[]
 }
 
 export default function CollectionsContent({
-  todayInstallments: initialToday, overdueInstallments: initialOverdue, upcomingInstallments: initialUpcoming, recentPayments: initialPayments, openEndedLoans, settings, activeLoans,
+  todayInstallments: initialToday, overdueInstallments: initialOverdue, upcomingInstallments: initialUpcoming, recentPayments: initialPayments, openEndedLoans, settings,
 }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -475,7 +463,6 @@ export default function CollectionsContent({
             const remainingLate = Math.max(0, (inst.late_amount || 0) - ((inst as Installment).paid_late_amount || 0))
             const remaining = inst.amount - (inst.paid_amount || 0)
             const isPartial = (inst.paid_amount ?? 0) > 0 && inst.status !== 'paid'
-            const avatarColor = 'bg-primary'
             const clientInitial = client?.name?.charAt(0)?.toUpperCase() || '?'
             return (
               <div key={inst.id} className="bg-card rounded-xl border border-border p-4 hover:shadow-sm transition-shadow">
@@ -533,7 +520,6 @@ export default function CollectionsContent({
             const inst = selectedInstallment
             const remaining = inst.amount - (inst.paid_amount || 0)
             const mora = installmentMora
-            const moraAmount = includeMora && mora ? mora.lateAmount : 0
             return (
               <>
                 <div className="bg-primary/5 rounded-xl p-4 text-sm space-y-1.5">

@@ -10,8 +10,8 @@ import Modal from '@/components/ui/Modal'
 import Input, { Select } from '@/components/ui/Input'
 import StatCard from '@/components/ui/StatCard'
 import { formatDateShort, formatDateFull, formatNumber } from '@/lib/utils'
-import { ACTION_LABELS, ENTITY_LABELS, actionInfo, detailsSummary } from '@/lib/audit-ui'
-import { ArrowLeft, UserCircle, CreditCard, Wallet, HandCoins, ChartLineUp, ClockCounterClockwise, Scroll, CalendarPlus, ArrowsClockwise, Prohibit, UserCheck, ArrowRight, LockKey } from '@phosphor-icons/react'
+import { ENTITY_LABELS, actionInfo, detailsSummary } from '@/lib/audit-ui'
+import { ArrowLeft, UserCircle, CreditCard, Wallet, HandCoins, ChartLineUp, ClockCounterClockwise, Scroll, CalendarPlus, ArrowsClockwise, Prohibit, UserCheck, LockKey } from '@phosphor-icons/react'
 
 type StatusVariant = 'active' | 'paid' | 'cancelled' | 'default' | 'success'
 
@@ -79,13 +79,6 @@ interface UserDetail {
     details: Record<string, unknown>
     created_at: string
   }[]
-  upgradeRequests: {
-    id: string
-    subject: string
-    body: string
-    status: string
-    created_at: string
-  }[]
 }
 
 const METHOD_LABELS: Record<string, string> = {
@@ -109,8 +102,6 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
   const [planSaving, setPlanSaving] = useState(false)
   const [toggling, setToggling] = useState(false)
   const [paymentProcessing, setPaymentProcessing] = useState('')
-  const [upgradeProcessing, setUpgradeProcessing] = useState('')
-  const [upgradeRequests, setUpgradeRequests] = useState<{ id: string; subject: string; body: string; status: string; created_at: string }[]>([])
   const [resetModal, setResetModal] = useState(false)
   const [resetForm, setResetForm] = useState({ password: '', confirm: '' })
   const [resetSaving, setResetSaving] = useState(false)
@@ -130,17 +121,10 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
     setLoading(true)
     setError('')
     try {
-      const [userRes, ticketsRes] = await Promise.all([
-        fetch(`/api/admin/users/${userId}`, { credentials: 'include' }),
-        fetch(`/api/admin/support?user_id=${userId}&type=upgrade_request`, { credentials: 'include' }),
-      ])
-      const d = await userRes.json()
-      if (!userRes.ok) throw new Error(d.error || 'Error al cargar usuario')
-      const ticketsData = await ticketsRes.json()
+      const res = await fetch(`/api/admin/users/${userId}`, { credentials: 'include' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Error al cargar usuario')
       setData(d)
-      if (ticketsData.tickets) {
-        setUpgradeRequests(ticketsData.tickets.filter((t: { type: string; status: string }) => t.type === 'upgrade_request' && ['open', 'in_progress'].includes(t.status)))
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error de conexión')
     }
@@ -262,38 +246,6 @@ export default function AdminUserDetail({ userId }: { userId: string }) {
       setError(err instanceof Error ? err.message : 'Error')
     }
     setPaymentProcessing('')
-  }
-
-  async function handleAssignPlanFromUpgrade(upgradePlanId: string, ticketId: string, prorate = false) {
-    setUpgradeProcessing(ticketId)
-    setError('')
-    try {
-      // 1. Asignar plan (reusa lógica PATCH existente)
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ plan_id: upgradePlanId, days: '30', prorate }),
-      })
-      const d = await res.json()
-      if (!res.ok) throw new Error(d.error || 'Error al asignar plan')
-
-      // 2. Cerrar ticket
-      const adminClient = (await import('@/lib/supabase-admin')).createAdminClient()
-      if (adminClient) {
-        await adminClient
-          .from('support_tickets')
-          .update({ status: 'closed' })
-          .eq('id', ticketId)
-          .eq('type', 'upgrade_request')
-      }
-
-      flashMessage(`Plan asignado y ticket cerrado`)
-      load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error')
-    }
-    setUpgradeProcessing('')
   }
 
   if (loading) return <div className="text-center py-12 text-sm text-muted-foreground">Cargando usuario...</div>

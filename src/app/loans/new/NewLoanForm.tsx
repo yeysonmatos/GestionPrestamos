@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { addDays, format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Alert'
@@ -11,7 +10,7 @@ import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase-client'
 import { logAuditEvent } from '@/lib/audit'
 import { formatCurrency, formatDate, getLocalDate } from '@/lib/utils'
-import { calculateLoan } from '@/lib/calculations'
+import { calculateLoan, firstPaymentDateFor } from '@/lib/calculations'
 import { computeLateStatus } from '@/lib/loan-status'
 import { FREQUENCIES } from '@/types'
 import type { Client, Setting, Loan } from '@/types'
@@ -24,13 +23,6 @@ interface Props {
   isEditing?: boolean
   loanId?: string
   onSaved?: () => void
-}
-
-const PERIOD_DAYS: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
-
-function defaultFirstPaymentDate(startDate: string, frequency: string): string {
-  if (!startDate) return ''
-  return format(addDays(new Date(startDate), PERIOD_DAYS[frequency] || 30), 'yyyy-MM-dd')
 }
 
 export default function NewLoanForm({ clients, settings, selectedClientId, initialData, isEditing, loanId, onSaved }: Props) {
@@ -66,7 +58,7 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
       amortization_type: 'interest_only' as 'interest_only' | 'french',
       open_ended: false,
       start_date: getLocalDate(),
-      first_payment_date: defaultFirstPaymentDate(getLocalDate(), settings?.default_frequency || 'weekly'),
+      first_payment_date: firstPaymentDateFor(getLocalDate(), settings?.default_frequency || 'weekly'),
       guarantee: '',
       notes: '',
     }
@@ -80,10 +72,13 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
       if (field === 'amortization_type' && value === 'interest_only' && prev.interest_type === 'fixed') {
         next.interest_type = 'percentage'
       }
-      if (field === 'start_date') {
-        const autoSynced = defaultFirstPaymentDate(prev.start_date, prev.frequency)
+      if (field === 'start_date' || field === 'frequency') {
+        const autoSynced = firstPaymentDateFor(prev.start_date, prev.frequency)
         if (next.first_payment_date === autoSynced) {
-          next.first_payment_date = defaultFirstPaymentDate(value, prev.frequency)
+          next.first_payment_date = firstPaymentDateFor(
+            field === 'start_date' ? value : prev.start_date,
+            field === 'frequency' ? value : prev.frequency,
+          )
         }
       }
       return next
@@ -290,10 +285,6 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
         <Input label="Notas (opcional)" value={form.notes} onChange={e => update('notes', e.target.value)} />
 
         {schedule && (() => {
-          const daysPerFreq: Record<string, number> = { daily: 1, weekly: 7, biweekly: 14, monthly: 30 }
-          const numInst = parseInt(form.installments) || 0
-          const tiempoMeses = numInst > 0 ? Math.round(numInst * (daysPerFreq[form.frequency] || 30) / 30) : 0
-
           return (
             <div className="bg-primary-light rounded-lg p-4 space-y-3">
               <p className="text-sm font-semibold text-primary">Resumen del cálculo</p>

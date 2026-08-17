@@ -32,8 +32,6 @@ interface Props {
   deletedInfo?: { loanId: string; amount: string } | null
 }
 
-type ViewMode = 'cards' | 'table'
-
 export default function LoansClientUnified({ loans: initialLoans, pendingInstallments, deletedInfo }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'cards' | 'table'>('cards')
@@ -116,18 +114,6 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
     type: typeCounts,
     frequency: freqCounts,
   }), [statusCounts, typeCounts, freqCounts])
-
-  const handleFilterChange = (key: string, value: string | { min: string; max: string } | { from: string; to: string }) => {
-    setFilters(prev => {
-      if (key === 'amountRange' && typeof value === 'object' && 'min' in value) {
-        return { ...prev, amountRange: value }
-      }
-      if (key === 'dateRange' && typeof value === 'object' && 'from' in value) {
-        return { ...prev, dateRange: value }
-      }
-      return { ...prev, [key]: value }
-    })
-  }
 
   const filterActions = {
     setSearch: (v: string) => setFilters(p => ({ ...p, search: v })),
@@ -298,7 +284,6 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
             </thead>
             <tbody>
               {filtered.map(loan => {
-                const nextDue = calcNextDue(loan)
                 const lateDays = getLateDays(loan)
                 return (
                   <tr key={loan.id} className="border-b border-border hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => window.location.href = `/loans/${loan.id}`}>

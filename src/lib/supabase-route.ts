@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // Las cookies refrescadas se acumulan en `supabaseResponse` (a devolver en la
 // respuesta de la ruta) para que el navegador las reciba como Set-Cookie.
 export async function createRouteHandlerClient(request: NextRequest) {
-  let supabaseResponse = new NextResponse()
+  const supabaseResponse = new NextResponse()
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +39,7 @@ export function createApiRouteClient(request: NextRequest) {
     getAll() {
       return cookies.getAll()
     },
-    setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
+    setAll() {
       // En API routes no podemos setear cookies en el request directamente
       // Las cookies se deben setear en la respuesta manualmente
       console.warn('[supabase-route] setAll called in API route - cookies must be set on response manually')

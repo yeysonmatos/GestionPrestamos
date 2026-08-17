@@ -52,7 +52,7 @@ function SettingsTabsInner({ settings }: { settings: Setting | null }) {
         </TabsContent>
 
         <TabsContent value="audit">
-          <AuditLogsContent showHeader={false} />
+          <AuditLogsContent />
         </TabsContent>
 
         <TabsContent value="export">

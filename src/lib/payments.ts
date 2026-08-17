@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Loan, Installment, Payment } from '@/types'
+import type { Loan, Installment } from '@/types'
 
 export interface PaymentAllocation {
   paidToInstallment: number
@@ -155,7 +155,6 @@ export async function updateLoanAfterPayment(
       .eq('status', 'paid')
       .in('type', ['capital_abono', 'liquidation'])
     const extraPaid = extraPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
-    const extraCapital = extraPayments?.reduce((s, p) => s + Number(p.capital_amount), 0) || 0
 
     paidAmount = installmentsPaid + extraPaid
   }

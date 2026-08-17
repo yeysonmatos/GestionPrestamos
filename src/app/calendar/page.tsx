@@ -5,7 +5,6 @@ import { getLocalDate } from '@/lib/utils'
 
 export default async function CalendarPage() {
   const supabase = await createServerSideClient()
-  const today = getLocalDate()
   const yearAgo = new Date()
   yearAgo.setFullYear(yearAgo.getFullYear() - 1)
   const yearAgoStr = getLocalDate(yearAgo)

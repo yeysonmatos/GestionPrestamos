@@ -19,8 +19,8 @@ import BottomSheet from '@/components/ui/BottomSheet'
 import { Alert } from '@/components/ui/Alert'
 import {
   ArrowLeft, WhatsappLogo, Files, Signature, ArrowCounterClockwise,
-  Check, FileArrowDown, ShareNetwork, Plus, PencilSimple, Receipt,
-  Bank, Money, DownloadSimple, MagnifyingGlass, TrashSimple,
+  Check, FileArrowDown, ShareNetwork, PencilSimple, Receipt,
+  Bank, Money, DownloadSimple, TrashSimple,
 } from '@phosphor-icons/react'
 import type { Loan, Installment, Payment, Setting } from '@/types'
 import { useFrenchLoan } from './useFrenchLoan'
