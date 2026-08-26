@@ -43,8 +43,8 @@ const STATUS_OPTIONS = [
 
 const TYPE_OPTIONS = [
   { value: 'all', label: 'Todos' },
-  { value: 'french', label: 'Francesa' },
-  { value: 'interest_only', label: 'Interés' },
+  { value: 'french', label: 'Cuotas Fijas' },
+  { value: 'interest_only', label: 'Solo Interés' },
 ]
 
 const FREQUENCY_OPTIONS = [

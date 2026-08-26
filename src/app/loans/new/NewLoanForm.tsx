@@ -256,8 +256,8 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
 
         <Select label="Tipo de amortización" value={form.amortization_type} onChange={e => update('amortization_type', e.target.value)}
           options={[
-            { value: 'interest_only', label: 'Solo interés (Modelo Dominicano)' },
-            { value: 'french', label: 'Francesa (Cuota fija)' },
+            { value: 'interest_only', label: 'Solo Interés' },
+            { value: 'french', label: 'Cuotas Fijas' },
           ]}
         />
 

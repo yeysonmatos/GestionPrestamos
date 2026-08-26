@@ -244,7 +244,7 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
                           <Calendar className="h-3 w-3" /> {formatDate(loan.start_date)}
                         </span>
                         <span>{loan.frequency === 'daily' ? 'Diario' : loan.frequency === 'weekly' ? 'Semanal' : loan.frequency === 'biweekly' ? 'Quincenal' : 'Mensual'}</span>
-                        <span>{loan.amortization_type === 'interest_only' ? 'Interés' : 'Francesa'}</span>
+                        <span>{loan.amortization_type === 'interest_only' ? 'Solo Interés' : 'Cuotas Fijas'}</span>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0 min-w-[100px]">

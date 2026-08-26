@@ -75,9 +75,9 @@ const SETTINGS_LABELS: Record<string, string> = {
 }
 
 const AMORT_LABELS: Record<string, string> = {
-  french: 'Francesa',
-  interest_only: 'Solo interés',
-  'interest-only': 'Solo interés',
+  french: 'Cuotas Fijas',
+  interest_only: 'Solo Interés',
+  'interest-only': 'Solo Interés',
 }
 
 const LOAN_LABELS: Record<string, string> = {

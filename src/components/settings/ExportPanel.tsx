@@ -89,7 +89,7 @@ export default function ExportPanel() {
             client?.phone || '',
             Number(l.amount),
             Number(l.remaining_amount),
-            l.amortization_type === 'interest_only' ? 'Interés' : 'Francesa',
+            l.amortization_type === 'interest_only' ? 'Solo Interés' : 'Cuotas Fijas',
             FREQ_LABEL(l.frequency),
             l.paid_installments || 0,
             l.installments || 0,

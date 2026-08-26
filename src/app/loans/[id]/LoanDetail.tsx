@@ -360,7 +360,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             {isOpenEnded ? 'Abierto' : `${loan.installments} cuotas`}
           </span>
           <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
-            {isInterestOnly ? 'Solo interés' : 'Francesa'}
+            {isInterestOnly ? 'Solo Interés' : 'Cuotas Fijas'}
           </span>
           <span className="text-xs px-2.5 py-1 rounded-full bg-primary/5 text-primary font-medium">
             Tasa: {loan.interest_type === 'percentage' ? `${loan.interest_rate}%` : formatCurrency(loan.interest_rate)}
@@ -1025,7 +1025,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           <p><strong>INTERÉS:</strong> {loan.interest_type === 'percentage' ? `${loan.interest_rate}%` : formatCurrency(loan.interest_rate)}</p>
           {isInterestOnly ? (
             <>
-              <p><strong>TIPO:</strong> Solo interés (pagos periódicos de interés, capital al liquidar)</p>
+              <p><strong>TIPO:</strong> Solo Interés (pagos periódicos de interés, capital al liquidar)</p>
               <p><strong>INTERÉS POR PERÍODO:</strong> {formatCurrency(loan.installment_amount)}</p>
             </>
           ) : (
