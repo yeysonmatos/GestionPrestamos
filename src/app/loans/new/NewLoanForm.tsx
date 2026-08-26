@@ -260,6 +260,11 @@ export default function NewLoanForm({ clients, settings, selectedClientId, initi
             { value: 'french', label: 'Cuotas Fijas' },
           ]}
         />
+        <p className="text-xs text-muted-foreground">
+          {isInterestOnly
+            ? 'Cuotas periódicas de solo el interés. El capital se devuelve al final.'
+            : 'Cada cuota incluye capital + interés.'}
+        </p>
 
         {isInterestOnly && (
           <label className="flex items-center gap-2 text-sm cursor-pointer">
