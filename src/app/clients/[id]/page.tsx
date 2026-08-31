@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import ClientProfile from './ClientProfile'
+import { getUserSubscription, isExpiredForReadOnly } from '@/lib/subscription-guard'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -10,6 +11,10 @@ interface Props {
 export default async function ClientProfilePage({ params }: Props) {
   const { id } = await params
   const supabase = await createServerSideClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const subSnap = await getUserSubscription(supabase, user?.id || '')
+  const readOnly = isExpiredForReadOnly(subSnap)
 
   const { data: client } = await supabase
     .from('clients')
@@ -41,7 +46,7 @@ export default async function ClientProfilePage({ params }: Props) {
 
   return (
     <MainLayout>
-      <ClientProfile client={client} loans={loans || []} payments={payments || []} documents={documents || []} />
+      <ClientProfile client={client} loans={loans || []} payments={payments || []} documents={documents || []} readOnly={readOnly} />
     </MainLayout>
   )
 }

@@ -14,6 +14,7 @@ export type TemplateKey =
   | 'payment_approved'
   | 'plan_updated'
   | 'plan_expiring'
+  | 'trial_expired'
 
 export const TEMPLATE_KEYS: TemplateKey[] = [
   'new_ticket',
@@ -24,6 +25,7 @@ export const TEMPLATE_KEYS: TemplateKey[] = [
   'payment_approved',
   'plan_updated',
   'plan_expiring',
+  'trial_expired',
 ]
 
 function appUrl(): string {
@@ -61,6 +63,7 @@ export const templateSubjects: Record<TemplateKey, string> = {
   payment_approved: 'Pago aprobado',
   plan_updated: 'Tu plan fue actualizado',
   plan_expiring: 'Tu suscripción está por vencer',
+  trial_expired: 'Prueba vencida: prestamista en modo lectura',
 }
 
 export interface RenderTemplate {
@@ -190,6 +193,21 @@ export function renderTemplate({ key, data }: RenderTemplate): { subject: string
               ].filter(Boolean),
           { link: `${base}/account`, label: 'Ver suscripción' },
           'Renueva antes de la fecha para no interrumpir tu servicio.'
+        ),
+      }
+
+    case 'trial_expired':
+      return {
+        subject: `${templateSubjects.trial_expired}: ${data.prestamistaName || data.email}`,
+        html: layout(
+          'Prueba vencida: prestamista en modo lectura',
+          [
+            `La prueba del prestamista <strong>${data.prestamistaName || data.email}</strong> venció y ahora está en <strong>modo lectura</strong> (no puede crear ni editar datos).`,
+            data.email ? `<strong>Correo:</strong> ${data.email}` : '',
+            'Renueva su plan para que recupere el acceso de escritura.',
+          ].filter(Boolean),
+          { link: `${base}/admin/users`, label: 'Revisar usuario' },
+          'El usuario conserva el acceso de lectura hasta que se le asigne un plan.'
         ),
       }
 

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createServerSideClient } from '@/lib/supabase-server'
 import MainLayout from '@/components/layout/MainLayout'
 import LoanDetail from './LoanDetail'
+import { getUserSubscription, isExpiredForReadOnly } from '@/lib/subscription-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,10 @@ interface Props {
 export default async function LoanDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createServerSideClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const subSnap = await getUserSubscription(supabase, user?.id || '')
+  const readOnly = isExpiredForReadOnly(subSnap)
 
   const { data: loan } = await supabase
     .from('loans')
@@ -40,7 +45,7 @@ export default async function LoanDetailPage({ params }: Props) {
 
   return (
     <MainLayout>
-      <LoanDetail loan={loan} installments={installments || []} payments={payments || []} settings={settings} />
+      <LoanDetail loan={loan} installments={installments || []} payments={payments || []} settings={settings} readOnly={readOnly} />
     </MainLayout>
   )
 }

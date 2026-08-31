@@ -11,7 +11,7 @@ import { Alert } from '@/components/ui/Alert'
 import { formatCurrency, formatDate, lateStatusLabel } from '@/lib/utils'
 import { loanStatusColors } from '@/lib/status-colors'
 import Link from 'next/link'
-import { Plus, Calendar, SquaresFour, Table, ArrowsClockwise, MagnifyingGlass } from '@phosphor-icons/react'
+import { Plus, Calendar, SquaresFour, Table, ArrowsClockwise, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -30,9 +30,10 @@ interface Props {
   loans: Loan[]
   pendingInstallments: PendingInstallment[]
   deletedInfo?: { loanId: string; amount: string } | null
+  readOnly: boolean
 }
 
-export default function LoansClientUnified({ loans: initialLoans, pendingInstallments, deletedInfo }: Props) {
+export default function LoansClientUnified({ loans: initialLoans, pendingInstallments, deletedInfo, readOnly }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'cards' | 'table'>('cards')
   const [loans] = useState(initialLoans)
@@ -159,12 +160,28 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
             <Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center">
               <ArrowsClockwise className="h-4 w-4" />
             </Button>
-            <Link href="/loans/new">
-              <Button><Plus className="h-4 w-4 mr-1" /> Nuevo préstamo</Button>
-            </Link>
+            {!readOnly && (
+              <Link href="/loans/new">
+                <Button><Plus className="h-4 w-4 mr-1" /> Nuevo préstamo</Button>
+              </Link>
+            )}
           </div>
         }
       />
+
+      {readOnly && (
+        <Alert variant="warning" className="flex items-start gap-3 p-4 rounded-xl">
+          <div className="w-9 h-9 rounded-lg bg-warning-light flex items-center justify-center shrink-0">
+            <WarningCircle className="h-5 w-5 text-warning" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-warning">Modo lectura</p>
+            <p className="text-xs text-warning/80 mt-0.5">
+              Tu período de prueba venció. Puedes ver tus préstamos, pero no crear, editar ni cobrar.
+            </p>
+          </div>
+        </Alert>
+      )}
 
       {deletedBanner && (
         <motion.div
@@ -214,7 +231,7 @@ export default function LoansClientUnified({ loans: initialLoans, pendingInstall
           title={filters.search || filters.status !== 'active' || filters.type !== 'all' || filters.frequency !== 'all' ? 'Sin resultados' : 'No hay préstamos'}
           description={filters.search || filters.status !== 'active' || filters.type !== 'all' || filters.frequency !== 'all' ? 'Intenta con otros filtros o términos de búsqueda' : 'Crea tu primer préstamo para empezar.'}
           icon={<MagnifyingGlass className="h-8 w-8" weight="duotone" />}
-          action={!filters.search && filters.status === 'active' && filters.type === 'all' && filters.frequency === 'all' ? (
+          action={!filters.search && filters.status === 'active' && filters.type === 'all' && filters.frequency === 'all' && !readOnly ? (
             <Link href="/loans/new"><Button><Plus className="h-4 w-4 mr-1" /> Nuevo préstamo</Button></Link>
           ) : undefined}
         />

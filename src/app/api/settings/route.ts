@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { rateLimitByIp, addRateLimitHeaders } from '@/lib/rate-limit'
+import { requireActiveSubscriptionApi } from '@/lib/subscription-guard'
 
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -24,6 +25,9 @@ export async function PUT(request: NextRequest) {
   }
 
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return addRateLimitHeaders(guard.response, rl)
+
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
 
   // Whitelist de columnas: evita que el cliente escriba campos gestionados por

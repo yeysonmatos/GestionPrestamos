@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { getLocalDate } from '@/lib/utils'
+import { requireActiveSubscriptionApi } from '@/lib/subscription-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: loan_id } = await params
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })

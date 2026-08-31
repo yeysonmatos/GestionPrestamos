@@ -3,11 +3,15 @@ import MainLayout from '@/components/layout/MainLayout'
 import DashboardContent from './DashboardContent'
 import type { LoanStats } from '@/types'
 import { getLocalDate } from '@/lib/utils'
+import { getUserSubscription, isExpiredForReadOnly } from '@/lib/subscription-guard'
 
 export default async function DashboardPage() {
   const supabase = await createServerSideClient()
 
   const { data: { user } } = await supabase.auth.getUser()
+
+  const subSnap = await getUserSubscription(supabase, user?.id || '')
+  const readOnly = isExpiredForReadOnly(subSnap)
 
   const { data: subscription } = await supabase
     .from('subscriptions')
@@ -72,6 +76,7 @@ export default async function DashboardPage() {
         overdueInstallments={overdueInstallments || []}
         upcomingInstallments={upcomingInstallments || []}
         subscription={subscription as { status: string; ends_at: string | null; plan: { name: string } | null } | null}
+        readOnly={readOnly}
       />
     </MainLayout>
   )

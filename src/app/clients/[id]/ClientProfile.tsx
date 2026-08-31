@@ -16,9 +16,10 @@ interface Props {
   loans: Loan[]
   payments: Payment[]
   documents: Document[]
+  readOnly: boolean
 }
 
-export default function ClientProfile({ client, loans, payments, documents }: Props) {
+export default function ClientProfile({ client, loans, payments, documents, readOnly }: Props) {
   const [tab, setTab] = useState('loans')
 
   const clientLoans = useMemo(() =>
@@ -55,9 +56,11 @@ export default function ClientProfile({ client, loans, payments, documents }: Pr
                 {client.nickname && <span className="opacity-70">&ldquo;{client.nickname}&rdquo;</span>}
               </div>
             </div>
-            <Link href={`/clients/${client.id}/edit`} className="w-9 h-9 rounded-lg border border-white/30 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors shrink-0" title="Editar">
+            {!readOnly && (
+              <Link href={`/clients/${client.id}/edit`} className="w-9 h-9 rounded-lg border border-white/30 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors shrink-0" title="Editar">
                 <Pencil className="h-4 w-4" />
               </Link>
+            )}
           </div>
         </div>
 

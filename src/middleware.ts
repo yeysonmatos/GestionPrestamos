@@ -157,6 +157,26 @@ export async function middleware(request: NextRequest) {
       url.pathname = '/suspended'
       return NextResponse.redirect(url)
     }
+
+    // Modo lectura para Trial vencido: bloquear rutas de escritura redirigiendo
+    // a su listado/detalle de solo lectura.
+    if (expired && isTrialPlan) {
+      const writeRedirect: Record<string, string> = {
+        '/loans/new': '/loans',
+        '/clients/new': '/clients',
+      }
+      if (writeRedirect[pathname]) {
+        const url = request.nextUrl.clone()
+        url.pathname = writeRedirect[pathname]
+        return NextResponse.redirect(url)
+      }
+      const editMatch = pathname.match(/^\/(loans|clients)\/([^/]+)\/edit$/)
+      if (editMatch) {
+        const url = request.nextUrl.clone()
+        url.pathname = `/${editMatch[1]}/${editMatch[2]}`
+        return NextResponse.redirect(url)
+      }
+    }
   }
 
   return supabaseResponse

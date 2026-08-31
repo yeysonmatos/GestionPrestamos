@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
 import { logAuditEvent } from '@/lib/audit'
 import { computeLateStatus } from '@/lib/loan-status'
+import { requireActiveSubscriptionApi } from '@/lib/subscription-guard'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -20,6 +21,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
+
   const body = await request.json().catch(() => ({}))
 
   const { data: existingLoan, error: fetchError } = await supabase
@@ -142,6 +146,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
 
   let body: { reason?: string } = {}
   try { body = await request.json() } catch { /* sin body */ }

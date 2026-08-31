@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { requireActiveSubscriptionApi } from '@/lib/subscription-guard'
 
 export async function GET(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -57,6 +61,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
+
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
 

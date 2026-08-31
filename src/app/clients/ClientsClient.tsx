@@ -14,12 +14,13 @@ import ViewTabs from '@/components/ui/ViewTabs'
 import { Alert } from '@/components/ui/Alert'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Phone, FileText, ArrowsClockwise, MagnifyingGlass } from '@phosphor-icons/react'
+import { Plus, Phone, FileText, ArrowsClockwise, MagnifyingGlass, WarningCircle } from '@phosphor-icons/react'
 import type { Client, Loan } from '@/types'
 
 interface Props {
   clients: Client[]
   loans: Loan[]
+  readOnly: boolean
 }
 
 const avatarColorMap: Record<string, string> = {
@@ -28,7 +29,7 @@ const avatarColorMap: Record<string, string> = {
   default: 'bg-muted-foreground',
 }
 
-export default function ClientsClient({ clients: initialClients, loans }: Props) {
+export default function ClientsClient({ clients: initialClients, loans, readOnly }: Props) {
   const [clients] = useState(initialClients)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -94,8 +95,22 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
       <PageHeader
         title="Clientes"
         description="Gestiona tus clientes y su información"
-        action={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button>{limitReached ? <Button disabled><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button> : <Link href="/clients/new"><Button><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button></Link>}</div>}
+        action={<div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => router.refresh()} className="min-h-11 min-w-11 p-0 flex items-center justify-center"><ArrowsClockwise className="h-4 w-4" /></Button>{!readOnly && (limitReached ? <Button disabled><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button> : <Link href="/clients/new"><Button><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button></Link>)}</div>}
       />
+
+      {readOnly && (
+        <Alert variant="warning" className="flex items-start gap-3 p-4 rounded-xl">
+          <div className="w-9 h-9 rounded-lg bg-warning-light flex items-center justify-center shrink-0">
+            <WarningCircle className="h-5 w-5 text-warning" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-warning">Modo lectura</p>
+            <p className="text-xs text-warning/80 mt-0.5">
+              Tu período de prueba venció. Puedes ver tus clientes, pero no crear ni editar.
+            </p>
+          </div>
+        </Alert>
+      )}
 
       {planLimit !== null && clients.length >= planLimit && (
         <Alert variant="warning" className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -124,7 +139,7 @@ export default function ClientsClient({ clients: initialClients, loans }: Props)
           title={search ? 'Sin resultados' : 'No hay clientes'}
           description={search ? 'Intenta con otros términos de búsqueda' : 'Agrega tu primer cliente para empezar.'}
           icon={<MagnifyingGlass size={24} weight="duotone" className="text-muted-foreground" />}
-          action={!search ? (limitReached ? <Button disabled><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button> : <Link href="/clients/new"><Button><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button></Link>) : undefined}
+          action={!search && !readOnly ? (limitReached ? <Button disabled><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button> : <Link href="/clients/new"><Button><Plus className="h-4 w-4 mr-1" /> Nuevo cliente</Button></Link>) : undefined}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

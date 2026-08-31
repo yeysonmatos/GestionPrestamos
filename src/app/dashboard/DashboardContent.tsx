@@ -42,10 +42,11 @@ interface Props {
   overdueInstallments: Installment[]
   upcomingInstallments: Installment[]
   subscription: { status: string; ends_at: string | null; plan: { name: string } | null } | null
+  readOnly: boolean
 }
 
 export default function DashboardContent({
-  loans, chartPayments, loanStats, todayPayments, overdueInstallments, upcomingInstallments, subscription,
+  loans, chartPayments, loanStats, todayPayments, overdueInstallments, upcomingInstallments, subscription, readOnly,
 }: Props) {
   const stats = loanStats ?? EMPTY_STATS
   const todayTotal = todayPayments.reduce((s, p) => s + Number(p.amount), 0)
@@ -69,6 +70,22 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-6">
+      {readOnly && (
+        <Alert variant="warning" className="flex items-start gap-3 p-4 rounded-xl">
+          <div className="w-9 h-9 rounded-lg bg-warning-light flex items-center justify-center shrink-0">
+            <Alarm className="h-5 w-5 text-warning" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-warning">
+              Tu período de prueba venció. Estás en modo lectura
+            </p>
+            <p className="text-xs text-warning/80 mt-0.5">
+              Puedes ver, pero no crear, editar ni cobrar. Contacta a tu administrador para renovar tu plan.
+            </p>
+          </div>
+        </Alert>
+      )}
+
       {subscription && subExpired && (
         <Alert variant="danger" className="flex items-start gap-3 p-4 rounded-xl">
           <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">

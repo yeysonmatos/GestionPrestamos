@@ -126,3 +126,21 @@ export async function notifyPlanExpiring(admin: SupabaseClient, supabase: Supaba
   const recipient = await getPrestamistaContact(admin, opts.userId)
   return dispatch(admin, supabase, { recipientType: 'prestamista', actorUserId: opts.actorUserId ?? null, entityType: 'subscription', entityId: opts.userId }, 'plan_expiring', opts, recipient, 'plan.expiring')
 }
+
+export async function notifyTrialExpired(admin: SupabaseClient, opts: { userId: string; prestamistaName?: string; email?: string; dedupeKey?: string }) {
+  // Destino: el admin (dueño del sistema). Dedupe por usuario+día para no spamear.
+  const recipient = await getAdminEmail(admin)
+  const contact = await getPrestamistaContact(admin, opts.userId)
+  const data: Record<string, unknown> = {
+    userId: opts.userId,
+    prestamistaName: opts.prestamistaName || contact?.name || contact?.email || opts.email || 'un prestamista',
+    email: contact?.email || opts.email || '',
+  }
+  return dispatch(admin, null, {
+    recipientType: 'admin',
+    actorUserId: null,
+    entityType: 'subscription',
+    entityId: opts.userId,
+    dedupeKey: opts.dedupeKey ?? null,
+  }, 'trial_expired', data, recipient, 'trial.expired')
+}

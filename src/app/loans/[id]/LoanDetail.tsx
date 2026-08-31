@@ -32,9 +32,10 @@ interface Props {
   installments: Installment[]
   payments: Payment[]
   settings: Setting | null
+  readOnly: boolean
 }
 
-export default function LoanDetail({ loan: initialLoan, installments: initialInstallments, payments: initialPayments, settings }: Props) {
+export default function LoanDetail({ loan: initialLoan, installments: initialInstallments, payments: initialPayments, settings, readOnly }: Props) {
   const supabase = createClient()
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
@@ -266,6 +267,13 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
         <ArrowLeft className="h-4 w-4" /> Volver a préstamos
       </Link>
 
+      {readOnly && (
+        <Alert variant="warning">
+          <p className="text-sm font-semibold text-warning">Modo lectura: tu prueba venció</p>
+          <p className="text-xs text-warning/80 mt-0.5">No puedes cobrar, editar ni eliminar préstamos.</p>
+        </Alert>
+      )}
+
       <Card>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -289,7 +297,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             </div>
           </div>
           <div className="flex flex-wrap gap-1 flex-shrink-0">
-            {loan.paid_installments === 0 && loan.paid_amount === 0 && (
+            {loan.paid_installments === 0 && loan.paid_amount === 0 && !readOnly && (
               <Link href={`/loans/${loan.id}/edit`} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors" title="Editar">
                 <PencilSimple className="h-5 w-5" />
               </Link>
@@ -318,9 +326,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
             <button type="button" onClick={() => setShowContract(true)} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-accent hover:bg-accent/10 transition-colors" title="Contrato">
               <Signature className="h-5 w-5" />
             </button>
-            <button type="button" onClick={() => { setDeleteError(''); setDeleteReason(''); setShowDeleteModal(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors" title="Eliminar préstamo">
-              <TrashSimple className="h-5 w-5" />
-            </button>
+            {!readOnly && (
+              <button type="button" onClick={() => { setDeleteError(''); setDeleteReason(''); setShowDeleteModal(true) }} className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors" title="Eliminar préstamo">
+                <TrashSimple className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -384,7 +394,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
           </span>
         </div>
 
-        {(loan.status === 'active' || loan.status.startsWith('late')) && (
+        {(loan.status === 'active' || loan.status.startsWith('late')) && !readOnly && (
           <div className="flex gap-2 mt-4 pt-4 border-t border-border">
             <Button size="sm" onClick={() => {
               setPaymentAmount(isOpenEnded ? String(loan.installment_amount) : '')
@@ -480,7 +490,7 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                           <span>Bal: <strong className="text-foreground">{formatCurrency(inst.balance)}</strong></span>
                         </div>
                       )}
-                      {inst.status !== 'paid' && (
+                      {inst.status !== 'paid' && !readOnly && (
                         <button
                           type="button"
                           onClick={() => openPayModal(inst)}
@@ -596,9 +606,11 @@ export default function LoanDetail({ loan: initialLoan, installments: initialIns
                               navigator.clipboard.writeText(msg).then(() => alert('Recibo copiado al portapapeles'))
                             }
                           }} className="w-7 h-7 rounded-md hover:bg-emerald-50 hover:text-emerald-600 flex items-center justify-center transition-colors" title="WhatsApp"><WhatsappLogo className="h-3.5 w-3.5" /></button>
-                          <button onClick={() => { setReversalPaymentId(p.id); setReversalReason(''); setShowReversalModal(true) }} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
-                            <ArrowCounterClockwise className="h-3.5 w-3.5 text-destructive" />
-                          </button>
+                          {!readOnly && (
+                            <button onClick={() => { setReversalPaymentId(p.id); setReversalReason(''); setShowReversalModal(true) }} className="w-7 h-7 rounded-md hover:bg-red-50 flex items-center justify-center text-sm transition-colors" title="Reversar">
+                              <ArrowCounterClockwise className="h-3.5 w-3.5 text-destructive" />
+                            </button>
+                          )}
                         </>
                       )}
                       {p.status !== 'paid' && (

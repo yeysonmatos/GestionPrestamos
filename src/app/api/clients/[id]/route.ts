@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { requireActiveSubscriptionApi } from '@/lib/subscription-guard'
 
 // Whitelist de columnas actualizables (evita mass-assignment de campos
 // gestionados por el sistema: trust_score, trust_level, balance, status, user_id).
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
+
   const body = await request.json().catch(() => ({}))
   const fields = pickClientFields(body as Record<string, unknown>)
 
@@ -51,6 +55,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
 
   const { error } = await supabase.from('clients').delete().eq('id', id)
 

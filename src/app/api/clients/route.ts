@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createRouteHandlerClient } from '@/lib/supabase-route'
+import { requireActiveSubscriptionApi } from '@/lib/subscription-guard'
 
 export async function GET(request: NextRequest) {
-  const { supabase } = await createRouteHandlerClient(request)
+  const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
 
   const { data, error } = await supabase
     .from('clients')
@@ -10,11 +11,14 @@ export async function GET(request: NextRequest) {
     .order('name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data, supabaseResponse)
 }
 
 export async function POST(request: NextRequest) {
-  const { supabase } = await createRouteHandlerClient(request)
+  const { supabase, supabaseResponse } = await createRouteHandlerClient(request)
+  const guard = await requireActiveSubscriptionApi({ supabase, supabaseResponse })
+  if (!guard.ok) return guard.response
+
   const body = await request.json().catch(() => ({}))
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -53,5 +57,5 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  return NextResponse.json(data, supabaseResponse)
 }
