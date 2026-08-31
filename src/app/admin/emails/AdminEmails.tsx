@@ -7,7 +7,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
-import { Envelope, ArrowClockwise, MagnifyingGlass } from '@phosphor-icons/react'
+import { Envelope, ArrowClockwise, MagnifyingGlass, Trash, TrashSimple } from '@phosphor-icons/react'
 
 interface EmailMessage {
   id: string
@@ -44,6 +44,7 @@ export default function AdminEmails() {
   const [q, setQ] = useState('')
   const [preview, setPreview] = useState<EmailMessage | null>(null)
   const [retrying, setRetrying] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -88,6 +89,51 @@ export default function AdminEmails() {
     setRetrying(false)
   }
 
+  async function handleDeleteByIds(ids: string[]) {
+    if (ids.length === 0) return
+    if (!confirm(ids.length === 1 ? '¿Eliminar este correo?' : `¿Eliminar ${ids.length} correos?`)) return
+    setDeleting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/emails', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ ids }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Error al eliminar')
+      flashMsg(`${d.deleted} correo(s) eliminado(s)`)
+      setPreview(null)
+      load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar')
+    }
+    setDeleting(false)
+  }
+
+  async function handleDeleteByStatus(status: string, label: string) {
+    if (!confirm(`¿Eliminar todos los correos en estado "${label}"?`)) return
+    setDeleting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/emails', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Error al eliminar')
+      flashMsg(`${d.deleted} correo(s) eliminado(s)`)
+      load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al eliminar')
+    }
+    setDeleting(false)
+  }
+
+  const queuedCount = messages.filter(m => m.status === 'queued').length
   const failedCount = messages.filter(m => m.status === 'failed').length
 
   return (
@@ -119,6 +165,9 @@ export default function AdminEmails() {
           </div>
           <Button variant="secondary" onClick={handleRetry} loading={retrying} disabled={failedCount === 0}>
             <ArrowClockwise className="h-4 w-4 mr-1" /> Reenviar fallidos ({failedCount})
+          </Button>
+          <Button variant="danger" onClick={() => handleDeleteByStatus('queued', 'en cola')} loading={deleting} disabled={queuedCount === 0}>
+            <Trash className="h-4 w-4 mr-1" /> Vaciar en cola ({queuedCount})
           </Button>
         </div>
       </Card>
@@ -178,6 +227,11 @@ export default function AdminEmails() {
             <p className="text-xs text-muted-foreground">
               Evento: {preview.event_type} · Plantilla: {preview.template_key}
             </p>
+            <div className="pt-2 border-t border-border flex justify-end">
+              <Button variant="danger" size="sm" onClick={() => handleDeleteByIds([preview.id])} loading={deleting}>
+                <TrashSimple className="h-4 w-4 mr-1" /> Eliminar correo
+              </Button>
+            </div>
           </div>
         )}
       </Modal>

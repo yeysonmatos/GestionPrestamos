@@ -57,3 +57,27 @@ export async function POST(request: NextRequest) {
   const count = await retryFailed(adminClient, ids?.length ? ids : undefined)
   return NextResponse.json({ ok: true, requeued: count }, supabaseResponse)
 }
+
+export async function DELETE(request: NextRequest) {
+  const guard = await requireAdminApi(request)
+  if (!guard.ok) return guard.response
+
+  const { adminClient, supabaseResponse } = guard
+  const body = await request.json().catch(() => ({})) as { ids?: string[]; status?: string }
+
+  const ids = Array.isArray(body.ids) ? body.ids.filter((x: unknown): x is string => typeof x === 'string') : undefined
+  const status = body.status && ['queued', 'sending', 'sent', 'failed'].includes(body.status) ? body.status : undefined
+
+  if ((!ids || ids.length === 0) && !status) {
+    return NextResponse.json({ error: 'Se requiere ids o status' }, { status: 400, headers: supabaseResponse.headers })
+  }
+
+  let query = adminClient.from('email_messages').delete()
+  if (ids && ids.length) query = query.in('id', ids)
+  else query = query.eq('status', status!)
+
+  const { data, error } = await query.select('id')
+  if (error) return NextResponse.json({ error: error.message }, { status: 500, headers: supabaseResponse.headers })
+
+  return NextResponse.json({ ok: true, deleted: (data || []).length }, supabaseResponse)
+}

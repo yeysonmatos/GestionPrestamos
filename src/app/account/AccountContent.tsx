@@ -281,11 +281,24 @@ export default function AccountContent({ showHeader = true }: { showHeader?: boo
                 </div>
               </div>
 
-              {sub.ends_at && new Date(sub.ends_at).getTime() - Date.now() <= 7 * 24 * 60 * 60 * 1000 && (
-                <Alert variant="warning">
-                  Tu plan vence pronto. Contacta al administrador para renovar tu mensualidad.
-                </Alert>
-              )}
+              {sub.ends_at && (() => {
+                const diff = new Date(sub.ends_at!).getTime() - Date.now()
+                if (diff < 0) {
+                  return (
+                    <Alert variant="danger">
+                      Tu plan venció el {formatDate(sub.ends_at!)}. Contacta al administrador para renovar tu mensualidad.
+                    </Alert>
+                  )
+                }
+                if (diff <= 7 * 24 * 60 * 60 * 1000) {
+                  return (
+                    <Alert variant="warning">
+                      Tu plan vence pronto. Contacta al administrador para renovar tu mensualidad.
+                    </Alert>
+                  )
+                }
+                return null
+              })()}
 
               {sub.plan_price > 0 && (
                 <div className="pt-2">

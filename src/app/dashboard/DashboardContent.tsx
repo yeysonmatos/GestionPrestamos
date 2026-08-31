@@ -70,7 +70,7 @@ export default function DashboardContent({
 
   return (
     <div className="space-y-6">
-      {readOnly && (
+      {readOnly ? (
         <Alert variant="warning" className="flex items-start gap-3 p-4 rounded-xl">
           <div className="w-9 h-9 rounded-lg bg-warning-light flex items-center justify-center shrink-0">
             <Alarm className="h-5 w-5 text-warning" />
@@ -80,13 +80,14 @@ export default function DashboardContent({
               Tu período de prueba venció. Estás en modo lectura
             </p>
             <p className="text-xs text-warning/80 mt-0.5">
-              Puedes ver, pero no crear, editar ni cobrar. Contacta a tu administrador para renovar tu plan.
+              Puedes ver, pero no crear, editar ni cobrar.
             </p>
+            <Link href="/account" className="text-xs font-medium text-warning underline mt-1 inline-block">
+              Ver planes y renovar
+            </Link>
           </div>
         </Alert>
-      )}
-
-      {subscription && subExpired && (
+      ) : subscription && subExpired ? (
         <Alert variant="danger" className="flex items-start gap-3 p-4 rounded-xl">
           <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
             <Alarm className="h-5 w-5 text-destructive" />
@@ -103,9 +104,7 @@ export default function DashboardContent({
             </Link>
           </div>
         </Alert>
-      )}
-
-      {subscription && !subExpired && subExpiringSoon && (
+      ) : subscription && subExpiringSoon ? (
         <Alert variant="warning" className="flex items-start gap-3 p-4 rounded-xl">
           <div className="w-9 h-9 rounded-lg bg-warning-light flex items-center justify-center shrink-0">
             <Alarm className="h-5 w-5 text-warning" />
@@ -117,9 +116,12 @@ export default function DashboardContent({
             <p className="text-xs text-warning/80 mt-0.5">
               Contacta al administrador para renovar tu mensualidad y evitar la suspensión del servicio.
             </p>
+            <Link href="/account" className="text-xs font-medium text-warning underline mt-1 inline-block">
+              Ver planes y renovar
+            </Link>
           </div>
         </Alert>
-      )}
+      ) : null}
 
       <PageHeader title="Dashboard" description="Resumen de tu cartera de préstamos" />
 
