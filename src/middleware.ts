@@ -131,11 +131,10 @@ export async function middleware(request: NextRequest) {
     }
 
     let expired = false
-    let isTrialPlan = false
     try {
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('status, ends_at, plan:plans(price, name)')
+        .select('status, ends_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -143,24 +142,23 @@ export async function middleware(request: NextRequest) {
       if (sub) {
         const ended = sub.ends_at ? new Date(sub.ends_at).getTime() < Date.now() : false
         expired = sub.status === 'expired' || sub.status === 'cancelled' || ended
-        const plan = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan
-        isTrialPlan = Number(plan?.price || 0) === 0
       }
     } catch {
       expired = false
     }
 
-    // Downgrade suave: si el plan vencido es Trial/gratuito, NO bloquear.
-    // El usuario sigue accediendo (modo lectura) y la UI muestra el banner para elegir plan.
-    if (blocked || (expired && !isTrialPlan)) {
+    // Solo un usuario bloqueado por el admin queda sin acceso (/suspended).
+    // Una suscripción vencida (de cualquier plan) NO bloquea: el usuario entra
+    // en modo lectura y la UI muestra el banner para elegir/renovar plan.
+    if (blocked) {
       const url = request.nextUrl.clone()
       url.pathname = '/suspended'
       return NextResponse.redirect(url)
     }
 
-    // Modo lectura para Trial vencido: bloquear rutas de escritura redirigiendo
-    // a su listado/detalle de solo lectura.
-    if (expired && isTrialPlan) {
+    // Modo lectura para suscripción vencida: bloquear rutas de escritura
+    // redirigiendo a su listado/detalle de solo lectura.
+    if (expired) {
       const writeRedirect: Record<string, string> = {
         '/loans/new': '/loans',
         '/clients/new': '/clients',

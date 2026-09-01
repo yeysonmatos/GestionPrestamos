@@ -35,12 +35,10 @@ export async function getUserSubscription(supabase: SupabaseClient, userId: stri
   }
 }
 
-// Un Trial vencido entra en modo lectura: puede leer pero no escribir.
-// Los pagos vencidos/cancelados quedarán bloqueados igual que antes
-// (middleware → /suspended), por eso aquí solo se considera "vencido
-// para modo lectura" si el plan es Trial/gratuito.
+// Cualquier plan vencido/cancelado (Trial, Básico o Pro) entra en modo lectura:
+// puede leer pero no escribir. Las escrituras se bloquean en el API guard
+// (requireActiveSubscriptionApi) y en el middleware para las rutas de escritura.
 export function isExpiredForReadOnly(sub: SubscriptionSnapshot): boolean {
-  if (!sub.isTrial) return false
   if (sub.status === 'expired' || sub.status === 'cancelled') return true
   if (sub.ends_at) {
     const ended = new Date(sub.ends_at).getTime() < Date.now()
