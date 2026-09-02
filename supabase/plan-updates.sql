@@ -1,3 +1,6 @@
+-- AVISO: los precios (899/1499) siguen vigentes, pero el trial de 30 días
+-- de la función handle_new_user quedó REVERTIDO a 14 días por trial-14-days.sql
+-- (decisión 01/09/2026).
 -- Precios: Básico 899, Pro 1499 (RD$)
 UPDATE plans SET price = 899 WHERE name = 'Básico';
 UPDATE plans SET price = 1499 WHERE name = 'Pro';

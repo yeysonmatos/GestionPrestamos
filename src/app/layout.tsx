@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 
 const PwaRegister = dynamic(() => import('@/components/PwaRegister'))
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className="min-h-screen antialiased">
         <PwaRegister />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   )

@@ -8,7 +8,7 @@ import Badge from '@/components/ui/Badge'
 import { Alert } from '@/components/ui/Alert'
 import PageHeader from '@/components/ui/PageHeader'
 import { Avatar } from '@/components/ui/Avatar'
-import { formatCurrency, formatNumber, formatDate, buildMonthlySeries } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatDate, buildMonthlySeries, getLocalDate, daysBetweenDateStrings } from '@/lib/utils'
 import Link from 'next/link'
 import {
   Wallet, PiggyBank, CurrencyDollar, TrendUp, Users, Warning,
@@ -65,8 +65,9 @@ export default function DashboardContent({
   }, [chartPayments, loans])
 
   const subEndsAt = subscription?.ends_at ? new Date(subscription.ends_at).getTime() : null
-  const subExpiringSoon = !!subEndsAt && subEndsAt - Date.now() <= 7 * 24 * 60 * 60 * 1000
   const subExpired = !!subEndsAt && subEndsAt <= Date.now()
+  const subDaysLeft = subscription?.ends_at ? Math.max(0, daysBetweenDateStrings(getLocalDate(), subscription.ends_at.slice(0, 10))) : 0
+  const subExpiringSoon = !!subEndsAt && !subExpired && subDaysLeft <= 3
 
   return (
     <div className="space-y-6">
@@ -111,7 +112,7 @@ export default function DashboardContent({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-warning">
-              Tu plan {subscription.plan?.name || ''} vence el {formatDate(subscription.ends_at!)}
+              Tu plan {subscription.plan?.name || ''} vence en {subDaysLeft === 0 ? 'hoy' : `${subDaysLeft} día${subDaysLeft === 1 ? '' : 's'}`} ({formatDate(subscription.ends_at!)})
             </p>
             <p className="text-xs text-warning/80 mt-0.5">
               Contacta al administrador para renovar tu mensualidad y evitar la suspensión del servicio.

@@ -29,7 +29,7 @@ export const TEMPLATE_KEYS: TemplateKey[] = [
 ]
 
 function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL || 'https://gestion-prestamos-one.vercel.app'
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://gestordeprestamos.do'
 }
 
 function link(link: string, label: string): string {

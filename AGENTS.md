@@ -62,7 +62,7 @@ App profesional de control de préstamos (Next.js + Supabase) con dos modelos de
 - [x] UI responsiva iPhone 12 Mini: touch targets 44px (min-h-11), `min-w-0` en inputs date, grids stacked en mobile
 - [x] Formato moneda: `formatNumber`/`formatCurrency` sin decimales → `1,234,567` (sin $ en cards, con $ en formularios)
 - [x] NewLoanForm: grids responsive (stacked en mobile, 2 col tablet, 3-4 col desktop)
-- [x] Deploy: Vercel + Supabase Cloud (snwwvvmszizarakrozah.supabase.co), URL estable `gestion-prestamos-one.vercel.app` (proyecto Vercel `gestion-prestamos`)
+- [x] Deploy: Vercel + Supabase Cloud (snwwvvmszizarakrozah.supabase.co), dominio propio `gestordeprestamos.do` (configuración válida en Vercel), URL estable `.vercel.app` = `gestor-prestamos-one.vercel.app` (proyecto Vercel `gestor-prestamos`; el alias viejo `gestion-prestamos-one.vercel.app` quedó como backup)
 
 ### Pendiente
 - Nada por ahora
@@ -668,3 +668,33 @@ Inventario completo de los puntos auditados: Dashboard (8 tarjetas vía `get_loa
 ### Deploy (17 Ago 2026)
 - [x] Commits `d16e282` (feature + limpieza) y `0703285` (limpieza raíz) pusheados a `main`.
 - [x] **Producción** `gestion-prestamos-one.vercel.app` (deployment `gestion-prestamos-nvk5zre4b`, HTTP 200) y **staging** `staging-gestion-prestamos.vercel.app` (preview `gestion-prestamos-aw32fjo2j`, HTTP 200).
+
+## Hoy — 01 Set 2026
+
+### DNS propio conectado a Vercel (`gestordeprestamos.do`)
+- [x] **Dominio validado**: `gestordeprestamos.do` + `www.gestordeprestamos.do` → "Configuración válida · Producción" en Vercel. La delegación terminó en `ns1-2.vercel-dns.com` y la **zona DNS de Vercel quedó activa y autoritativa** (responde `ns4.vercel-dns.com`). Naturaleza: la delegación a Vercel (del 31 Ago) quedó a medias → SERVFAIL público; se intentó revertir a midominio pero el TLD propagó a Vercel y se activó su zona. Los registros del dnsbox de midominio quedaron inertes (no re-guardar NS ahí).
+- [x] Apex y www resuelven Status 0 en resolvers públicos (Google/Cloudflare) → `216.198.79.65 / 64.29.17.x`; HTTPS 200 Server Vercel en ambos.
+
+### Retención (trial 14 días + recordatorios ≤3 días)
+- [x] **Trial de vuelta a 14 días**: `supabase/trial-14-days.sql` + `scripts/exec-trial-14-days.mjs` (aplicado en BD, verificado en `pg_proc`: `handle_new_user` usa `INTERVAL '14 days'`). El 30 Ago `plan-updates.sql` lo había subido a 30 días pero el texto del plan siempre decía 14 → se revierte. Las suscripciones ya otorgadas (ej. Bessi) conservan su vencimiento.
+- [x] **Recordatorio de renovación a ≤3 días** (antes 7 días): `DashboardContent.tsx` calcula `subDaysLeft` con `daysBetweenDateStrings(getLocalDate(), ends_at.slice(0,10))`, bandera `subExpiringSoon = !subExpired && subDaysLeft <= 3`, banner con "vence en N día(s) (fecha)" o "hoy".
+- [x] **AdminOverview.tsx**: helper `expiringLabel(endsAt)` → "venció {fecha}" o "vence en N día(s) ({fecha})" en la fila de usuario del panel de admin.
+- [x] `supabase/plan-updates.sql`: header de AVISO (precios 899/1499 vigentes, trial revertido a 14 días por decisión 01/09/2026).
+
+### Rebrand de alias `.vercel.app` (gestor-prestamos)
+- [x] Decisión del usuario: la URL estable debe ser **`gestor-prestamos-one.vercel.app`** (coincide con "Gestor de Prestamos"). Re-apuntado al deployment de producción real (`gestion-prestamos-5u2gmtnh4-…`).
+- [x] `gestion-prestamos-one.vercel.app` restaurado como **backup** (misma app) para que enlaces viejos de correos/documentos sigan funcionando.
+- [x] Eliminado el deployment del template `vercel/install-vercel-speed-insights` ("Login - Vercel") que el usuario había creado al instalar Speed Insights; su alias y el dominio `gestor-prestamos-one.vercel.app` quedaron limpios.
+- [x] **Desactivada la SSO / Deployment Protection** del proyecto (`ssoProtection` → `all_except_custom_domains`, bloqueaba todos los `.vercel.app` con login de Vercel y dejaba solo los dominios custom públicos). Al desactivarla (`PATCH /v9/projects/{id}` con `ssoProtection: null`), los `.vercel.app` volvieron a servir la app público.
+
+### Supabase Auth (enlaces de recuperación)
+- [x] `site_url` → `https://gestordeprestamos.do` (antes `gestion-prestamos-one.vercel.app`).
+- [x] `uri_allow_list` ampliado: `.do` (apex+www) + `gestor-prestamos-one.vercel.app` (y backups `gestion-prestamos-one`/staging) con rutas `/auth/reset-password` y `/auth/callback`. El login usa `window.location.origin`, así el enlace cae en el host del usuario.
+
+### Código
+- [x] `src/lib/notify/templates.ts:32`: fallback de `appUrl()` → `https://gestordeprestamos.do` (antes la URL vieja, muerta).
+
+### Vercel Speed Insights (medición de rendimiento real)
+- [x] **`@vercel/speed-insights` v2** instalado y `<SpeedInsights />` montado en `src/app/layout.tsx` (al final del `<body>`). Se mide en **todos** los dominios que sirven esa build (`.do` apex/www + `.vercel.app`).
+- [x] El script se inyecta **en runtime** (`document.head.appendChild`), no en el HTML estático — normal, para medir visitas reales.
+- [x] Desplegado a producción (`vercel --prod` → deployment `gestor-prestamos-99781fkzz`). `gestor-prestamos-one.vercel.app` re-alineado a este deployment; `gestion-prestamos-one.vercel.app` quedó en el anterior (backup). Verificado: tsc OK, build OK, lint sin errores nuevos.

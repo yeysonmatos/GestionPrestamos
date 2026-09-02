@@ -6,11 +6,17 @@ import StatCard from '@/components/ui/StatCard'
 import { Alert } from '@/components/ui/Alert'
 import { Card } from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
-import { formatNumber, formatDateShort } from '@/lib/utils'
+import { formatNumber, formatDateShort, getLocalDate, daysBetweenDateStrings } from '@/lib/utils'
 import { Users, Wallet, Alarm, HandCoins, BuildingOffice, ShieldCheck, TrendUp, MinusCircle, ArrowUpRight } from '@phosphor-icons/react'
 
 const AdminRevenueChart = dynamic(() => import('./AdminRevenueChart'), { ssr: false })
 const AdminUsersPieChart = dynamic(() => import('./AdminUsersPieChart'), { ssr: false })
+
+function expiringLabel(endsAt: string | null): string {
+  if (!endsAt) return '—'
+  const days = daysBetweenDateStrings(getLocalDate(), endsAt.slice(0, 10))
+  return days <= 0 ? `venció ${formatDateShort(endsAt)}` : `vence en ${days} día${days === 1 ? '' : 's'} (${formatDateShort(endsAt)})`
+}
 
 interface UserData {
   id: string
@@ -139,7 +145,7 @@ export default function AdminOverview() {
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-sm text-foreground truncate">{u.email}</p>
-                      <p className="text-xs text-muted-foreground">{u.subscription?.plan_name} · vence {u.subscription?.ends_at ? formatDateShort(u.subscription.ends_at) : '—'}</p>
+                      <p className="text-xs text-muted-foreground">{u.subscription?.plan_name} · {expiringLabel(u.subscription?.ends_at ?? null)}</p>
                     </div>
                   </div>
                 </div>
